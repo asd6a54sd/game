@@ -13,8 +13,10 @@ import { Inventory } from './core/inventory.js';
 import { TOOLS } from './core/tools.js';
 import { WorkbenchUI } from './core/workbench.js';
 import { Enemy, updateEnemy, hitEnemy, trySpawnEnemy } from './core/enemies.js';
+import { createEnemy } from './core/enemies.js';
 import { ShellManager, SHELLS } from './core/shells.js';
 import { VoidEngine } from './core/voiding.js';
+import { createBoss, updateBoss, updateProjectiles, hitBoss, findNearestVoidBarrier, Boss, BossProjectile, bossHalfW, bossHalfH } from './core/bosses.js';
 
 // ========== DOM ==========
 const loading = document.getElementById('loading')!;
@@ -60,6 +62,11 @@ const enemies: Enemy[] = [];
 let spawnTimer = 0;
 let playerInvulnerable = 0;
 let playerKnockback = { vx: 0, vy: 0 };
+
+// Boss 系统
+const bosses: Boss[] = [];
+const bossProjectiles: BossProjectile[] = [];
+let bossSpawnCooldown = 0;
 
 // 输入
 const input = { left: false, right: false, jump: false, brake: false };
@@ -157,6 +164,9 @@ function bindInput() {
         if (e.shiftKey) shellMgr.prev();
         else shellMgr.next();
         applyShellToPlayer(true);
+        break;
+      case 'KeyR':
+        trySummonBoss();
         break;
     }
   });
@@ -308,6 +318,9 @@ function update(dt: number) {
   voidEngine.updatePurifyTorches(terrain.tiles);
   voidEngine.update(dt, renderer.timeOfDay, terrain.tiles, setBlock);
 
+  // ========== Boss 系统 ==========
+  updateBossesSystem(dt);
+
   // ========== 敌人系统 ==========
   updateEnemiesSystem(dt, effectivePower);
 
@@ -424,6 +437,8 @@ function render() {
   }
 
   renderer.drawEnemies(enemies, cam);
+  renderer.drawBossProjectiles(bossProjectiles, cam);
+  for (const b of bosses) renderer.drawBoss(b, cam);
   renderer.drawVoidParticles(cam, voidEngine);
   renderer.drawPlayer(player, cam, shellMgr.current, shellMgr.alpha);
   renderer.drawHotbar(inv);
@@ -483,4 +498,113 @@ function formatTime(t: number): string {
   const h = Math.floor(t * 24);
   const m = Math.floor((t * 24 - h) * 60);
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+}
+
+// ========== Boss 召唤 ==========
+function trySummonBoss() {
+  if (bosses.length > 0) return; // 已有 Boss 在战斗
+  if (bossSpawnCooldown > 0) return;
+  const cost = inv.count('dark_filament');
+  if (cost < 3) {
+    // 提示：需要 3 暗能丝（先不给真正 UI，用 console）
+    console.warn('[Boss] 需要 3 个暗能丝 (dark_filament)');
+    return;
+  }
+  const spot = findNearestVoidBarrier(terrain.tiles, player.x, player.y);
+  if (!spot) {
+    console.warn('[Boss] 附近没有暗能量结界（void_barrier）');
+    return;
+  }
+  const dist2 = (spot.x - player.x) ** 2 + (spot.y - player.y) ** 2;
+  if (dist2 > (15 * TILE_SIZE) ** 2) {
+    console.warn('[Boss] 太远了，靠近地底幽谷的暗能量结界');
+    return;
+  }
+  // 扣材料
+  inv.consume('dark_filament', 3);
+  // 在 void_barrier 位置召唤 Boss
+  const boss = createBoss('void_assimilator', spot.x, spot.y - 30);
+  bosses.push(boss);
+  bossSpawnCooldown = 30; // 30s 冷却
+  console.log('[Boss] ☠ 黑雾同化体 已降临！');
+}
+
+// ========== Boss 更新 ==========
+function updateBossesSystem(dt: number) {
+  if (bossSpawnCooldown > 0) bossSpawnCooldown -= dt;
+
+  // Boss AI
+  for (const boss of bosses) {
+    if (boss.isDead) continue;
+    const projs = updateBoss(boss, {
+      dt,
+      player: { x: player.x, y: player.y, width: player.width, height: player.height, onGround: player.onGround },
+      isSolid: getTileSolid,
+      spawnEnemy: (type, x, y) => { enemies.push(createEnemy(type, x, y)); },
+      onHitPlayer: (damage) => {
+        if (playerInvulnerable > 0) return;
+        player.hp = Math.max(0, player.hp - damage);
+        shellMgr.currentState.hp = player.hp;
+        playerInvulnerable = 0.6;
+        if (player.hp <= 0) respawnPlayer();
+      },
+    });
+    bossProjectiles.push(...projs);
+
+    // 玩家反击（剑砍命中 Boss）
+    if (isPlayerSwingingWeapon()) {
+      const attackX = player.x + player.facing * (player.width / 2 + 32);
+      const attackY = player.y;
+      if (Math.abs(attackX - boss.x) < bossHalfW(boss) + 10 &&
+          Math.abs(attackY - boss.y) < bossHalfH(boss) + 10) {
+        const died = hitBoss(boss, TOOLS[px.toolName].damage + shellMgr.current.damage * 0.5, 80, player.facing as 1 | -1);
+        if (died) {
+          // 击败掉落
+          breakState.drops.push({ x: boss.x, y: boss.y, vx: 0, vy: -100, blockId: 'dark_seed', life: 60 });
+          breakState.drops.push({ x: boss.x + 20, y: boss.y, vx: 50, vy: -80, blockId: 'dark_seed', life: 60 });
+          breakState.drops.push({ x: boss.x - 20, y: boss.y, vx: -50, vy: -80, blockId: 'dark_filament', life: 60 });
+          // 净化：把附近的 void_barrier 变成 ore_rock
+          purifyNearbyVoidBarrier(boss.x, boss.y);
+          console.log('[Boss] ✅ 黑雾同化体 已被净化！');
+        }
+      }
+    }
+  }
+
+  // 清理死亡 Boss
+  for (let i = bosses.length - 1; i >= 0; i--) {
+    if (bosses[i].isDead && bosses[i].deathProgress >= 1) bosses.splice(i, 1);
+  }
+
+  // 弹幕更新
+  bossProjectiles.splice(0, bossProjectiles.length, ...updateProjectiles(bossProjectiles, dt, player, (dmg) => {
+    if (playerInvulnerable > 0) return;
+    player.hp = Math.max(0, player.hp - dmg);
+    shellMgr.currentState.hp = player.hp;
+    playerInvulnerable = 0.4;
+    if (player.hp <= 0) respawnPlayer();
+  }));
+}
+
+function purifyNearbyVoidBarrier(bx: number, by: number) {
+  const blockIds = ['empty', 'wreck_scrap', 'wreck_hull', 'ember_ash', 'fire_crack',
+    'wind_rock', 'cracked_ground', 'surface_dust', 'desert_ground',
+    'ore_rock', 'ore_copper', 'ore_iron', 'ore_gold',
+    'deep_rock', 'crystal_glow', 'void_crystal',
+    'liquid_metal', 'metal_float',
+    'chitin_hive', 'bio_glow',
+    'rebel_brick', 'void_barrier',
+    'dark_seed', 'dark_filament', 'purify_torch'];
+  const vbIdx = blockIds.indexOf('void_barrier');
+  const tx = Math.floor(bx / TILE_SIZE), ty = Math.floor(by / TILE_SIZE);
+  for (let dx = -8; dx <= 8; dx++) {
+    for (let dy = -8; dy <= 8; dy++) {
+      const x = tx + dx, y = ty + dy;
+      if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) continue;
+      if ((dx * dx + dy * dy) > 64) continue;
+      if (terrain.tiles[y * MAP_WIDTH + x] === vbIdx) {
+        setBlock(x, y, 'ore_rock');
+      }
+    }
+  }
 }

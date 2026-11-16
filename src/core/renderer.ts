@@ -16,6 +16,7 @@ import { ShellDef, SHELL_COLORS } from './shells.js';
 import { Enemy, enemySpriteColors, enemyHalfW, enemyHalfH } from './enemies.js';
 import { VoidEngine } from './voiding.js';
 import { TILE_SIZE as TS, MAP_WIDTH as MW, MAP_HEIGHT as MH } from './terrain.js';
+import { Boss, BossProjectile, bossHalfW, bossHalfH } from './bosses.js';
 
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
@@ -465,6 +466,105 @@ export class Renderer {
           ctx.fillRect(px + Math.floor(Math.random() * TS), py + Math.floor(Math.random() * TS), 1, 1);
         }
       }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  drawBoss(boss: Boss, cam: Camera) {
+    const ctx = this.ctx;
+    const isDead = boss.isDead;
+    const alpha = isDead ? Math.max(0, 1 - boss.deathProgress) : 1;
+    ctx.globalAlpha = alpha;
+    const bpx = Math.floor(boss.x - cam.x - bossHalfW(boss));
+    const bpy = Math.floor(boss.y - cam.y - bossHalfH(boss));
+
+    // 受伤闪烁
+    if (boss.hurtCooldown > 0 && Math.floor(boss.hurtCooldown * 20) % 2 === 0) {
+      ctx.globalAlpha = alpha * 0.6;
+    }
+
+    // Phase 颜色变化
+    let bodyColor = '#5a1088', darkColor = '#2a0555', eyeColor = '#ff40c0';
+    if (boss.phase === 'phase2') { bodyColor = '#8020a0'; darkColor = '#400565'; eyeColor = '#ff60d0'; }
+    if (boss.phase === 'phase3') { bodyColor = '#c040e0'; darkColor = '#600590'; eyeColor = '#ff80ff'; }
+
+    // Boss 主体（矩形身体 + 触手）
+    const w = boss.def.width, h = boss.def.height;
+    // 主体（梯形上宽下窄）
+    ctx.fillStyle = bodyColor;
+    this.roundRect(ctx, bpx + 4, bpy + 10, w - 8, h - 18, 6); ctx.fill();
+    // 头部
+    ctx.fillStyle = darkColor;
+    this.roundRect(ctx, bpx + 6, bpy + 4, w - 12, 14, 4); ctx.fill();
+    // 双眼
+    ctx.fillStyle = eyeColor;
+    ctx.fillRect(bpx + 14 + boss.facing * 2, bpy + 8, 4, 4);
+    ctx.fillRect(bpx + w - 18 + boss.facing * 2, bpy + 8, 4, 4);
+    // 身体暗纹
+    ctx.fillStyle = darkColor;
+    ctx.fillRect(bpx + w / 2 - 8, bpy + 18, 16, 3);
+    ctx.fillRect(bpx + w / 2 - 5, bpy + 24, 10, 2);
+    // 触手（底部 4 根）
+    const tentacleWobble = Math.sin(Date.now() * 0.006) * 3;
+    for (let i = 0; i < 4; i++) {
+      const tx = bpx + 6 + i * 10;
+      const ty = bpy + h - 8;
+      ctx.fillStyle = bodyColor;
+      ctx.fillRect(tx, ty, 5, 8 + tentacleWobble + Math.sin(Date.now() * 0.008 + i) * 2);
+    }
+    // 发光光环（phase3 更强）
+    if (!isDead) {
+      ctx.globalAlpha = alpha * (boss.phase === 'phase3' ? 0.35 : boss.phase === 'phase2' ? 0.2 : 0.12);
+      const glow = ctx.createRadialGradient(boss.x - cam.x, boss.y - cam.y, 10, boss.x - cam.x, boss.y - cam.y, 60);
+      glow.addColorStop(0, boss.phase === 'phase3' ? 'rgba(255, 80, 255, 0.5)' : 'rgba(180, 60, 220, 0.4)');
+      glow.addColorStop(1, 'rgba(60, 10, 80, 0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(boss.x - cam.x, boss.y - cam.y, 60, 0, Math.PI * 2); ctx.fill();
+    }
+
+    ctx.globalAlpha = 1;
+
+    // Boss HP bar（屏幕顶部中央）
+    const barW = Math.min(400, this.canvas.width - 100);
+    const barH = 14;
+    const barX = (this.canvas.width - barW) / 2;
+    const barY = 60;
+    ctx.fillStyle = '#0a0010';
+    ctx.fillRect(barX, barY, barW, barH);
+    ctx.strokeStyle = '#a040c0'; ctx.lineWidth = 1;
+    ctx.strokeRect(barX + 0.5, barY + 0.5, barW - 1, barH - 1);
+    const frac = boss.hp / boss.def.hp;
+    const hpGrad = ctx.createLinearGradient(barX, barY, barX + barW, barY);
+    hpGrad.addColorStop(0, '#8020a0');
+    hpGrad.addColorStop(1, '#ff40c0');
+    ctx.fillStyle = hpGrad;
+    ctx.fillRect(barX + 2, barY + 2, (barW - 4) * frac, barH - 4);
+
+    // Boss 名
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 13px monospace';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    ctx.fillText(boss.def.name, this.canvas.width / 2, barY - 2);
+
+    // 阶段标记
+    const phaseText = boss.phase === 'phase1' ? 'Phase 1 · 追击' : boss.phase === 'phase2' ? 'Phase 2 · 召唤' : 'Phase 3 · 狂暴';
+    ctx.fillStyle = frac < 0.33 ? '#ff40c0' : frac < 0.66 ? '#e89430' : '#7ad4e8';
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText(phaseText, this.canvas.width / 2, barY + barH + 12);
+  }
+
+  drawBossProjectiles(projs: BossProjectile[], cam: Camera) {
+    const ctx = this.ctx;
+    for (const p of projs) {
+      const px = Math.floor(p.x - cam.x);
+      const py = Math.floor(p.y - cam.y);
+      // 发光效果
+      ctx.globalAlpha = 0.6;
+      ctx.fillStyle = p.color;
+      ctx.beginPath(); ctx.arc(px, py, p.size + 2, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(px, py, p.size - 2, 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;
   }

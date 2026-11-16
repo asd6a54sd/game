@@ -93,4 +93,19 @@ export class Inventory {
     }
     return c;
   }
+
+  /** 从任意位置消耗指定 blockId 的物品（返回是否成功扣了 count） */
+  consume(blockId: string, count = 1): number {
+    let remaining = count;
+    for (const s of [...this.hotbar, ...this.slots]) {
+      if (remaining <= 0) break;
+      if (s.blockId === blockId && s.count > 0) {
+        const take = Math.min(s.count, remaining);
+        s.count -= take;
+        remaining -= take;
+        if (s.count === 0) s.blockId = '';
+      }
+    }
+    return count - remaining;
+  }
 }
