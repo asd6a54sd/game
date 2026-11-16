@@ -92,12 +92,20 @@ export function biToBlock(idx: number): string {
   return BLOCK_ID_LIST[idx] ?? 'empty';
 }
 
+export interface RegionStructure {
+  kind: 'hut' | 'camp' | 'crystal_altar';
+  x: number; y: number; // 结构左上角 tile 坐标
+  width: number; height: number;
+  region: RegionId;
+}
+
 export interface TerrainData {
   width: number;
   height: number;
   tiles: Uint8Array;
   regionMap: Uint8Array;
   heightMap: Uint8Array;
+  structures: RegionStructure[];
 }
 
 export function generateTerrain(seed = 20261116): TerrainData {
@@ -162,8 +170,9 @@ export function generateTerrain(seed = 20261116): TerrainData {
   }
 
   carveStructures(tiles, heightMap, rng);
+  const structures = buildStructures(tiles, heightMap, rng);
 
-  return { width, height, tiles, regionMap, heightMap };
+  return { width, height, tiles, regionMap, heightMap, structures };
 }
 
 function regionIdxAt(x: number): number {
@@ -300,4 +309,115 @@ function carveStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
 
 export function regionNameAt(col: number): string {
   return REGIONS[regionIdxAt(col)].name;
+}
+
+/**
+ * 区块内结构生成：每个区块 1 个 NPC 小屋 / 据点
+ * 小屋 = 4×3 内部空间 + rebel_brick 墙
+ */
+function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => number): RegionStructure[] {
+  const structures: RegionStructure[] = [];
+  const wallId = bi('rebel_brick');
+
+  // 在 6 个区块各放一个结构（避开 underground_valley 的暗能量紫柱区）
+  const hutPositions: { regionCol: [number, number]; kind: RegionStructure['kind']; name: RegionId }[] = [
+    { regionCol: [30, 50],  kind: 'hut', name: 'wreck_zone' },
+    { regionCol: [80, 100], kind: 'hut', name: 'crack_waste' },
+    { regionCol: [140, 160], kind: 'hut', name: 'gobi_mine' },
+    { regionCol: [200, 220], kind: 'camp', name: 'silent_sea' },
+    { regionCol: [260, 280], kind: 'hut', name: 'beast_hive' },
+    { regionCol: [305, 320], kind: 'camp', name: 'underground_valley' },
+  ];
+
+  for (const hp of hutPositions) {
+    // 选一个区块内的 col
+    const col = hp.regionCol[0] + Math.floor(rng() * (hp.regionCol[1] - hp.regionCol[0]));
+    const groundY = heightMap[col];
+    const hutW = hp.kind === 'camp' ? 7 : 5;
+    const hutH = hp.kind === 'camp' ? 4 : 3;
+    const hutX = col - Math.floor(hutW / 2);
+    const hutY = groundY - hutH;
+
+    // 确保 hutX 范围合法
+    if (hutX < 2 || hutX + hutW >= MAP_WIDTH - 2) continue;
+
+    // 清出内部空间
+    for (let dx = 0; dx < hutW; dx++) {
+      for (let dy = 0; dy < hutH; dy++) {
+        const tx = hutX + dx, ty = hutY + dy;
+        if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) continue;
+        tiles[ty * MAP_WIDTH + tx] = bi('empty');
+      }
+    }
+    // 墙（四周）
+    for (let dx = 0; dx < hutW; dx++) {
+      // 顶
+      if (hutY - 1 >= 0) tiles[(hutY - 1) * MAP_WIDTH + (hutX + dx)] = wallId;
+      // 两侧墙
+      for (let dy = 0; dy < hutH; dy++) {
+        if (hutX - 1 >= 0) tiles[(hutY + dy) * MAP_WIDTH + (hutX - 1)] = wallId;
+        if (hutX + hutW < MAP_WIDTH) tiles[(hutY + dy) * MAP_WIDTH + (hutX + hutW)] = wallId;
+      }
+    }
+    // 门（中间留空）
+    const doorX = hutX + Math.floor(hutW / 2);
+    if (doorX >= 0 && doorX < MAP_WIDTH) {
+      for (let dy = hutH - 2; dy < hutH; dy++) {
+        const ty = hutY + dy;
+        if (ty >= 0 && ty < MAP_HEIGHT) tiles[ty * MAP_WIDTH + doorX] = bi('empty');
+      }
+    }
+    // 地板（确保是 rebel_brick）
+    for (let dx = 0; dx < hutW; dx++) {
+      const tx = hutX + dx;
+      const ty = groundY;
+      if (tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
+        if (tiles[ty * MAP_WIDTH + tx] !== bi('void_barrier')) {
+          tiles[ty * MAP_WIDTH + tx] = wallId;
+        }
+      }
+    }
+
+    structures.push({
+      kind: hp.kind,
+      x: hutX, y: hutY,
+      width: hutW, height: hutH,
+      region: hp.name,
+    });
+  }
+
+  // deep crystal altar（第二个 Boss 位置）
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const cx = 310 + Math.floor(rng() * 40);
+    const cy = 130 + Math.floor(rng() * 30);
+    if (cx < 0 || cx >= MAP_WIDTH || cy < 0 || cy >= MAP_HEIGHT) continue;
+    // 清出空间
+    for (let dx = -3; dx <= 3; dx++) {
+      for (let dy = -3; dy <= 3; dy++) {
+        if (dx * dx + dy * dy > 9) continue;
+        const tx = cx + dx, ty = cy + dy;
+        if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) continue;
+        if (tiles[ty * MAP_WIDTH + tx] !== bi('void_barrier')) {
+          tiles[ty * MAP_WIDTH + tx] = bi('empty');
+        }
+      }
+    }
+    // 周围放 8 个 void_crystal 作为祭坛装饰
+    for (let i = 0; i < 8; i++) {
+      const angle = (i / 8) * Math.PI * 2;
+      const tx = cx + Math.round(Math.cos(angle) * 4);
+      const ty = cy + Math.round(Math.sin(angle) * 4);
+      if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) continue;
+      tiles[ty * MAP_WIDTH + tx] = bi('void_crystal');
+    }
+    structures.push({
+      kind: 'crystal_altar',
+      x: cx - 3, y: cy - 3,
+      width: 7, height: 7,
+      region: 'underground_valley',
+    });
+    break;
+  }
+
+  return structures;
 }

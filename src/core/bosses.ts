@@ -31,6 +31,14 @@ export const BOSS_DEFS: Record<string, BossDef> = {
     hp: 300, speed: 60, damage: 12,
     desc: '从暗能量结界中诞生的终极虚空生物',
   },
+  crystal_warden: {
+    id: 'crystal_warden',
+    name: '幽紫晶体守卫',
+    paletteId: 'void01',
+    width: 40, height: 64,
+    hp: 220, speed: 80, damage: 10,
+    desc: '守护地底祭坛的远古晶体构造',
+  },
 };
 
 export interface BossProjectile {

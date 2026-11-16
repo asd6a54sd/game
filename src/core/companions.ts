@@ -41,6 +41,27 @@ export const COMPANION_DEFS: Record<string, CompanionDef> = {
     recruitCost: { blockId: 'ore_gold', count: 3 },
     desc: '携带余金晶体，可远程射击',
   },
+  bone_scout: {
+    id: 'bone_scout', name: '骸兵·骸', palette: 'bone',
+    weapon: 'melee', hp: 45, speed: 180, damage: 8,
+    attackRange: 28, attackCooldown: 0.7,
+    recruitCost: { blockId: 'chitin_hive', count: 3 },
+    desc: '异兽巢穴逃兵，速度极快',
+  },
+  rust_archer: {
+    id: 'rust_archer', name: '锈弓·烙', palette: 'rust',
+    weapon: 'ranged', hp: 40, speed: 150, damage: 9,
+    attackRange: 200, attackCooldown: 1.2,
+    recruitCost: { blockId: 'wreck_scrap', count: 10 },
+    desc: '残骸带弓手，距离越远伤害越高',
+  },
+  cold_engineer: {
+    id: 'cold_engineer', name: '冷工·械', palette: 'iron',
+    weapon: 'melee', hp: 55, speed: 130, damage: 12,
+    attackRange: 28, attackCooldown: 1.0,
+    recruitCost: { blockId: 'ore_iron', count: 8 },
+    desc: '无声海工程师，装备改装动力拳',
+  },
 };
 
 export interface Companion {
