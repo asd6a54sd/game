@@ -26,6 +26,7 @@ import { ShopItem } from './npcs.js';
 import { TrialManager } from './trial.js';
 import { ActiveBuff } from './potions.js';
 import { MOUNT_DEFS } from './mounts.js';
+import { PET_DEFS, Pet } from './pets.js';
 
 
 export class Renderer {
@@ -273,6 +274,42 @@ export class Renderer {
     ctx.fillRect(fx - 2, fy - 3, 4, 5);
     ctx.fillStyle = '#c04040';
     ctx.fillRect(fx - 1, fy - 1, 2, 2);
+  }
+
+  // M25: 宠物渲染 — 色块 + 光源光晕
+  drawPet(pet: Pet, cam: Camera) {
+    const def = PET_DEFS[pet.defId];
+    if (!def) return;
+    const ctx = this.ctx;
+    const px = Math.floor(pet.x - cam.x);
+    const py = Math.floor(pet.y - cam.y);
+    const s = def.size;
+
+    // 光源光晕（光源宠物）
+    if (def.type === 'light' && def.lightRadius && def.lightColor) {
+      const grad = ctx.createRadialGradient(px, py, 2, px, py, def.lightRadius);
+      grad.addColorStop(0, def.lightColor);
+      grad.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(px, py, def.lightRadius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // 宠物身体（圆角方块）
+    const color = PALETTE_MAP.get(def.paletteId) ?? '#888';
+    ctx.fillStyle = color;
+    ctx.fillRect(px - s / 2, py - s / 2, s, s);
+    // 眼睛
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(px - s / 2 + 1, py - s / 2 + 2, 2, 2);
+    ctx.fillRect(px + s / 2 - 3, py - s / 2 + 2, 2, 2);
+    // 战斗召唤物 — 小翅膀
+    if (def.type === 'combat') {
+      ctx.fillStyle = 'rgba(180,100,255,0.8)';
+      ctx.fillRect(px - s / 2 - 3, py - 2, 3, 4);
+      ctx.fillRect(px + s / 2, py - 2, 3, 4);
+    }
   }
 
   drawPlayer(p: Player, cam: Camera, shell?: ShellDef, alpha = 1) {

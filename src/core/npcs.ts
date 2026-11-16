@@ -42,6 +42,8 @@ export const SELL_PRICES: Record<string, number> = {
   glow_worm_fish: 8, shadow_eel: 12,
   liquid_metal_fish: 30, void_koi: 50,
   old_chest: 15,
+  // M25: 宠物召唤物
+  ember_sprite_summon: 25, glow_wisp_summon: 30, void_whelp_summon: 80,
 };
 
 /** 商人商品列表（玩家可购买）*/

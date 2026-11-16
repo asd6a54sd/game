@@ -28,6 +28,7 @@ import { TrialManager, TRIAL_DEFS } from './core/trial.js';
 import { POTION_DEFS, aggregateBuffs } from './core/potions.js';
 import { MOUNT_DEFS } from './core/mounts.js';
 import { rollCatch, rollChestLoot, FISH_DEFS } from './core/fishing.js';
+import { PET_DEFS, Pet, createPet, updatePet } from './core/pets.js';
 
 // ========== DOM ==========
 const loading = document.getElementById('loading')!;
@@ -346,6 +347,34 @@ const fishing: FishingState = {
 let fishingMsg = '';
 let fishingMsgTimer = 0;
 
+// M25: 宠物系统
+let activePet: Pet | null = null;
+// 召唤物品 → 宠物 id 映射
+const petSummonMap: Record<string, string> = {
+  ember_sprite_summon: 'ember_sprite',
+  glow_wisp_summon: 'glow_wisp',
+  void_whelp_summon: 'void_whelp',
+};
+
+// M25: 召唤/收回宠物
+function togglePet() {
+  if (activePet) {
+    // 收回
+    activePet = null;
+    fishingMsg = '宠物已收回';
+    fishingMsgTimer = 1.5;
+    return;
+  }
+  const sel = inv.getSelected();
+  if (!sel.blockId) { fishingMsg = '需要选中宠物召唤物'; fishingMsgTimer = 2; return; }
+  const petId = petSummonMap[sel.blockId];
+  if (!petId) { fishingMsg = '需要选中宠物召唤物'; fishingMsgTimer = 2; return; }
+  activePet = createPet(petId, player.x, player.y - 40);
+  fishingMsg = `召唤了 ${PET_DEFS[petId].name}！`;
+  fishingMsgTimer = 2;
+  sfx.pickup();
+}
+
 // M24: 钓鱼 — 检测玩家附近是否有液态方块
 function findNearbyLiquid(): { tx: number; ty: number } | null {
   const ptx = Math.floor(player.x / TILE_SIZE);
@@ -626,6 +655,10 @@ function bindInput() {
       case 'KeyM':
         showMinimap = !showMinimap;
         break;
+      // M25: 召唤/收回宠物
+      case 'KeyP':
+        togglePet();
+        break;
       case 'KeyV':
         sfx.toggle();
         console.log(`[音效] ${sfx.isEnabled() ? '开启' : '关闭'}`);
@@ -855,6 +888,21 @@ function update(dt: number) {
     }
   }
   if (fishingMsgTimer > 0) { fishingMsgTimer -= dt; if (fishingMsgTimer <= 0) fishingMsg = ''; }
+
+  // M25: 宠物 AI 更新
+  if (activePet) {
+    updatePet(activePet, player.x, player.y, dt, enemies, (tx, ty, dmg) => {
+      // 战斗召唤物攻击 — 找到目标敌人造成伤害
+      for (const e of enemies) {
+        if (e.state === 'dead') continue;
+        const d2 = (e.x - tx) ** 2 + (e.y - ty) ** 2;
+        if (d2 < 30 * 30) {
+          hitEnemy(e, dmg, 50, Math.sign(e.x - activePet!.x) as 1 | -1 || 1);
+          break;
+        }
+      }
+    });
+  }
 
   // M16: 熔岩核心 — 落地震伤（上一帧不在地面，这一帧在地面，且 vy 足够大）
   const buffLocalLanding = acc.getAggregatedBuff();
@@ -1387,6 +1435,7 @@ function render() {
   renderer.drawCompanionProjs(compProjs, cam);
   renderer.drawMount(player, cam);
   renderer.drawFishing(fishing.active, fishing.hasBite, fishing.floatX, fishing.floatY, player.x, player.y, cam);
+  if (activePet) renderer.drawPet(activePet, cam);
   renderer.drawPlayer(player, cam, shellMgr.current, shellMgr.alpha);
   renderer.drawDamageTexts(dmgTexts, cam);
 

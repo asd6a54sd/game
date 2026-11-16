@@ -70,6 +70,11 @@ export const RECIPES: Recipe[] = [
   { resultBlockId: 'swift_potion', resultCount: 1, ingredients: [{ blockId: 'gold_vein_fish', count: 1 }, { blockId: 'wind_stone', count: 1 }], requiresWorkbench: true },
   { resultBlockId: 'strength_potion', resultCount: 1, ingredients: [{ blockId: 'rust_scaled_fish', count: 1 }, { blockId: 'ore_gold', count: 1 }], requiresWorkbench: true },
   { resultBlockId: 'night_vision_potion', resultCount: 1, ingredients: [{ blockId: 'glow_worm_fish', count: 1 }, { blockId: 'bio_glow', count: 1 }], requiresWorkbench: true },
+
+  // === M25: 宠物召唤物 ===
+  { resultBlockId: 'ember_sprite_summon', resultCount: 1, ingredients: [{ blockId: 'ember_ash', count: 8 }, { blockId: 'crystal_glow', count: 2 }], requiresWorkbench: true },
+  { resultBlockId: 'glow_wisp_summon', resultCount: 1, ingredients: [{ blockId: 'bio_glow', count: 4 }, { blockId: 'crystal_glow', count: 2 }], requiresWorkbench: true },
+  { resultBlockId: 'void_whelp_summon', resultCount: 1, ingredients: [{ blockId: 'void_crystal', count: 3 }, { blockId: 'dark_seed', count: 3 }, { blockId: 'chitin', count: 4 }], requiresWorkbench: true },
 ];
 
 export function canCraft(recipe: Recipe, inv: Inventory, nearWorkbench: boolean): boolean {

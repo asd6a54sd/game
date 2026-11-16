@@ -305,6 +305,11 @@ export const BLOCKS: Record<string, BlockDef> = {
   old_chest: { id: 'old_chest', name: '旧宝箱', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'rust03', variants: [], drops: [] },
   basic_fishing_rod: { id: 'basic_fishing_rod', name: '基础钓鱼竿', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'rust02', variants: [], drops: [] },
   reinforced_fishing_rod: { id: 'reinforced_fishing_rod', name: '强化钓鱼竿', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'iron01', variants: [], drops: [] },
+
+  // === M25: 宠物 ===
+  ember_sprite_summon: { id: 'ember_sprite_summon', name: '余烬精灵灯', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'ember02', variants: [], drops: [] },
+  glow_wisp_summon: { id: 'glow_wisp_summon', name: '幽蓝萤虫瓶', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'cold01', variants: [], drops: [] },
+  void_whelp_summon: { id: 'void_whelp_summon', name: '虚空幼龙蛋', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void02', variants: [], drops: [] },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);
