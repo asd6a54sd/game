@@ -18,6 +18,7 @@ import { ShellManager, SHELLS } from './core/shells.js';
 import { VoidEngine } from './core/voiding.js';
 import { createBoss, updateBoss, updateProjectiles, hitBoss, findNearestVoidBarrier, Boss, BossProjectile, bossHalfW, bossHalfH } from './core/bosses.js';
 import { Companion, createCivilian, recruitCompanion, updateCompanion } from './core/companions.js';
+import { sfx } from './core/sfx.js';
 
 // ========== DOM ==========
 const loading = document.getElementById('loading')!;
@@ -109,7 +110,7 @@ function updateDropPhysics(dt: number) {
     // 拾取
     if (d2 < pickupRange) {
       const picked = inv.add(d.blockId, 1);
-      if (picked > 0) breakState.drops.splice(i, 1);
+      if (picked > 0) { breakState.drops.splice(i, 1); sfx.pickup(); }
     }
   }
 }
@@ -231,6 +232,7 @@ function bindInput() {
         if (e.shiftKey) shellMgr.prev();
         else shellMgr.next();
         applyShellToPlayer(true);
+        sfx.shellSwitch();
         break;
       case 'KeyR':
         trySummonBoss();
@@ -240,6 +242,10 @@ function bindInput() {
         break;
       case 'KeyM':
         showMinimap = !showMinimap;
+        break;
+      case 'KeyV':
+        sfx.toggle();
+        console.log(`[音效] ${sfx.isEnabled() ? '开启' : '关闭'}`);
         break;
     }
   });
@@ -361,6 +367,13 @@ function update(dt: number) {
   updateBreaking(breakState, dt, px.toolName, getBlock, setBlock);
   updateParticles(breakState, dt, getTileSolid);
 
+  // 破坏音效（每帧清除）
+  for (let i = 0; i < breakState.removedThisFrame; i++) {
+    const power = TOOLS[px.toolName].pickaxePower + (shellMgr.current.passiveKey === 'pickaxe' ? 1 : 0);
+    if (power >= 2) sfx.digHard(); else sfx.dig();
+  }
+  breakState.removedThisFrame = 0;
+
   // 放置
   if (mouseRightEdge && mouseTile) {
     const selected = inv.getSelected();
@@ -369,6 +382,7 @@ function update(dt: number) {
       if (existing === 'empty') {
         setBlock(mouseTile.x, mouseTile.y, selected.blockId);
         inv.consumeSelected(1);
+        sfx.place();
       }
     }
   }
@@ -449,11 +463,15 @@ function updateEnemiesSystem(dt: number, _effectivePower: number) {
       if (Math.abs(e.x - attackX) < hitHalfW && Math.abs(e.y - attackY) < 24) {
         const died = hitEnemy(e, sword.damage + shellMgr.current.damage * 0.5, 160, player.facing as 1 | -1);
         spawnDmgText(e.x, e.y - e.def.height / 2, sword.damage + shellMgr.current.damage * 0.5, '#ff8040', 0.12);
-        if (died && e.def.dropTable) {
-          for (const drop of e.def.dropTable) {
-            if (Math.random() < drop.chance) {
-              for (let k = 0; k < drop.count; k++) {
-                breakState.drops.push({ x: e.x, y: e.y, vx: (Math.random() - 0.5) * 120, vy: -100 - Math.random() * 80, blockId: drop.blockId, life: 30 });
+        sfx.hitEnemy();
+        if (died) {
+          sfx.enemyDie();
+          if (e.def.dropTable) {
+            for (const drop of e.def.dropTable) {
+              if (Math.random() < drop.chance) {
+                for (let k = 0; k < drop.count; k++) {
+                  breakState.drops.push({ x: e.x, y: e.y, vx: (Math.random() - 0.5) * 120, vy: -100 - Math.random() * 80, blockId: drop.blockId, life: 30 });
+                }
               }
             }
           }
@@ -468,7 +486,14 @@ function updateEnemiesSystem(dt: number, _effectivePower: number) {
 }
 
 function isPlayerSwingingWeapon(): boolean {
-  return mouseLeft && TOOLS[px.toolName].category === 'sword';
+  if (mouseLeft && TOOLS[px.toolName].category === 'sword') {
+    if (!(window as any).__swingSfxPlayed) {
+      sfx.swing(); (window as any).__swingSfxPlayed = true;
+    }
+    return true;
+  }
+  (window as any).__swingSfxPlayed = false;
+  return false;
 }
 
 // ========== 区块故事引导（M8b） ==========
@@ -572,6 +597,8 @@ function render() {
   renderer.drawCompanionProjs(compProjs, cam);
   renderer.drawPlayer(player, cam, shellMgr.current, shellMgr.alpha);
   renderer.drawDamageTexts(dmgTexts, cam);
+  renderer.drawPlayerHUD(player.hp, player.maxHp, shellMgr.current.name, shellMgr.switchCooldown, playerInvulnerable > 0);
+  renderer.drawBossHUD(bosses.filter(b => !b.isDead));
   renderer.drawHotbar(inv);
   if (showMinimap) renderer.drawMinimap(cam, terrain.tiles, player.x, player.y);
 }
@@ -656,6 +683,7 @@ function trySummonBoss() {
       const boss = createBoss('crystal_warden', ax, ay - 40);
       bosses.push(boss);
       bossSpawnCooldown = 30;
+      sfx.bossSummon();
       console.log('[Boss] 💎 幽紫晶体守卫 已降临！');
       return;
     }
@@ -679,6 +707,7 @@ function trySummonBoss() {
   const boss = createBoss('void_assimilator', spot.x, spot.y - 30);
   bosses.push(boss);
   bossSpawnCooldown = 30;
+  sfx.bossSummon();
   console.log('[Boss] ☠ 黑雾同化体 已降临！');
 }
 
@@ -719,12 +748,14 @@ function updateBossesSystem(dt: number) {
             breakState.drops.push({ x: boss.x + 20, y: boss.y, vx: 50, vy: -80, blockId: 'void_crystal', life: 60 });
             breakState.drops.push({ x: boss.x - 20, y: boss.y, vx: -50, vy: -80, blockId: 'dark_seed', life: 60 });
             purifyNearbyVoidBarrier(boss.x, boss.y);
+            sfx.bossDie();
             console.log('[Boss] ✅ 幽紫晶体守卫 已被净化！');
           } else {
             breakState.drops.push({ x: boss.x, y: boss.y, vx: 0, vy: -100, blockId: 'dark_seed', life: 60 });
             breakState.drops.push({ x: boss.x + 20, y: boss.y, vx: 50, vy: -80, blockId: 'dark_seed', life: 60 });
             breakState.drops.push({ x: boss.x - 20, y: boss.y, vx: -50, vy: -80, blockId: 'dark_filament', life: 60 });
             purifyNearbyVoidBarrier(boss.x, boss.y);
+            sfx.bossDie();
             console.log('[Boss] ✅ 黑雾同化体 已被净化！');
           }
         }
@@ -818,6 +849,7 @@ function tryRecruitCompanion() {
   }
   if (cost) inv.consume(cost.blockId, cost.count);
   recruitCompanion(nearest);
+  sfx.recruit();
   console.log(`[队友] ✅ ${nearest.def.name} 已加入队伍！`);
 }
 

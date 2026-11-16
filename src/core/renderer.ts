@@ -708,4 +708,96 @@ export class Renderer {
     );
     ctx.setLineDash([]);
   }
+
+  /** 玩家 HP 条 + 躯壳 HUD（左上）*/
+  drawPlayerHUD(hp: number, maxHp: number, shellName: string, shellCooldown: number, invulnerable: boolean) {
+    const ctx = this.ctx;
+    const barW = 200, barH = 18;
+    const bx = 12, by = 12;
+    // 背景
+    ctx.fillStyle = 'rgba(10, 6, 16, 0.85)';
+    ctx.fillRect(bx - 2, by - 2, barW + 4, barH + 4);
+    ctx.strokeStyle = '#5a3828'; ctx.lineWidth = 1;
+    ctx.strokeRect(bx - 1.5, by - 1.5, barW + 3, barH + 3);
+    // HP 条
+    const frac = Math.max(0, hp / maxHp);
+    if (invulnerable) { ctx.globalAlpha = 0.6; }
+    ctx.fillStyle = '#1a0a0a';
+    ctx.fillRect(bx, by, barW, barH);
+    const hpColor = frac > 0.5 ? '#40c060' : frac > 0.25 ? '#e8c547' : '#e84040';
+    ctx.fillStyle = hpColor;
+    ctx.fillRect(bx, by, barW * frac, barH);
+    // 刻度
+    ctx.fillStyle = 'rgba(0,0,0,0.3)';
+    for (let i = 1; i < 5; i++) {
+      ctx.fillRect(bx + barW * i / 5, by, 1, barH);
+    }
+    // 数值
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${Math.ceil(hp)} / ${maxHp}`, bx + barW / 2, by + 13);
+    ctx.globalAlpha = 1;
+
+    // 躯壳名 + 冷却
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#c8b898';
+    ctx.font = '10px monospace';
+    ctx.fillText(`◆ ${shellName}`, bx, by + barH + 14);
+    if (shellCooldown > 0) {
+      const cdW = (shellCooldown / 1.5) * 60;
+      ctx.fillStyle = '#3a2a1a';
+      ctx.fillRect(bx + 80, by + barH + 4, 60, 8);
+      ctx.fillStyle = '#e8c547';
+      ctx.fillRect(bx + 80, by + barH + 4, cdW, 8);
+      ctx.fillStyle = '#c8b898';
+      ctx.fillText(`切换冷却 ${shellCooldown.toFixed(1)}s`, bx + 144, by + barH + 12);
+    }
+  }
+
+  /** Boss HP 条（屏幕下方居中）*/
+  drawBossHUD(bosses: { def: { name: string; hp: number }; hp: number; phase: string; isDead: boolean }[]) {
+    if (bosses.length === 0) return;
+    const boss = bosses[0];
+    if (boss.isDead) return;
+    const ctx = this.ctx;
+    const w = this.canvas.width;
+    const barW = Math.min(500, w - 100);
+    const barH = 22;
+    const bx = (w - barW) / 2;
+    const by = this.canvas.height - 90;
+    // 背景框
+    ctx.fillStyle = 'rgba(10, 6, 16, 0.9)';
+    ctx.fillRect(bx - 4, by - 18, barW + 8, barH + 32);
+    ctx.strokeStyle = '#801080'; ctx.lineWidth = 2;
+    ctx.strokeRect(bx - 3, by - 17, barW + 6, barH + 30);
+    // Boss 名
+    ctx.fillStyle = '#ff40c0';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`☠ ${boss.def.name}`, bx + barW / 2, by - 4);
+    // HP 条
+    ctx.fillStyle = '#1a0a0a';
+    ctx.fillRect(bx, by, barW, barH);
+    const frac = Math.max(0, boss.hp / boss.def.hp);
+    let hpGrad = '#a840e8';
+    if (boss.phase === 'phase2') hpGrad = '#c060ff';
+    if (boss.phase === 'phase3') hpGrad = '#ff40c0';
+    const grd = ctx.createLinearGradient(bx, by, bx + barW * frac, by);
+    grd.addColorStop(0, '#4a0a60');
+    grd.addColorStop(0.5, hpGrad);
+    grd.addColorStop(1, '#ff80ff');
+    ctx.fillStyle = grd;
+    ctx.fillRect(bx, by, barW * frac, barH);
+    // 数值
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText(`${Math.ceil(boss.hp)} / ${boss.def.hp}`, bx + barW / 2, by + 15);
+    // 阶段指示
+    const phaseNames: Record<string, string> = { phase1: '追击', phase2: '召唤+冲击波', phase3: '狂暴' };
+    ctx.fillStyle = '#ff8040';
+    ctx.font = 'bold 11px monospace';
+    ctx.fillText(`阶段：${phaseNames[boss.phase] ?? boss.phase}`, bx + barW / 2, by + barH + 14);
+    ctx.textAlign = 'start';
+  }
 }
