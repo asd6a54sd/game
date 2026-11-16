@@ -75,6 +75,64 @@ interface CompProj { x: number; y: number; vx: number; vy: number; damage: numbe
 const compProjs: CompProj[] = [];
 let companionsInitialized = false;
 
+// M9a: 伤害弹出数字
+interface DmgText { x: number; y: number; vy: number; text: string; color: string; life: number; maxLife: number; crit: boolean; }
+const dmgTexts: DmgText[] = [];
+
+// M9b: 掉落物理（吸引玩家）
+function updateDropPhysics(dt: number) {
+  const pickupRange = 36 * 36;
+  const magnetRange = 60 * 60;
+  for (let i = breakState.drops.length - 1; i >= 0; i--) {
+    const d = breakState.drops[i];
+    d.life -= dt;
+    if (d.life <= 0) { breakState.drops.splice(i, 1); continue; }
+    // 吸引玩家
+    const dx = player.x - d.x, dy = player.y - d.y;
+    const d2 = dx * dx + dy * dy;
+    if (d2 < magnetRange) {
+      const invDist = 1 / Math.sqrt(d2);
+      d.vx += dx * invDist * 400 * dt;
+      d.vy += dy * invDist * 400 * dt;
+    }
+    // 重力
+    d.vy += 800 * dt;
+    d.x += d.vx * dt;
+    d.y += d.vy * dt;
+    // 落地检测（简化：查下方 tile 是否是固体）
+    const tx = Math.floor(d.x / TILE_SIZE);
+    const ty = Math.floor(d.y / TILE_SIZE);
+    if (getTileSolid(tx, ty + 1)) {
+      d.y = ty * TILE_SIZE + TILE_SIZE - 2;
+      d.vy = 0; d.vx *= 0.7;
+    }
+    // 拾取
+    if (d2 < pickupRange) {
+      const picked = inv.add(d.blockId, 1);
+      if (picked > 0) breakState.drops.splice(i, 1);
+    }
+  }
+}
+
+function spawnDmgText(x: number, y: number, damage: number, color = '#fff', critChance = 0.08) {
+  const crit = Math.random() < critChance;
+  const text = crit ? `CRIT ${Math.floor(damage * 1.5)}!` : String(Math.floor(damage));
+  dmgTexts.push({ x, y, vy: -60, text, color: crit ? '#ff8040' : color, life: crit ? 0.9 : 0.7, maxLife: crit ? 0.9 : 0.7, crit });
+}
+
+function updateDmgTexts(dt: number) {
+  for (let i = dmgTexts.length - 1; i >= 0; i--) {
+    const t = dmgTexts[i];
+    t.life -= dt;
+    if (t.life <= 0) { dmgTexts.splice(i, 1); continue; }
+    t.y += t.vy * dt;
+    t.vy += 30 * dt;
+  }
+}
+
+// M9c: 小地图开关（按 M 切换）
+let showMinimap = true;
+
 // 输入
 const input = { left: false, right: false, jump: false, brake: false };
 let mouseTile: { x: number; y: number } | null = null;
@@ -179,6 +237,9 @@ function bindInput() {
         break;
       case 'KeyF':
         tryRecruitCompanion();
+        break;
+      case 'KeyM':
+        showMinimap = !showMinimap;
         break;
     }
   });
@@ -312,15 +373,9 @@ function update(dt: number) {
     }
   }
 
-  // 掉落拾取
-  for (let i = breakState.drops.length - 1; i >= 0; i--) {
-    const d = breakState.drops[i];
-    const dx = d.x - player.x, dy = d.y - player.y;
-    if (dx * dx + dy * dy < 28 * 28) {
-      const picked = inv.add(d.blockId, 1);
-      if (picked > 0) breakState.drops.splice(i, 1);
-    }
-  }
+  // M9b: 掉落物理 + 拾取 + M9a: 伤害数字更新
+  updateDropPhysics(dt);
+  updateDmgTexts(dt);
 
   // 工具自动切换
   const sel = inv.getSelected();
@@ -393,6 +448,7 @@ function updateEnemiesSystem(dt: number, _effectivePower: number) {
       if (e.state === 'dead') continue;
       if (Math.abs(e.x - attackX) < hitHalfW && Math.abs(e.y - attackY) < 24) {
         const died = hitEnemy(e, sword.damage + shellMgr.current.damage * 0.5, 160, player.facing as 1 | -1);
+        spawnDmgText(e.x, e.y - e.def.height / 2, sword.damage + shellMgr.current.damage * 0.5, '#ff8040', 0.12);
         if (died && e.def.dropTable) {
           for (const drop of e.def.dropTable) {
             if (Math.random() < drop.chance) {
@@ -515,7 +571,9 @@ function render() {
   renderer.drawCompanions(companions, cam);
   renderer.drawCompanionProjs(compProjs, cam);
   renderer.drawPlayer(player, cam, shellMgr.current, shellMgr.alpha);
+  renderer.drawDamageTexts(dmgTexts, cam);
   renderer.drawHotbar(inv);
+  if (showMinimap) renderer.drawMinimap(cam, terrain.tiles, player.x, player.y);
 }
 
 function updateHUD() {
@@ -653,6 +711,7 @@ function updateBossesSystem(dt: number) {
       if (Math.abs(attackX - boss.x) < bossHalfW(boss) + 10 &&
           Math.abs(attackY - boss.y) < bossHalfH(boss) + 10) {
         const died = hitBoss(boss, TOOLS[px.toolName].damage + shellMgr.current.damage * 0.5, 80, player.facing as 1 | -1);
+        spawnDmgText(boss.x, boss.y - bossHalfH(boss), TOOLS[px.toolName].damage + shellMgr.current.damage * 0.5, '#c040e8', 0.15);
         if (died) {
           // 击败掉落（按 Boss 类型区分）
           if (boss.def.id === 'crystal_warden') {

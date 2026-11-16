@@ -624,4 +624,88 @@ export class Renderer {
     }
     ctx.globalAlpha = 1;
   }
+
+  /** 伤害弹出数字（飘字）*/
+  drawDamageTexts(dmgTexts: { x: number; y: number; vy: number; text: string; color: string; life: number; maxLife: number; crit: boolean }[], cam: Camera) {
+    const ctx = this.ctx;
+    for (const t of dmgTexts) {
+      if (t.life <= 0) continue;
+      const alpha = Math.min(1, t.life / t.maxLife);
+      const px = Math.floor(t.x - cam.x);
+      const py = Math.floor(t.y - cam.y - (1 - t.life / t.maxLife) * 20);
+      ctx.globalAlpha = alpha;
+      if (t.crit) {
+        ctx.font = 'bold 14px monospace';
+        ctx.fillStyle = '#ff8040';
+        ctx.textAlign = 'center';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 3;
+        ctx.strokeText(t.text, px, py);
+        ctx.fillText(t.text, px, py);
+      } else {
+        ctx.font = 'bold 11px monospace';
+        ctx.fillStyle = t.color;
+        ctx.textAlign = 'center';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 2;
+        ctx.strokeText(t.text, px, py);
+        ctx.fillText(t.text, px, py);
+      }
+    }
+    ctx.globalAlpha = 1;
+    ctx.textAlign = 'start';
+  }
+
+  /** 小地图（右上角缩略图）*/
+  drawMinimap(cam: Camera, tiles: Uint8Array, playerX: number, playerY: number) {
+    const ctx = this.ctx;
+    const mmW = 160, mmH = 80;
+    const mmX = this.canvas.width - mmW - 12;
+    const mmY = 12;
+    const scaleX = mmW / MAP_WIDTH;
+    const scaleY = mmH / MAP_HEIGHT;
+
+    // 背景
+    ctx.fillStyle = 'rgba(10, 6, 16, 0.85)';
+    ctx.fillRect(mmX, mmY, mmW, mmH);
+    ctx.strokeStyle = '#5a3828'; ctx.lineWidth = 1;
+    ctx.strokeRect(mmX + 0.5, mmY + 0.5, mmW - 1, mmH - 1);
+
+    // 地形（抽稀绘制）
+    const step = 2;
+    for (let y = 0; y < MAP_HEIGHT; y += step) {
+      for (let x = 0; x < MAP_WIDTH; x += step) {
+        const idx = tiles[y * MAP_WIDTH + x];
+        if (idx === 0) continue; // empty 跳过
+        // 根据 BLOCKS 位置快速着色
+        let c = '#5a3828';
+        if (idx >= 21) c = '#5a1088'; // void
+        else if (idx >= 15 && idx <= 19) c = '#8040e8'; // void_crystal 等
+        else if (idx >= 13 && idx <= 14) c = '#404050'; // deep
+        else if (idx >= 9 && idx <= 12) c = '#807060'; // ore
+        else if (idx >= 4 && idx <= 8) c = '#b09060'; // surface
+        else c = '#705040';
+        ctx.fillStyle = c;
+        ctx.fillRect(mmX + x * scaleX, mmY + y * scaleY, Math.max(1, scaleX * step), Math.max(1, scaleY * step));
+      }
+    }
+
+    // 玩家位置
+    const ppx = mmX + (playerX / TILE_SIZE) * scaleX;
+    const ppy = mmY + (playerY / TILE_SIZE) * scaleY;
+    ctx.fillStyle = '#e8c547';
+    ctx.fillRect(Math.floor(ppx - 1), Math.floor(ppy - 1), 3, 3);
+
+    // 视野框
+    ctx.strokeStyle = 'rgba(232, 197, 71, 0.5)';
+    ctx.setLineDash([2, 2]);
+    ctx.lineWidth = 1;
+    ctx.strokeRect(
+      mmX + cam.x * scaleX,
+      mmY + cam.y * scaleY,
+      cam.width * scaleX,
+      cam.height * scaleY
+    );
+    ctx.setLineDash([]);
+  }
 }
