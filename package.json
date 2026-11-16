@@ -1,0 +1,18 @@
+{
+  "name": "ember-sea-era",
+  "private": true,
+  "version": "0.1.0-M0",
+  "description": "《烬海纪元》—— 2D 像素破坏类游戏 (单人+AI版)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "tsc": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5"
+  }
+}
