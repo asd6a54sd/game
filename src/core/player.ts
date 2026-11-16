@@ -25,6 +25,8 @@ export interface Player {
   breakingTile: { x: number; y: number } | null;
   breakCooldown: number;    // 破坏间隔
   activeBuffs: ActiveBuff[]; // M22: 临时药水 buff
+  mounted: boolean;          // M23: 是否骑乘
+  mountId: string | null;    // M23: 当前坐骑 id
 }
 
 export function createPlayer(): Player {
@@ -45,6 +47,8 @@ export function createPlayer(): Player {
     breakingTile: null,
     breakCooldown: 0,
     activeBuffs: [],
+    mounted: false,
+    mountId: null,
   };
 }
 

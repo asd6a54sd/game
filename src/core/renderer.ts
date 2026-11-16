@@ -25,6 +25,7 @@ import { AchievementState } from './achievements.js';
 import { ShopItem } from './npcs.js';
 import { TrialManager } from './trial.js';
 import { ActiveBuff } from './potions.js';
+import { MOUNT_DEFS } from './mounts.js';
 
 
 export class Renderer {
@@ -217,6 +218,35 @@ export class Renderer {
     if (frac > 0.9) {
       ctx.fillStyle = `rgba(0,0,0,${(frac - 0.9) * 3})`;
       ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+    }
+  }
+
+  // M23: 骑乘渲染 — 在玩家下方画坐骑色块
+  drawMount(p: Player, cam: Camera) {
+    if (!p.mounted || !p.mountId) return;
+    const m = MOUNT_DEFS[p.mountId];
+    if (!m) return;
+    const ctx = this.ctx;
+    const px = Math.floor(p.x - cam.x - p.width / 2);
+    const py = Math.floor(p.y - cam.y - p.height / 2);
+    const color = PALETTE_MAP.get(m.paletteId) ?? '#888';
+
+    // 坐骑身体（玩家脚下，略宽）
+    ctx.fillStyle = color;
+    ctx.fillRect(px - 3, py + p.height - 2, p.width + 6, 8);
+    // 坐骑头部（朝向）
+    const headX = p.facing === 1 ? px + p.width - 2 : px - 8;
+    ctx.fillRect(headX, py + p.height - 6, 8, 6);
+    // 坐骑眼睛
+    ctx.fillStyle = '#fff';
+    const eyeX = p.facing === 1 ? headX + 5 : headX + 1;
+    ctx.fillRect(eyeX, py + p.height - 4, 2, 2);
+    // 飞行坐骑 — 翅膀
+    if (m.canFly) {
+      ctx.fillStyle = 'rgba(255,255,255,0.7)';
+      const wingY = py + p.height - 4;
+      ctx.fillRect(px - 8, wingY, 6, 2);
+      ctx.fillRect(px + p.width + 2, wingY, 6, 2);
     }
   }
 

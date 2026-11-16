@@ -288,6 +288,11 @@ export const BLOCKS: Record<string, BlockDef> = {
   swift_potion: { id: 'swift_potion', name: '敏捷药水', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'water01', variants: [], drops: [] },
   strength_potion: { id: 'strength_potion', name: '力量药水', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'orange01', variants: [], drops: [] },
   night_vision_potion: { id: 'night_vision_potion', name: '夜视药水', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'glow01', variants: [], drops: [] },
+
+  // === M23: 坐骑 ===
+  wreck_horse_saddle: { id: 'wreck_horse_saddle', name: '残骸战马鞍', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'rust02', variants: [], drops: [] },
+  slime_saddle: { id: 'slime_saddle', name: '史莱姆鞍', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'bio01', variants: [], drops: [] },
+  void_drake_saddle: { id: 'void_drake_saddle', name: '虚空飞龙鞍', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void01', variants: [], drops: [] },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);

@@ -26,6 +26,7 @@ import { AchievementManager, AchievementState } from './core/achievements.js';
 import { NPC_DEFS, SELL_PRICES, ShopItem } from './core/npcs.js';
 import { TrialManager, TRIAL_DEFS } from './core/trial.js';
 import { POTION_DEFS, aggregateBuffs } from './core/potions.js';
+import { MOUNT_DEFS } from './core/mounts.js';
 
 // ========== DOM ==========
 const loading = document.getElementById('loading')!;
@@ -290,14 +291,11 @@ function usePotion() {
   if (!potion) return;
   inv.consume(sel.blockId, 1);
   sfx.pickup();
-  // 立即生效类
   if (potion.buffType === 'heal') {
     player.hp = Math.min(player.maxHp, player.hp + potion.value);
     spawnDmgText(player.x, player.y - player.height, potion.value, '#60ff60', 0, 1);
     return;
   }
-  // 持续 buff 类
-  // 同类型 buff 取最大值/刷新
   const existing = player.activeBuffs.find(b => b.type === potion.buffType);
   if (existing) {
     existing.value = Math.max(existing.value, potion.value);
@@ -305,6 +303,29 @@ function usePotion() {
   } else {
     player.activeBuffs.push({ type: potion.buffType, value: potion.value, remaining: potion.duration });
   }
+}
+
+// M23: 上下马
+function toggleMount() {
+  if (player.mounted) {
+    // 下马
+    player.mounted = false;
+    player.mountId = null;
+    return;
+  }
+  // 上马 — 需要选中对应鞍
+  const sel = inv.getSelected();
+  if (!sel.blockId || sel.count <= 0) return;
+  const mountMap: Record<string, string> = {
+    wreck_horse_saddle: 'wreck_horse',
+    slime_saddle: 'slime_mount',
+    void_drake_saddle: 'void_drake',
+  };
+  const mountId = mountMap[sel.blockId];
+  if (!mountId) return;
+  player.mounted = true;
+  player.mountId = mountId;
+  sfx.pickup();
 }
 
 // M22: 药水系统
@@ -486,6 +507,10 @@ function bindInput() {
       // M22: 使用药水
       case 'KeyH':
         usePotion();
+        break;
+      // M23: 上下马
+      case 'KeyJ':
+        toggleMount();
         break;
       case 'Tab':
         e.preventDefault();
@@ -674,10 +699,18 @@ function update(dt: number) {
   player.moveSpeed *= ach.getAggregatedBuff().moveSpeedMult ?? 1;
   // M22: 敏捷药水 — 移速 buff
   player.moveSpeed *= currentPotionBuff.speedMult;
+  // M23: 坐骑移速
+  if (player.mounted && player.mountId) player.moveSpeed *= MOUNT_DEFS[player.mountId].speedMult;
   // M13: jumpBonus（rock_titan_crown）
   player.jumpSpeed = shellMgr.current.jumpSpeed * (buff.jumpBonus ?? 1);
   // M13: gravityReduction（rock_titan_crown）
   player.gravityMult = 1 - (buff.gravityReduction ?? 0);
+  // M23: 坐骑跳跃 + 重力
+  if (player.mounted && player.mountId) {
+    const m = MOUNT_DEFS[player.mountId];
+    player.jumpSpeed *= m.jumpMult;
+    player.gravityMult *= m.gravityMult;
+  }
 
   // 冲刺触发：按住 Ctrl 且有冲刺靴
   if (dashKeyHeld && !acc.isDashing) {
@@ -731,6 +764,13 @@ function update(dt: number) {
   // 滑翔：空中按住跳跃键时限制下落速度
   if (!player.onGround && input.jump && buff.glideFallSpeed && player.vy > buff.glideFallSpeed) {
     player.vy = buff.glideFallSpeed;
+  }
+  // M23: 飞行坐骑滞空 — 按住跳跃键限制下落速度
+  if (player.mounted && player.mountId && !player.onGround && input.jump) {
+    const m = MOUNT_DEFS[player.mountId];
+    if (m.canFly && player.vy > m.flyFallSpeed) {
+      player.vy = m.flyFallSpeed;
+    }
   }
   // 落地重置二段跳
   if (player.onGround) px.usedSecondJump = false;
@@ -1226,6 +1266,7 @@ function render() {
   renderer.drawVoidParticles(cam, voidEngine);
   renderer.drawCompanions(companions, cam);
   renderer.drawCompanionProjs(compProjs, cam);
+  renderer.drawMount(player, cam);
   renderer.drawPlayer(player, cam, shellMgr.current, shellMgr.alpha);
   renderer.drawDamageTexts(dmgTexts, cam);
 

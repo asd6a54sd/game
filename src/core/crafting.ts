@@ -54,6 +54,11 @@ export const RECIPES: Recipe[] = [
   { resultBlockId: 'swift_potion', resultCount: 1, ingredients: [{ blockId: 'wind_stone', count: 2 }, { blockId: 'bio_glow', count: 1 }], requiresWorkbench: true },
   { resultBlockId: 'strength_potion', resultCount: 1, ingredients: [{ blockId: 'ore_gold', count: 1 }, { blockId: 'dark_seed', count: 1 }], requiresWorkbench: true },
   { resultBlockId: 'night_vision_potion', resultCount: 1, ingredients: [{ blockId: 'bio_glow', count: 2 }, { blockId: 'crystal_glow', count: 1 }], requiresWorkbench: true },
+
+  // === M23: 坐骑 ===
+  { resultBlockId: 'wreck_horse_saddle', resultCount: 1, ingredients: [{ blockId: 'ore_iron', count: 6 }, { blockId: 'wreck_scrap', count: 4 }, { blockId: 'ore_copper', count: 3 }], requiresWorkbench: true },
+  { resultBlockId: 'slime_saddle', resultCount: 1, ingredients: [{ blockId: 'bio_glow', count: 4 }, { blockId: 'chitin', count: 3 }, { blockId: 'ore_iron', count: 2 }], requiresWorkbench: true },
+  { resultBlockId: 'void_drake_saddle', resultCount: 1, ingredients: [{ blockId: 'void_crystal', count: 3 }, { blockId: 'dark_filament', count: 4 }, { blockId: 'ore_gold', count: 3 }], requiresWorkbench: true },
 ];
 
 export function canCraft(recipe: Recipe, inv: Inventory, nearWorkbench: boolean): boolean {
