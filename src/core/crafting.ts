@@ -40,6 +40,13 @@ export const RECIPES: Recipe[] = [
   { resultBlockId: 'magnet_crystal', resultCount: 1, ingredients: [{ blockId: 'void_crystal', count: 2 }, { blockId: 'crystal_glow', count: 3 }], requiresWorkbench: true },
   { resultBlockId: 'speed_glove', resultCount: 1, ingredients: [{ blockId: 'ore_copper', count: 4 }, { blockId: 'wind_rock', count: 3 }, { blockId: 'wreck_scrap', count: 3 }], requiresWorkbench: true },
   { resultBlockId: 'wing_charm', resultCount: 1, ingredients: [{ blockId: 'crystal_glow', count: 4 }, { blockId: 'bio_glow', count: 2 }, { blockId: 'ore_gold', count: 2 }], requiresWorkbench: true },
+
+  // === M18: 远程武器 + 弹药 ===
+  { resultBlockId: 'wooden_arrow', resultCount: 5, ingredients: [{ blockId: 'wreck_scrap', count: 2 }, { blockId: 'ore_copper', count: 1 }], requiresWorkbench: true },
+  { resultBlockId: 'dark_bolt', resultCount: 3, ingredients: [{ blockId: 'dark_seed', count: 1 }, { blockId: 'crystal_glow', count: 1 }], requiresWorkbench: true },
+  { resultBlockId: 'copper_bow', resultCount: 1, ingredients: [{ blockId: 'ore_copper', count: 6 }, { blockId: 'wreck_scrap', count: 2 }], requiresWorkbench: true },
+  { resultBlockId: 'void_crossbow', resultCount: 1, ingredients: [{ blockId: 'dark_filament', count: 4 }, { blockId: 'ore_iron', count: 4 }, { blockId: 'crystal_glow', count: 2 }], requiresWorkbench: true },
+  { resultBlockId: 'void_staff', resultCount: 1, ingredients: [{ blockId: 'void_crystal', count: 2 }, { blockId: 'dark_seed', count: 3 }, { blockId: 'ore_gold', count: 2 }], requiresWorkbench: true },
 ];
 
 export function canCraft(recipe: Recipe, inv: Inventory, nearWorkbench: boolean): boolean {

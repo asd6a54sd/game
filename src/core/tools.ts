@@ -8,9 +8,14 @@ export interface ToolDef {
   name: string;
   pickaxePower: number;   // 等级 0-5（能挖 hardness ≤ power*10 的矿）
   miningSpeed: number;    // 每秒破坏能量（基础 = 8）
-  damage: number;         // 近战伤害
+  damage: number;         // 近战/远程伤害
   paletteId: string;      // 调色板 id
-  category: 'pickaxe' | 'axe' | 'hammer' | 'sword';
+  category: 'pickaxe' | 'axe' | 'hammer' | 'sword' | 'ranged';
+  // M18: 远程武器专用
+  ammoType?: string;      // 弹药方块 id（ranged 必须）
+  shootCooldown?: number; // 射击间隔（秒）
+  projectileSpeed?: number; // 弹丸速度 px/s
+  piercing?: boolean;     // 弹丸是否穿透（暗焰法杖）
 }
 
 export const TOOLS: Record<string, ToolDef> = {
@@ -27,6 +32,26 @@ export const TOOLS: Record<string, ToolDef> = {
   iron_sword: { id: 'iron_sword', name: '铁剑', pickaxePower: 0, miningSpeed: 6, damage: 14, paletteId: 'iron01', category: 'sword' },
   ember_sword: { id: 'ember_sword', name: '余金剑', pickaxePower: 0, miningSpeed: 6, damage: 22, paletteId: 'ember02', category: 'sword' },
   void_sword: { id: 'void_sword', name: '暗能剑', pickaxePower: 0, miningSpeed: 6, damage: 34, paletteId: 'void03', category: 'sword' },
+
+  // === M18: 远程武器 ===
+  copper_bow: {
+    id: 'copper_bow', name: '铜弓',
+    pickaxePower: 0, miningSpeed: 4, damage: 10,
+    paletteId: 'rust02', category: 'ranged',
+    ammoType: 'wooden_arrow', shootCooldown: 0.5, projectileSpeed: 500,
+  },
+  void_crossbow: {
+    id: 'void_crossbow', name: '虚空弩',
+    pickaxePower: 0, miningSpeed: 4, damage: 22,
+    paletteId: 'void01', category: 'ranged',
+    ammoType: 'wooden_arrow', shootCooldown: 0.7, projectileSpeed: 650,
+  },
+  void_staff: {
+    id: 'void_staff', name: '暗焰法杖',
+    pickaxePower: 0, miningSpeed: 4, damage: 18,
+    paletteId: 'void03', category: 'ranged',
+    ammoType: 'dark_bolt', shootCooldown: 0.4, projectileSpeed: 420, piercing: true,
+  },
 };
 
 /**

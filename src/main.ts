@@ -75,6 +75,8 @@ let lastRegion = '';     // M17: 玩家上一帧所在区块（检测区块变�
 // Boss 系统
 const bosses: Boss[] = [];
 const bossProjectiles: BossProjectile[] = [];
+// M18: 玩家远程弹丸
+const playerProjectiles: { x: number; y: number; vx: number; vy: number; damage: number; piercing: boolean; color: string; size: number; life: number; hitIds: Set<number> }[] = [];
 let bossSpawnCooldown = 0;
 
 // M14: 夜间 Boss 自动刷新
@@ -179,6 +181,8 @@ let showMinimap = true;
 const input = { left: false, right: false, jump: false, brake: false };
 let mouseTile: { x: number; y: number } | null = null;
 let mouseLeft = false;
+let mouseWorldX = 0; // M18: 鼠标世界坐标（远程瞄准）
+let mouseWorldY = 0;
 let mouseRight = false;
 let mouseRightEdge = false;
 let inputBlocked = false;
@@ -347,6 +351,8 @@ function bindInput() {
     const sx = e.clientX - rect.left;
     const sy = e.clientY - rect.top;
     mouseTile = { x: Math.floor((sx + cam.x) / TILE_SIZE), y: Math.floor((sy + cam.y) / TILE_SIZE) };
+    mouseWorldX = sx + cam.x;
+    mouseWorldY = sy + cam.y;
   });
 
   canvas.addEventListener('wheel', e => {
@@ -585,6 +591,9 @@ function update(dt: number) {
   // ========== 敌人系统 ==========
   updateEnemiesSystem(dt, effectivePower);
 
+  // M18: 玩家远程弹丸更新
+  updatePlayerProjectiles(dt);
+
   // ========== AI 队友 ==========
   updateCompanionsSystem(dt);
 
@@ -684,17 +693,107 @@ function updateEnemiesSystem(dt: number, _effectivePower: number) {
 
 function isPlayerSwingingWeapon(): boolean {
   if (swingCd > 0) return false; // M16: 冷却中不能攻击
-  if (mouseLeft && TOOLS[px.toolName].category === 'sword') {
+  const tool = TOOLS[px.toolName];
+  // M18: 远程武器射击（消耗弹药）
+  if (tool.category === 'ranged') {
+    if (mouseLeft && tool.ammoType) {
+      if (inv.count(tool.ammoType) <= 0) return false; // 没弹药
+      inv.consume(tool.ammoType, 1);
+      // 朝鼠标方向发射
+      const dx = mouseWorldX - player.x, dy = mouseWorldY - player.y;
+      const dist = Math.hypot(dx, dy) || 1;
+      const spd = tool.projectileSpeed ?? 500;
+      const isArrow = tool.ammoType === 'wooden_arrow';
+      playerProjectiles.push({
+        x: player.x, y: player.y - 8,
+        vx: (dx / dist) * spd, vy: (dy / dist) * spd,
+        damage: tool.damage + shellMgr.current.damage * 0.5,
+        piercing: !!tool.piercing,
+        color: isArrow ? '#d8b060' : '#a040e8',
+        size: isArrow ? 4 : 6,
+        life: 1.5,
+        hitIds: new Set<number>(),
+      });
+      sfx.swing();
+      swingCd = (tool.shootCooldown ?? 0.5) / (acc.getAggregatedBuff().attackSpeedBonus ?? 1);
+      return true;
+    }
+    return false;
+  }
+  // 近战（sword）
+  if (mouseLeft && tool.category === 'sword') {
     if (!(window as any).__swingSfxPlayed) {
       sfx.swing(); (window as any).__swingSfxPlayed = true;
     }
-    // M16: 攻击冷却 — 基础 0.35s，乘 attackSpeedBonus 倒数
     const buffLocal = acc.getAggregatedBuff();
     swingCd = 0.35 / (buffLocal.attackSpeedBonus ?? 1);
     return true;
   }
   (window as any).__swingSfxPlayed = false;
   return false;
+}
+
+// ========== 玩家远程弹丸更新（M18） ==========
+function updatePlayerProjectiles(dt: number) {
+  for (let i = playerProjectiles.length - 1; i >= 0; i--) {
+    const p = playerProjectiles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.life -= dt;
+    // 出界或超时
+    if (p.life <= 0 || p.x < 0 || p.x > MAP_WIDTH * TILE_SIZE || p.y < 0 || p.y > MAP_HEIGHT * TILE_SIZE) {
+      playerProjectiles.splice(i, 1);
+      continue;
+    }
+    // 命中敌人
+    let hitSomething = false;
+    for (const e of enemies) {
+      if (e.state === 'dead') continue;
+      if (p.hitIds.has(e.id)) continue; // 穿透弹丸不重复打同一目标
+      if (Math.abs(e.x - p.x) < e.def.width / 2 + p.size && Math.abs(e.y - p.y) < e.def.height / 2 + p.size) {
+        const buffLocal = acc.getAggregatedBuff();
+        const baseCrit = 0.10 + (buffLocal.critBonus ?? 0);
+        const died = hitEnemy(e, p.damage, 80, p.vx > 0 ? 1 : -1);
+        spawnDmgText(e.x, e.y - e.def.height / 2, p.damage, p.color, baseCrit, 1.5 * (buffLocal.critDamageMult ?? 1));
+        sfx.hitEnemy();
+        p.hitIds.add(e.id);
+        if (died) {
+          tasks.onKill(false);
+          sfx.enemyDie();
+          if (e.def.dropTable) {
+            for (const drop of e.def.dropTable) {
+              if (Math.random() < drop.chance) {
+                for (let k = 0; k < drop.count; k++) {
+                  breakState.drops.push({ x: e.x, y: e.y, vx: (Math.random() - 0.5) * 120, vy: -100 - Math.random() * 80, blockId: drop.blockId, life: 30 });
+                }
+              }
+            }
+          }
+          if (e.isElite && e.def.accessoryDropChance && Math.random() < e.def.accessoryDropChance) {
+            const REG = ['dash_boots', 'regen_ring', 'defense_charm', 'magnet_crystal', 'speed_glove', 'wing_charm'];
+            breakState.drops.push({ x: e.x, y: e.y, vx: (Math.random() - 0.5) * 180, vy: -160, blockId: REG[Math.floor(Math.random() * REG.length)], life: 60 });
+          }
+        }
+        if (!p.piercing) { hitSomething = true; break; }
+      }
+    }
+    // 命中 Boss
+    if (!hitSomething) {
+      for (const b of bosses) {
+        if (b.isDead) continue;
+        if (p.hitIds.has(-b.id - 1000)) continue;
+        if (Math.abs(b.x - p.x) < bossHalfW(b) + p.size && Math.abs(b.y - p.y) < bossHalfH(b) + p.size) {
+          const buffLocal = acc.getAggregatedBuff();
+          const baseCrit = 0.12 + (buffLocal.critBonus ?? 0);
+          hitBoss(b, p.damage, 50, p.vx > 0 ? 1 : -1);
+          spawnDmgText(b.x, b.y - bossHalfH(b), p.damage, p.color, baseCrit, 1.5 * (buffLocal.critDamageMult ?? 1));
+          p.hitIds.add(-b.id - 1000);
+          if (!p.piercing) { hitSomething = true; break; }
+        }
+      }
+    }
+    if (hitSomething) playerProjectiles.splice(i, 1);
+  }
 }
 
 // ========== 区块故事引导（M8b） ==========
@@ -834,6 +933,15 @@ function render() {
 
   renderer.drawEnemies(enemies, cam);
   renderer.drawBossProjectiles(bossProjectiles, cam);
+  // M18: 玩家弹丸渲染
+  for (const p of playerProjectiles) {
+    const sx = Math.floor(p.x - cam.x), sy = Math.floor(p.y - cam.y);
+    renderer.ctx.fillStyle = p.color;
+    renderer.ctx.fillRect(sx - p.size / 2, sy - p.size / 2, p.size, p.size);
+    // 拖尾
+    renderer.ctx.fillStyle = p.color + '80';
+    renderer.ctx.fillRect(sx - p.vx * 0.01 - 1, sy - p.vy * 0.01 - 1, p.size + 2, p.size + 2);
+  }
   for (const b of bosses) renderer.drawBoss(b, cam);
   renderer.drawVoidParticles(cam, voidEngine);
   renderer.drawCompanions(companions, cam);

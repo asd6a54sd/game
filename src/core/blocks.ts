@@ -265,6 +265,13 @@ export const BLOCKS: Record<string, BlockDef> = {
   frost_veil: { id: 'frost_veil', name: '冰霜披纱', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'cold02', variants: [], drops: [] },
   hive_stinger: { id: 'hive_stinger', name: '毒刺护符', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'bone03', variants: [], drops: [] },
   shadow_cowl: { id: 'shadow_cowl', name: '暗影兜帽', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void04', variants: [], drops: [] },
+
+  // === M18: 远程武器弹药 ===
+  wooden_arrow: { id: 'wooden_arrow', name: '木箭', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'rust01', variants: [], drops: [] },
+  dark_bolt: { id: 'dark_bolt', name: '暗焰弹', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void03', variants: [], drops: [] },
+  copper_bow: { id: 'copper_bow', name: '铜弓', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'rust02', variants: [], drops: [] },
+  void_crossbow: { id: 'void_crossbow', name: '虚空弩', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void01', variants: [], drops: [] },
+  void_staff: { id: 'void_staff', name: '暗焰法杖', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void03', variants: [], drops: [] },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);
