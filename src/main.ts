@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 烬海纪元 · 主入口
  * M0-M3: 工程骨架 + 破坏 + 背包 + 放置 + 工具 + 合成 + 敌人 AI + 躯壳切换
  */
@@ -121,6 +121,7 @@ async function init() {
   placePlayerOnGround(player, terrain.heightMap);
   voidEngine.initFromTerrain(terrain.tiles);
   initCompanions();
+  initStoryGuides();
   resize();
   window.addEventListener('resize', resize);
   bindInput();
@@ -414,6 +415,63 @@ function isPlayerSwingingWeapon(): boolean {
   return mouseLeft && TOOLS[px.toolName].category === 'sword';
 }
 
+// ========== 区块故事引导（M8b） ==========
+const REGION_GUIDANCE: Record<string, { subtitle: string; goal: string; hint: string }> = {
+  'wreck_zone': { subtitle: '残骸带', goal: '搜刮残骸碎片与铜矿', hint: '破坏 wrec_scrap → 8 个铜矿 + 2 残骸碎片 = 铜镐' },
+  'crack_waste': { subtitle: '龟裂荒原', goal: '小心夜行者风蝎', hint: '白天几乎没有敌人，趁白天挖矿' },
+  'gobi_mine': { subtitle: '戈壁矿脉', goal: '三层矿带 → 铁脉 / 金矿', hint: '向下挖 85→100→115 深度可找到铜→铁→金' },
+  'silent_sea': { subtitle: '无声海', goal: '金属湖上的浮游金属体', hint: '液态金属可从上方穿越（不造成伤害）' },
+  'beast_hive': { subtitle: '异兽巢穴', goal: '甲壳蜂巢与幽蓝荧光囊', hint: 'chitin_hive 可招募骸兵队友' },
+  'underground_valley': { subtitle: '地底幽谷', goal: '暗能量结界 + 叛军据点', hint: '⚠ 靠近紫色暗能量区可召唤 Boss（按 R）' },
+};
+
+// Boss 位置（缓存）
+let _altarCenter: { x: number; y: number } | null = null;
+let _barrierCenter: { x: number; y: number } | null = null;
+
+function initStoryGuides() {
+  // 计算晶体祭坛中心
+  const altar = terrain.structures.find(s => s.kind === 'crystal_altar');
+  if (altar) {
+    _altarCenter = {
+      x: (altar.x + altar.width / 2) * TILE_SIZE,
+      y: (altar.y + altar.height / 2) * TILE_SIZE,
+    };
+  }
+  // 找最近 void_barrier 作为参考点（简单用第一个就行）
+  const spot = findNearestVoidBarrier(terrain.tiles, MAP_WIDTH * TILE_SIZE - 400, terrain.heightMap[MAP_WIDTH - 30] * TILE_SIZE);
+  if (spot) _barrierCenter = spot;
+}
+
+function getRegionGuidance(playerCol: number): { subtitle: string; goal: string; hint: string; bossHint: string } {
+  let region = 'wreck_zone';
+  if (playerCol >= 120 && playerCol < 180) region = 'gobi_mine';
+  else if (playerCol >= 60 && playerCol < 120) region = 'crack_waste';
+  else if (playerCol >= 180 && playerCol < 240) region = 'silent_sea';
+  else if (playerCol >= 240 && playerCol < 300) region = 'beast_hive';
+  else if (playerCol >= 300) region = 'underground_valley';
+  const g = REGION_GUIDANCE[region] ?? REGION_GUIDANCE['wreck_zone'];
+
+  // Boss 召唤提示
+  let bossHint = '';
+  if (_altarCenter) {
+    const d2 = (_altarCenter.x - player.x) ** 2 + (_altarCenter.y - player.y) ** 2;
+    if (d2 < (20 * TILE_SIZE) ** 2) {
+      bossHint = d2 < (15 * TILE_SIZE) ** 2
+        ? '💎 [按 R] 召唤 幽紫晶体守卫'
+        : `💎 晶体祭坛 距离 ${Math.sqrt(d2) | 0} / 240px`;
+    }
+  }
+  if (!bossHint && _barrierCenter) {
+    const d2 = (_barrierCenter.x - player.x) ** 2 + (_barrierCenter.y - player.y) ** 2;
+    if (d2 < (20 * TILE_SIZE) ** 2) {
+      bossHint = d2 < (15 * TILE_SIZE) ** 2
+        ? '☠ [按 R] 召唤 黑雾同化体'
+        : `☠ 暗能量结界 距离 ${Math.sqrt(d2) | 0} / 240px`;
+    }
+  }
+  return { ...g, bossHint };
+}
 function respawnPlayer() {
   player.hp = player.maxHp;
   shellMgr.currentState.hp = player.hp;
@@ -469,8 +527,9 @@ function updateHUD() {
   const sList = SHELLS.map((sh, i) => `${i === sIdx ? '✓' : ' '}${sh.name}`).join(' | ');
 
   const cd = shellMgr.switchCooldown > 0 ? ` [冷却 ${shellMgr.switchCooldown.toFixed(1)}s]` : '';
+  const guide = getRegionGuidance(pcol);
 
-  if (inputBlocked) { hudBlock.textContent = '工作台已打开 (ESC 关闭)'; hudRegion.textContent = `区块: ${regionNameAt(pcol)}`; return; }
+  if (inputBlocked) { hudBlock.textContent = '工作台已打开 (ESC 关闭)'; hudRegion.textContent = `区块: ${regionNameAt(pcol)} · ${guide.subtitle}`; return; }
 
   hudPos.textContent = `坐标: (${pcol}, ${prow}) | FPS: ${fpsNow} | 时间: ${formatTime(renderer.timeOfDay)} | ${s.name}${cd}`;
 
@@ -490,11 +549,14 @@ function updateHUD() {
     } else {
       hudBlock.textContent = `当前工具: ${tool.name} · ${tool.category} | 被动: ${s.passive}`;
     }
-    hudRegion.textContent = `区块: ${regionNameAt(mouseTile.x)}`;
   } else {
     hudBlock.textContent = `${tool.name} (速度 ${tool.miningSpeed}/s) · 被动: ${s.passive}`;
-    hudRegion.textContent = `区块: ${regionNameAt(pcol)}`;
   }
+
+  // 故事引导 HUD（区块目标 + Boss 召唤提示）
+  const guideParts: string[] = [`${regionNameAt(pcol)} · ${guide.subtitle} · 目标: ${guide.goal}`];
+  if (guide.bossHint) guideParts.push(guide.bossHint);
+  hudRegion.textContent = guideParts.join(' | ');
 
   // 躯壳选择条（右下角）
   const bar = document.getElementById('shell-bar') || createShellBar();

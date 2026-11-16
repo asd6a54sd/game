@@ -20,11 +20,13 @@ export const TOOLS: Record<string, ToolDef> = {
   iron_pickaxe: { id: 'iron_pickaxe', name: '铁镐', pickaxePower: 2, miningSpeed: 22, damage: 7, paletteId: 'iron01', category: 'pickaxe' },
   ember_pickaxe: { id: 'ember_pickaxe', name: '余金镐', pickaxePower: 3, miningSpeed: 32, damage: 12, paletteId: 'ember02', category: 'pickaxe' },
   crystal_pickaxe: { id: 'crystal_pickaxe', name: '晶体镐', pickaxePower: 4, miningSpeed: 48, damage: 18, paletteId: 'cold01', category: 'pickaxe' },
+  void_pickaxe: { id: 'void_pickaxe', name: '暗能镐', pickaxePower: 5, miningSpeed: 64, damage: 26, paletteId: 'void02', category: 'pickaxe' },
 
   // === 剑 ===
   copper_sword: { id: 'copper_sword', name: '铜剑', pickaxePower: 0, miningSpeed: 6, damage: 8, paletteId: 'rust02', category: 'sword' },
   iron_sword: { id: 'iron_sword', name: '铁剑', pickaxePower: 0, miningSpeed: 6, damage: 14, paletteId: 'iron01', category: 'sword' },
   ember_sword: { id: 'ember_sword', name: '余金剑', pickaxePower: 0, miningSpeed: 6, damage: 22, paletteId: 'ember02', category: 'sword' },
+  void_sword: { id: 'void_sword', name: '暗能剑', pickaxePower: 0, miningSpeed: 6, damage: 34, paletteId: 'void03', category: 'sword' },
 };
 
 /**

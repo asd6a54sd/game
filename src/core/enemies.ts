@@ -17,9 +17,31 @@ export interface EnemyDef {
 }
 
 export const ENEMY_DEFS: Record<string, EnemyDef> = {
+  // === wreck_zone 残骸带 ===
   alloy_slime: { type: 'alloy_slime', name: '合金史莱姆', paletteId: 'cold02', behavior: 'hopper', hp: 12, damage: 4, speed: 120, jumpForce: 260, width: 20, height: 16, cooldownAttack: 0.8, cooldownHurtFlash: 0.25, dropTable: [{ blockId: 'ore_copper', chance: 0.5, count: 1 }, { blockId: 'wreck_scrap', chance: 0.4, count: 1 }], spawnAtNight: true, spawnAtDay: false },
   wreck_soldier: { type: 'wreck_soldier', name: '残躯兵', paletteId: 'iron03', behavior: 'chaser', hp: 22, damage: 6, speed: 90, jumpForce: 320, width: 12, height: 24, cooldownAttack: 0.6, cooldownHurtFlash: 0.25, dropTable: [{ blockId: 'ore_copper', chance: 0.7, count: 1 }, { blockId: 'wreck_scrap', chance: 0.5, count: 1 }], spawnAtNight: true, spawnAtDay: false },
+  wreck_drone: { type: 'wreck_drone', name: '残骸无人机', paletteId: 'iron02', behavior: 'flyer', hp: 14, damage: 5, speed: 140, jumpForce: 0, width: 16, height: 12, cooldownAttack: 0.5, cooldownHurtFlash: 0.2, dropTable: [{ blockId: 'wreck_scrap', chance: 0.8, count: 1 }, { blockId: 'ore_copper', chance: 0.3, count: 1 }], spawnAtNight: true, spawnAtDay: true },
+
+  // === crack_waste 龟裂荒原 ===
+  wind_scorpion: { type: 'wind_scorpion', name: '风蝎', paletteId: 'rust04', behavior: 'hopper', hp: 18, damage: 7, speed: 160, jumpForce: 300, width: 22, height: 14, cooldownAttack: 0.7, cooldownHurtFlash: 0.25, dropTable: [{ blockId: 'wind_rock', chance: 0.9, count: 1 }, { blockId: 'ore_copper', chance: 0.25, count: 1 }], spawnAtNight: true, spawnAtDay: false },
+  dust_wraith: { type: 'dust_wraith', name: '尘影', paletteId: 'bone04', behavior: 'chaser', hp: 30, damage: 8, speed: 70, jumpForce: 380, width: 14, height: 26, cooldownAttack: 0.9, cooldownHurtFlash: 0.3, dropTable: [{ blockId: 'wind_rock', chance: 0.7, count: 2 }, { blockId: 'cracked_ground', chance: 0.5, count: 1 }], spawnAtNight: true, spawnAtDay: false },
+
+  // === gobi_mine 戈壁矿脉 ===
+  rock_golem: { type: 'rock_golem', name: '岩石傀儡', paletteId: 'bone05', behavior: 'chaser', hp: 50, damage: 14, speed: 55, jumpForce: 280, width: 20, height: 28, cooldownAttack: 1.2, cooldownHurtFlash: 0.4, dropTable: [{ blockId: 'ore_rock', chance: 1.0, count: 2 }, { blockId: 'ore_iron', chance: 0.5, count: 1 }], spawnAtNight: true, spawnAtDay: true },
+  gem_eye: { type: 'gem_eye', name: '晶眼', paletteId: 'cold02', behavior: 'flyer', hp: 10, damage: 6, speed: 130, jumpForce: 0, width: 18, height: 14, cooldownAttack: 0.6, cooldownHurtFlash: 0.2, dropTable: [{ blockId: 'crystal_glow', chance: 0.5, count: 1 }, { blockId: 'ore_gold', chance: 0.2, count: 1 }], spawnAtNight: true, spawnAtDay: true },
+
+  // === silent_sea 无声海 ===
+  metal_serpent: { type: 'metal_serpent', name: '金属游蛇', paletteId: 'cold01', behavior: 'flyer', hp: 16, damage: 9, speed: 180, jumpForce: 0, width: 24, height: 10, cooldownAttack: 0.4, cooldownHurtFlash: 0.2, dropTable: [{ blockId: 'metal_float', chance: 0.7, count: 1 }, { blockId: 'ore_iron', chance: 0.4, count: 1 }], spawnAtNight: true, spawnAtDay: true },
+  cold_hunter: { type: 'cold_hunter', name: '冷海猎手', paletteId: 'cold03', behavior: 'chaser', hp: 35, damage: 11, speed: 100, jumpForce: 340, width: 14, height: 26, cooldownAttack: 0.7, cooldownHurtFlash: 0.3, dropTable: [{ blockId: 'liquid_metal', chance: 0.5, count: 1 }, { blockId: 'crystal_glow', chance: 0.3, count: 1 }], spawnAtNight: true, spawnAtDay: false },
+
+  // === beast_hive 异兽巢穴 ===
+  chitin_beetle: { type: 'chitin_beetle', name: '甲壳甲虫', paletteId: 'bone01', behavior: 'hopper', hp: 28, damage: 8, speed: 130, jumpForce: 280, width: 22, height: 18, cooldownAttack: 0.8, cooldownHurtFlash: 0.3, dropTable: [{ blockId: 'chitin_hive', chance: 0.8, count: 1 }, { blockId: 'bio_glow', chance: 0.25, count: 1 }], spawnAtNight: true, spawnAtDay: false },
+  hive_stalker: { type: 'hive_stalker', name: '巢穴潜伏者', paletteId: 'void02', behavior: 'chaser', hp: 40, damage: 12, speed: 110, jumpForce: 400, width: 12, height: 28, cooldownAttack: 0.6, cooldownHurtFlash: 0.3, dropTable: [{ blockId: 'chitin_hive', chance: 0.6, count: 2 }, { blockId: 'bio_glow', chance: 0.5, count: 1 }], spawnAtNight: true, spawnAtDay: true },
+
+  // === underground_valley 地底幽谷 ===
   void_flyer: { type: 'void_flyer', name: '幽蓝飞虫', paletteId: 'void01', behavior: 'flyer', hp: 8, damage: 5, speed: 110, jumpForce: 0, width: 18, height: 12, cooldownAttack: 0.5, cooldownHurtFlash: 0.2, dropTable: [{ blockId: 'bio_glow', chance: 0.35, count: 1 }], spawnAtNight: true, spawnAtDay: true },
+  void_wraith: { type: 'void_wraith', name: '暗能游魂', paletteId: 'void04', behavior: 'flyer', hp: 26, damage: 13, speed: 170, jumpForce: 0, width: 22, height: 16, cooldownAttack: 0.7, cooldownHurtFlash: 0.3, dropTable: [{ blockId: 'dark_seed', chance: 0.6, count: 1 }, { blockId: 'void_crystal', chance: 0.2, count: 1 }], spawnAtNight: true, spawnAtDay: true },
+  rebel_ghost: { type: 'rebel_ghost', name: '叛影', paletteId: 'iron05', behavior: 'chaser', hp: 45, damage: 15, speed: 95, jumpForce: 360, width: 14, height: 28, cooldownAttack: 0.8, cooldownHurtFlash: 0.35, dropTable: [{ blockId: 'rebel_brick', chance: 0.8, count: 1 }, { blockId: 'ore_iron', chance: 0.5, count: 1 }], spawnAtNight: true, spawnAtDay: false },
 };
 
 export interface Enemy {
@@ -62,16 +84,47 @@ function findSpawnTile(px: number, py: number, mapW: number, mapH: number, isSol
   return null;
 }
 
+// 区块 → 敌人类型池（白天/夜间权重）
+const REGION_ENEMY_POOL: Record<string, { day: string[]; night: string[] }> = {
+  wreck_zone: { day: ['wreck_drone'], night: ['alloy_slime', 'wreck_soldier', 'wreck_drone'] },
+  crack_waste: { day: [], night: ['wind_scorpion', 'dust_wraith'] },
+  gobi_mine: { day: ['rock_golem', 'gem_eye'], night: ['rock_golem', 'gem_eye', 'dust_wraith'] },
+  silent_sea: { day: ['metal_serpent', 'cold_hunter'], night: ['metal_serpent', 'cold_hunter'] },
+  beast_hive: { day: ['hive_stalker'], night: ['chitin_beetle', 'hive_stalker'] },
+  underground_valley: { day: ['void_flyer'], night: ['void_flyer', 'void_wraith', 'rebel_ghost'] },
+};
+
+function regionColToRegion(pxCol: number): string {
+  // REGIONS startCol / endCol 对应区块
+  if (pxCol < 60) return 'wreck_zone';
+  if (pxCol < 120) return 'crack_waste';
+  if (pxCol < 180) return 'gobi_mine';
+  if (pxCol < 240) return 'silent_sea';
+  if (pxCol < 300) return 'beast_hive';
+  return 'underground_valley';
+}
+
 export function trySpawnEnemy(existing: Enemy[], _count: number, player: { x: number; y: number }, params: SpawnParams): Enemy[] {
-  if (existing.length >= 8) return [];
+  if (existing.length >= 10) return [];
+
   const isNight = params.timeOfDay > 0.55 || params.timeOfDay < 0.1;
-  let type: string;
-  if (isNight) {
-    const r = Math.random();
-    type = r < 0.5 ? 'alloy_slime' : r < 0.8 ? 'wreck_soldier' : 'void_flyer';
-  } else {
-    type = 'void_flyer';
-  }
+  const playerCol = Math.floor(player.x / TILE_SIZE);
+  const region = regionColToRegion(playerCol);
+
+  // 选敌人类型
+  const pool = REGION_ENEMY_POOL[region] ?? { day: [], night: ['void_flyer'] };
+  let candidates = isNight ? pool.night : pool.day;
+  // 白天没有专属敌人时，用夜间池（但减少生成率由外部控制）
+  if (candidates.length === 0) candidates = pool.night;
+  // 全局 fallback
+  if (candidates.length === 0) candidates = ['void_flyer', 'alloy_slime'];
+
+  const type = candidates[Math.floor(Math.random() * candidates.length)];
+  const def = ENEMY_DEFS[type];
+  if (!def) return [];
+  if (isNight && !def.spawnAtNight) return [];
+  if (!isNight && !def.spawnAtDay) return [];
+
   const pos = findSpawnTile(player.x, player.y, params.mapWidth, params.mapHeight, params.isSolid);
   if (!pos) return [];
   return [createEnemy(type, pos.x, pos.y - TILE_SIZE)];
