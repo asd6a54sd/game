@@ -93,7 +93,7 @@ export function biToBlock(idx: number): string {
 }
 
 export interface RegionStructure {
-  kind: 'hut' | 'camp' | 'crystal_altar';
+  kind: 'hut' | 'camp' | 'crystal_altar' | 'rock_altar';
   x: number; y: number; // 结构左上角 tile 坐标
   width: number; height: number;
   region: RegionId;
@@ -415,6 +415,43 @@ function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
       x: cx - 3, y: cy - 3,
       width: 7, height: 7,
       region: 'underground_valley',
+    });
+    break;
+  }
+
+  // rock_altar（rock_titan 位置）— gobi_mine 深层
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const cx = 135 + Math.floor(rng() * 30); // 135-165 col（gobi_mine 中央）
+    const cy = 120 + Math.floor(rng() * 40); // 120-160 deep
+    if (cx < 0 || cx >= MAP_WIDTH || cy < 0 || cy >= MAP_HEIGHT) continue;
+    // 清出较大空间（比 crystal_altar 大一倍，泰坦需要更多场地）
+    for (let dx = -5; dx <= 5; dx++) {
+      for (let dy = -5; dy <= 5; dy++) {
+        if (dx * dx + dy * dy > 25) continue;
+        const tx = cx + dx, ty = cy + dy;
+        if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) continue;
+        tiles[ty * MAP_WIDTH + tx] = bi('empty');
+      }
+    }
+    // 周围放 ore_rock 围圈 + 顶部 ore_gold 发光点
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2;
+      const rad = 6;
+      const tx = cx + Math.round(Math.cos(angle) * rad);
+      const ty = cy + Math.round(Math.sin(angle) * rad);
+      if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) continue;
+      tiles[ty * MAP_WIDTH + tx] = bi('ore_rock');
+    }
+    // 顶部 4 个发光金矿
+    tiles[(cy - 6) * MAP_WIDTH + cx] = bi('ore_gold');
+    tiles[(cy - 5) * MAP_WIDTH + (cx - 2)] = bi('ore_gold');
+    tiles[(cy - 5) * MAP_WIDTH + (cx + 2)] = bi('ore_gold');
+    tiles[(cy - 4) * MAP_WIDTH + cx] = bi('ore_gold');
+    structures.push({
+      kind: 'rock_altar',
+      x: cx - 6, y: cy - 6,
+      width: 13, height: 13,
+      region: 'gobi_mine',
     });
     break;
   }

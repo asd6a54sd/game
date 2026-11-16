@@ -5,7 +5,7 @@
 import './style.css';
 import { generateTerrain, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, biToBlock, regionNameAt } from './core/terrain.js';
 import { BLOCKS, isSolid } from './core/blocks.js';
-import { createCamera, follow } from './core/camera.js';
+import { createCamera, follow, shake, updateShake, getShakeOffset } from './core/camera.js';
 import { createPlayer, updatePlayer, placePlayerOnGround, Player } from './core/player.js';
 import { Renderer } from './core/renderer.js';
 import { createBreakState, startBreaking, stopBreaking, updateBreaking, updateParticles, BreakState } from './core/break.js';
@@ -430,6 +430,7 @@ function update(dt: number) {
 
   // 摄像机
   follow(cam, player.x, player.y, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE);
+  updateShake(cam, dt);
 
   // 破坏系统（考虑躯壳镐等级加成）
   const effectivePower = TOOLS[px.toolName].pickaxePower + (shellMgr.current.passiveKey === 'pickaxe' ? 1 : 0);
@@ -591,6 +592,7 @@ const REGION_GUIDANCE: Record<string, { subtitle: string; goal: string; hint: st
 // Boss 位置（缓存）
 let _altarCenter: { x: number; y: number } | null = null;
 let _barrierCenter: { x: number; y: number } | null = null;
+let _rockAltarCenter: { x: number; y: number } | null = null;
 
 function initStoryGuides() {
   // 计算晶体祭坛中心
@@ -599,6 +601,14 @@ function initStoryGuides() {
     _altarCenter = {
       x: (altar.x + altar.width / 2) * TILE_SIZE,
       y: (altar.y + altar.height / 2) * TILE_SIZE,
+    };
+  }
+  // 岩石泰坦祭坛中心（gobi_mine 深层）
+  const rockAltar = terrain.structures.find(s => s.kind === 'rock_altar');
+  if (rockAltar) {
+    _rockAltarCenter = {
+      x: (rockAltar.x + rockAltar.width / 2) * TILE_SIZE,
+      y: (rockAltar.y + rockAltar.height / 2) * TILE_SIZE,
     };
   }
   // 找最近 void_barrier 作为参考点（简单用第一个就行）
@@ -615,9 +625,20 @@ function getRegionGuidance(playerCol: number): { subtitle: string; goal: string;
   else if (playerCol >= 300) region = 'underground_valley';
   const g = REGION_GUIDANCE[region] ?? REGION_GUIDANCE['wreck_zone'];
 
-  // Boss 召唤提示
+  // Boss 召唤提示（按距离最近优先）
   let bossHint = '';
-  if (_altarCenter) {
+
+  // 1. 最近 rock_altar（gobi_mine）
+  if (_rockAltarCenter) {
+    const d2 = (_rockAltarCenter.x - player.x) ** 2 + (_rockAltarCenter.y - player.y) ** 2;
+    if (d2 < (24 * TILE_SIZE) ** 2) {
+      bossHint = d2 < (18 * TILE_SIZE) ** 2
+        ? '⛰ [按 R] 召唤 岩石泰坦'
+        : `⛰ 岩石祭坛 距离 ${Math.sqrt(d2) | 0} / 360px`;
+    }
+  }
+  // 2. 最近 crystal_altar（underground_valley）
+  if (!bossHint && _altarCenter) {
     const d2 = (_altarCenter.x - player.x) ** 2 + (_altarCenter.y - player.y) ** 2;
     if (d2 < (20 * TILE_SIZE) ** 2) {
       bossHint = d2 < (15 * TILE_SIZE) ** 2
@@ -625,6 +646,7 @@ function getRegionGuidance(playerCol: number): { subtitle: string; goal: string;
         : `💎 晶体祭坛 距离 ${Math.sqrt(d2) | 0} / 240px`;
     }
   }
+  // 3. void_barrier 兜底
   if (!bossHint && _barrierCenter) {
     const d2 = (_barrierCenter.x - player.x) ** 2 + (_barrierCenter.y - player.y) ** 2;
     if (d2 < (20 * TILE_SIZE) ** 2) {
@@ -651,7 +673,13 @@ function reduceDamage(damage: number): number {
 }
 
 function render() {
+  const ctx = renderer.ctx;
+  const { ox, oy } = getShakeOffset(cam);
   renderer.clear();
+
+  // 震屏偏移：世界层（地形/实体）偏移，HUD 固定屏幕
+  ctx.save();
+  ctx.translate(ox, oy);
   renderer.drawBackground(cam);
   renderer.drawWorld(terrain.tiles, cam, breakState);
 
@@ -686,6 +714,11 @@ function render() {
   renderer.drawCompanionProjs(compProjs, cam);
   renderer.drawPlayer(player, cam, shellMgr.current, shellMgr.alpha);
   renderer.drawDamageTexts(dmgTexts, cam);
+
+  // 恢复 — HUD 层不受震屏
+  ctx.restore();
+
+  // HUD（固定屏幕位置）
   renderer.drawPlayerHUD(player.hp, player.maxHp, shellMgr.current.name, shellMgr.switchCooldown, playerInvulnerable > 0, acc);
   renderer.drawBossHUD(bosses.filter(b => !b.isDead));
   renderer.drawHotbar(inv);
@@ -752,52 +785,103 @@ function formatTime(t: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-// ========== Boss 召唤（M7：两个 Boss 检测） ==========
+// ========== Boss 召唤（M7/M12：三个 Boss，按距离最近优先检测）==========
 function trySummonBoss() {
   if (bosses.length > 0) return;
   if (bossSpawnCooldown > 0) return;
 
-  // --- 优先检测：crystal_warden（靠近晶体祭坛） ---
-  const altar = terrain.structures.find(s => s.kind === 'crystal_altar');
-  if (altar) {
-    const ax = (altar.x + altar.width / 2) * TILE_SIZE;
-    const ay = (altar.y + altar.height / 2) * TILE_SIZE;
-    if ((ax - player.x) ** 2 + (ay - player.y) ** 2 < (15 * TILE_SIZE) ** 2) {
-      if (inv.count('dark_seed') < 5 || inv.count('void_crystal') < 3) {
-        console.warn('[Boss·晶殿] 需要 5 暗种 + 3 虚空晶体');
-        return;
-      }
-      inv.consume('dark_seed', 5);
-      inv.consume('void_crystal', 3);
-      const boss = createBoss('crystal_warden', ax, ay - 40);
-      bosses.push(boss);
-      bossSpawnCooldown = 30;
-      sfx.bossSummon();
-      console.log('[Boss] 💎 幽紫晶体守卫 已降临！');
-      return;
-    }
+  // 收集所有可召唤的祭坛候选
+  const candidates: { kind: string; ax: number; ay: number; costCheck: () => boolean; costText: string; summon: () => void; }[] = [];
+
+  // 1. rock_titan 祭坛（gobi_mine 深层）
+  const rockAltar = terrain.structures.find(s => s.kind === 'rock_altar');
+  if (rockAltar) {
+    const ax = (rockAltar.x + rockAltar.width / 2) * TILE_SIZE;
+    const ay = (rockAltar.y + rockAltar.height / 2) * TILE_SIZE;
+    candidates.push({
+      kind: 'rock_titan',
+      ax, ay,
+      costCheck: () => inv.count('ore_rock') >= 8 && inv.count('ore_gold') >= 3,
+      costText: '8 矿岩 + 3 金矿',
+      summon: () => {
+        inv.consume('ore_rock', 8);
+        inv.consume('ore_gold', 3);
+        const boss = createBoss('rock_titan', ax, ay - 40);
+        bosses.push(boss);
+        shake(cam, 6);
+        sfx.bossSummon();
+        console.log('[Boss] ⛰ 岩石泰坦 已苏醒！');
+      },
+    });
   }
 
-  // --- 默认：void_assimilator（靠近暗能量结界） ---
-  if (inv.count('dark_filament') < 3) {
-    console.warn('[Boss·黑雾] 需要 3 个暗能丝');
+  // 2. crystal_warden 祭坛（underground_valley）
+  const crystalAltar = terrain.structures.find(s => s.kind === 'crystal_altar');
+  if (crystalAltar) {
+    const ax = (crystalAltar.x + crystalAltar.width / 2) * TILE_SIZE;
+    const ay = (crystalAltar.y + crystalAltar.height / 2) * TILE_SIZE;
+    candidates.push({
+      kind: 'crystal_warden',
+      ax, ay,
+      costCheck: () => inv.count('dark_seed') >= 5 && inv.count('void_crystal') >= 3,
+      costText: '5 暗种 + 3 虚空晶体',
+      summon: () => {
+        inv.consume('dark_seed', 5);
+        inv.consume('void_crystal', 3);
+        const boss = createBoss('crystal_warden', ax, ay - 40);
+        bosses.push(boss);
+        sfx.bossSummon();
+        console.log('[Boss] 💎 幽紫晶体守卫 已降临！');
+      },
+    });
+  }
+
+  // 3. void_assimilator（靠近暗能量结界）
+  const barrier = findNearestVoidBarrier(terrain.tiles, player.x, player.y);
+  if (barrier) {
+    candidates.push({
+      kind: 'void_assimilator',
+      ax: barrier.x, ay: barrier.y,
+      costCheck: () => inv.count('dark_filament') >= 3,
+      costText: '3 暗能丝',
+      summon: () => {
+        inv.consume('dark_filament', 3);
+        const boss = createBoss('void_assimilator', barrier.x, barrier.y - 30);
+        bosses.push(boss);
+        sfx.bossSummon();
+        console.log('[Boss] ☠ 黑雾同化体 已降临！');
+      },
+    });
+  }
+
+  if (candidates.length === 0) {
+    console.warn('[Boss] 附近没有可召唤 Boss 的祭坛或结界');
     return;
   }
-  const spot = findNearestVoidBarrier(terrain.tiles, player.x, player.y);
-  if (!spot) {
-    console.warn('[Boss] 附近没有暗能量结界');
+
+  // 找距离最近的候选
+  let best = candidates[0];
+  let bestD2 = (best.ax - player.x) ** 2 + (best.ay - player.y) ** 2;
+  for (let i = 1; i < candidates.length; i++) {
+    const c = candidates[i];
+    const d2 = (c.ax - player.x) ** 2 + (c.ay - player.y) ** 2;
+    if (d2 < bestD2) { bestD2 = d2; best = c; }
+  }
+
+  // 距离判定（rock_altar 较大，范围放宽到 20TILE）
+  const range = best.kind === 'rock_titan' ? (20 * TILE_SIZE) : (15 * TILE_SIZE);
+  if (bestD2 > range * range) {
+    console.warn(`[Boss] 太远了，靠近 ${best.kind === 'rock_titan' ? '岩石祭坛' : best.kind === 'crystal_warden' ? '晶体祭坛' : '暗能量结界'}`);
     return;
   }
-  if ((spot.x - player.x) ** 2 + (spot.y - player.y) ** 2 > (15 * TILE_SIZE) ** 2) {
-    console.warn('[Boss] 太远了，靠近地底幽谷的暗能量结界');
+
+  if (!best.costCheck()) {
+    console.warn(`[Boss·${best.kind}] 需要 ${best.costText}`);
     return;
   }
-  inv.consume('dark_filament', 3);
-  const boss = createBoss('void_assimilator', spot.x, spot.y - 30);
-  bosses.push(boss);
+
+  best.summon();
   bossSpawnCooldown = 30;
-  sfx.bossSummon();
-  console.log('[Boss] ☠ 黑雾同化体 已降临！');
 }
 
 // ========== Boss 更新 ==========
@@ -820,6 +904,7 @@ function updateBossesSystem(dt: number) {
         playerInvulnerable = 0.6;
         if (player.hp <= 0) respawnPlayer();
       },
+      onShakePlayer: (intensity) => shake(cam, intensity),
     });
     bossProjectiles.push(...projs);
 
@@ -833,7 +918,16 @@ function updateBossesSystem(dt: number) {
         spawnDmgText(boss.x, boss.y - bossHalfH(boss), TOOLS[px.toolName].damage + shellMgr.current.damage * 0.5, '#c040e8', 0.15);
         if (died) {
           // 击败掉落（按 Boss 类型区分）
-          if (boss.def.id === 'crystal_warden') {
+          if (boss.def.id === 'rock_titan') {
+            shake(cam, 12);
+            breakState.drops.push({ x: boss.x, y: boss.y, vx: 0, vy: -100, blockId: 'ore_gold', life: 60 });
+            breakState.drops.push({ x: boss.x + 20, y: boss.y, vx: 50, vy: -80, blockId: 'ore_gold', life: 60 });
+            breakState.drops.push({ x: boss.x - 20, y: boss.y, vx: -50, vy: -80, blockId: 'void_crystal', life: 60 });
+            breakState.drops.push({ x: boss.x + 40, y: boss.y, vx: 80, vy: -120, blockId: 'dark_filament', life: 60 });
+            purifyNearbyVoidBarrier(boss.x, boss.y);
+            sfx.bossDie();
+            console.log('[Boss] ✅ 岩石泰坦 已崩塌！');
+          } else if (boss.def.id === 'crystal_warden') {
             breakState.drops.push({ x: boss.x, y: boss.y, vx: 0, vy: -100, blockId: 'void_crystal', life: 60 });
             breakState.drops.push({ x: boss.x + 20, y: boss.y, vx: 50, vy: -80, blockId: 'void_crystal', life: 60 });
             breakState.drops.push({ x: boss.x - 20, y: boss.y, vx: -50, vy: -80, blockId: 'dark_seed', life: 60 });

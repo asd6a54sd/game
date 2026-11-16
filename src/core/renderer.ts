@@ -21,7 +21,8 @@ import { Companion, companionSpriteColors, compHalfW, compHalfH } from './compan
 import { AccessoryManager, ACCESSORY_DEFS } from './accessories.js';
 
 export class Renderer {
-  private ctx: CanvasRenderingContext2D;
+  // public 以便 main.ts 震屏偏移（save/translate/restore）
+  ctx: CanvasRenderingContext2D;
   private starField: { x: number; y: number; b: number }[] = [];
   // 日夜循环 0..1 (0 = 黎明, 0.5 = 正午, 0.9 = 深夜)
   timeOfDay = 0.3;
