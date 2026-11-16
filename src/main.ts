@@ -71,6 +71,11 @@ const bosses: Boss[] = [];
 const bossProjectiles: BossProjectile[] = [];
 let bossSpawnCooldown = 0;
 
+// M14: 夜间 Boss 自动刷新
+let nightBossSpawnCooldown = 8;
+const nightBossSpawnedRegions = new Set<string>(); // 本夜间已刷过 Boss 的区块
+let lastNightState = false; // 上一帧是否是夜间
+
 // AI 队友系统
 const companions: Companion[] = [];
 interface CompProj { x: number; y: number; vx: number; vy: number; damage: number; ownerId: number; life: number; maxLife: number; }
@@ -734,7 +739,7 @@ function render() {
 
   // HUD（固定屏幕位置）
   renderer.drawPlayerHUD(player.hp, player.maxHp, shellMgr.current.name, shellMgr.switchCooldown, playerInvulnerable > 0, acc);
-  renderer.drawBossHUD(bosses.filter(b => !b.isDead));
+  renderer.drawBossHUD(bosses.filter(b => !b.isDead), player.x, player.y);
   renderer.drawHotbar(inv);
   if (showMinimap) renderer.drawMinimap(cam, terrain.tiles, player.x, player.y);
 }
@@ -902,6 +907,51 @@ function trySummonBoss() {
 function updateBossesSystem(dt: number) {
   if (bossSpawnCooldown > 0) bossSpawnCooldown -= dt;
 
+  // M14: 夜间 Boss 自动刷新
+  const isNight = renderer.timeOfDay > 0.55 || renderer.timeOfDay < 0.1;
+  // 刚进入夜间：重置已刷列表
+  if (isNight !== lastNightState) {
+    if (isNight) nightBossSpawnedRegions.clear();
+    lastNightState = isNight;
+  }
+  nightBossSpawnCooldown -= dt;
+  if (isNight && nightBossSpawnCooldown <= 0 && bosses.length < 5) {
+    nightBossSpawnCooldown = 8 + Math.random() * 7; // 8-15 秒
+    // 找区块对应夜间 Boss
+    const playerCol = Math.floor(player.x / TILE_SIZE);
+    let region = 'wreck_zone';
+    if (playerCol < 60) region = 'wreck_zone';
+    else if (playerCol < 120) region = 'crack_waste';
+    else if (playerCol < 180) region = 'gobi_mine';
+    else if (playerCol < 240) region = 'silent_sea';
+    else if (playerCol < 300) region = 'beast_hive';
+    else region = 'underground_valley';
+    if (nightBossSpawnedRegions.has(region)) return; // 本夜已刷过
+    // 5% 几率（因为已经有定时器节流了）
+    if (Math.random() < 0.05) {
+      const NIGHT_BOSS_MAP: Record<string, string> = {
+        wreck_zone: 'night_wreck_chief',
+        crack_waste: 'storm_titan',
+        gobi_mine: 'magma_golem',
+        silent_sea: 'frost_kraken',
+        beast_hive: 'hive_overlord',
+        underground_valley: 'shadow_lich',
+      };
+      const bossId = NIGHT_BOSS_MAP[region];
+      if (bossId) {
+        // 在玩家附近 15-25 tile 处刷新
+        const spawnCol = Math.max(2, Math.min(MAP_WIDTH - 2, playerCol + (Math.random() < 0.5 ? -1 : 1) * (15 + Math.floor(Math.random() * 10))));
+        const spawnY = (terrain.heightMap[Math.max(0, Math.min(MAP_WIDTH - 1, spawnCol))] + 1) * TILE_SIZE;
+        const b = createBoss(bossId, spawnCol * TILE_SIZE, spawnY - 40);
+        bosses.push(b);
+        nightBossSpawnedRegions.add(region);
+        shake(cam, 4);
+        sfx.bossSummon();
+        console.log(`[夜间Boss] ⚠ ${b.def.name} 在你的 ${region} 区域出现！`);
+      }
+    }
+  }
+
   // Boss AI
   for (const boss of bosses) {
     if (boss.isDead) continue;
@@ -934,7 +984,37 @@ function updateBossesSystem(dt: number) {
         spawnDmgText(boss.x, boss.y - bossHalfH(boss), TOOLS[px.toolName].damage + shellMgr.current.damage * 0.5, '#c040e8', baseCrit, 1.5 * (buffLocal.critDamageMult ?? 1));
         if (died) {
           // 击败掉落（按 Boss 类型区分）
-          if (boss.def.id === 'rock_titan') {
+          if (boss.def.isNightBoss) {
+            // M14: 夜间 Boss 专属掉落
+            const NIGHT_BOSS_LOOT: Record<string, { accessory: string; mats: string[] }> = {
+              night_wreck_chief: { accessory: 'wreck_warlord_medal', mats: ['ore_iron', 'wreck_scrap', 'ore_copper'] },
+              storm_titan: { accessory: 'storm_banner', mats: ['wind_rock', 'ore_iron', 'cracked_ground'] },
+              magma_golem: { accessory: 'magma_core', mats: ['ore_rock', 'ore_gold', 'ore_iron'] },
+              frost_kraken: { accessory: 'frost_veil', mats: ['crystal_glow', 'liquid_metal', 'metal_float'] },
+              hive_overlord: { accessory: 'hive_stinger', mats: ['chitin_hive', 'bio_glow', 'dark_seed'] },
+              shadow_lich: { accessory: 'shadow_cowl', mats: ['dark_seed', 'dark_filament', 'void_crystal'] },
+            };
+            const loot = NIGHT_BOSS_LOOT[boss.def.id] ?? NIGHT_BOSS_LOOT['night_wreck_chief'];
+            // 材料掉落（每种 1-2 个）
+            for (let i = 0; i < 3; i++) {
+              const blockId = loot.mats[i];
+              const count = 1 + Math.floor(Math.random() * 2);
+              for (let k = 0; k < count; k++) {
+                breakState.drops.push({
+                  x: boss.x + (Math.random() - 0.5) * 60,
+                  y: boss.y + (Math.random() - 0.5) * 40,
+                  vx: (Math.random() - 0.5) * 140,
+                  vy: -100 - Math.random() * 80,
+                  blockId, life: 60,
+                });
+              }
+            }
+            // 专属饰品 100%
+            breakState.drops.push({ x: boss.x, y: boss.y - 40, vx: 0, vy: -180, blockId: loot.accessory, life: 60 });
+            shake(cam, 6);
+            sfx.bossDie();
+            console.log(`[夜间Boss] ✅ ${boss.def.name} 已倒下！→ ${loot.accessory}`);
+          } else if (boss.def.id === 'rock_titan') {
             shake(cam, 12);
             breakState.drops.push({ x: boss.x, y: boss.y, vx: 0, vy: -100, blockId: 'ore_gold', life: 60 });
             breakState.drops.push({ x: boss.x + 20, y: boss.y, vx: 50, vy: -80, blockId: 'ore_gold', life: 60 });

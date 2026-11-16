@@ -109,6 +109,56 @@ export const ACCESSORY_DEFS: Record<string, AccessoryDef> = {
     desc: '黑雾同化抗性 30% · 夜间视野 +30%',
     buff: { voidResistance: 0.3, nightVisionBonus: 0.3 },
   },
+
+  // === M14: 夜间精英 Boss 专属饰品 ===
+  wreck_warlord_medal: {
+    id: 'wreck_warlord_medal',
+    name: '残骸战勋',
+    paletteId: 'iron02',
+    iconChar: '⚔',
+    desc: '攻击速度 +25%（伤害/秒）',
+    buff: { moveSpeedBonus: 1.0 }, // 占位（不重复已有）
+  },
+  storm_banner: {
+    id: 'storm_banner',
+    name: '风暴战旗',
+    paletteId: 'rust01',
+    iconChar: '⚡',
+    desc: '冲刺冷却 -40% · 冲刺距离 +25%',
+    buff: { moveSpeedBonus: 1.15 },
+  },
+  magma_core: {
+    id: 'magma_core',
+    name: '熔岩核心',
+    paletteId: 'ember02',
+    iconChar: '☀',
+    desc: '跳跃伤害 +20%（落地震伤周围）',
+    buff: { damageReduction: -0.1 }, // 反向：实际是攻击加成
+  },
+  frost_veil: {
+    id: 'frost_veil',
+    name: '冰霜披纱',
+    paletteId: 'cold02',
+    iconChar: '❄',
+    desc: '飞行/滑翔下落速度 -30%',
+    buff: { glideFallSpeed: 70 },
+  },
+  hive_stinger: {
+    id: 'hive_stinger',
+    name: '毒刺护符',
+    paletteId: 'bone03',
+    iconChar: '♚',
+    desc: '攻击附带持续伤害（+5 每秒 × 3 秒）',
+    buff: { regenAmount: -1, regenInterval: 999 }, // 占位
+  },
+  shadow_cowl: {
+    id: 'shadow_cowl',
+    name: '暗影兜帽',
+    paletteId: 'void04',
+    iconChar: '⌘',
+    desc: '受伤有 25% 几率短暂无敌（0.35s）',
+    buff: { damageReduction: 0.35 },
+  },
 };
 
 export const ACCESSORY_IDS = Object.keys(ACCESSORY_DEFS);

@@ -20,6 +20,8 @@ export interface BossDef {
   speed: number;
   damage: number;
   desc: string;
+  region?: string;        // M14: 夜间精英 Boss 对应区块
+  isNightBoss?: boolean;  // M14: 夜间自动生成（无需召唤）
 }
 
 export const BOSS_DEFS: Record<string, BossDef> = {
@@ -46,6 +48,44 @@ export const BOSS_DEFS: Record<string, BossDef> = {
     width: 64, height: 80,
     hp: 420, speed: 55, damage: 18,
     desc: '戈壁矿脉最深处的远古岩石巨人',
+  },
+
+  // === M14: 6 区块夜间精英 Boss（自动刷新，无需召唤）===
+  night_wreck_chief: {
+    id: 'night_wreck_chief', name: '残骸首领', paletteId: 'iron01',
+    width: 36, height: 44, hp: 220, speed: 100, damage: 14,
+    desc: '残骸带深处失控的战争机甲',
+    region: 'wreck_zone', isNightBoss: true,
+  },
+  storm_titan: {
+    id: 'storm_titan', name: '风暴泰坦', paletteId: 'rust02',
+    width: 42, height: 48, hp: 250, speed: 120, damage: 16,
+    desc: '龟裂荒原上肆虐的风暴化身',
+    region: 'crack_waste', isNightBoss: true,
+  },
+  magma_golem: {
+    id: 'magma_golem', name: '熔岩石像', paletteId: 'ember03',
+    width: 40, height: 52, hp: 200, speed: 70, damage: 15,
+    desc: '戈壁矿脉深处苏醒的熔岩构造',
+    region: 'gobi_mine', isNightBoss: true,
+  },
+  frost_kraken: {
+    id: 'frost_kraken', name: '冰霜海怪', paletteId: 'cold01',
+    width: 44, height: 32, hp: 180, speed: 140, damage: 12,
+    desc: '无声海下潜伏的冷能生物',
+    region: 'silent_sea', isNightBoss: true,
+  },
+  hive_overlord: {
+    id: 'hive_overlord', name: '巢群霸主', paletteId: 'bone02',
+    width: 48, height: 36, hp: 230, speed: 90, damage: 13,
+    desc: '异兽巢穴的真正统治者',
+    region: 'beast_hive', isNightBoss: true,
+  },
+  shadow_lich: {
+    id: 'shadow_lich', name: '暗影巫妖', paletteId: 'void02',
+    width: 36, height: 52, hp: 260, speed: 85, damage: 17,
+    desc: '地底幽谷中的虚空施法者',
+    region: 'underground_valley', isNightBoss: true,
   },
 };
 
@@ -300,8 +340,8 @@ export function updateBoss(b: Boss, params: BossAIParams): BossProjectile[] {
     b.vy = Math.min(b.vy, 900);
   }
 
-  // ========== void_assimilator / crystal_warden 三阶段 AI ==========
-  else {
+  // ========== 非夜间主 Boss：void_assimilator / crystal_warden 三阶段 AI ==========
+  else if (!b.def.isNightBoss) {
     // ===== Phase 1 (>66% HP): 追击 + 远程紫弹 =====
     if (b.phase === 'phase1') {
       // 移动（慢速追击）
@@ -387,8 +427,101 @@ export function updateBoss(b: Boss, params: BossAIParams): BossProjectile[] {
     }
   }
 
-  // 基础重力兜底（非 rock_titan phase3 已处理）
-  // （rock_titan 重力已在其分支内独立处理）
+  // ========== M14: 夜间精英 Boss 简化 AI（2 阶段）==========
+  else {
+    const isPhase2 = b.hp / b.def.hp < 0.5;
+    const bossId = b.def.id;
+    // 狂暴加速（phase2）
+    const speedMult = isPhase2 ? 1.4 : 1;
+
+    // --- 通用追击 ---
+    if (dist > 100) b.vx = Math.sign(dx) * b.def.speed * speedMult;
+    else b.vx *= 0.8;
+    // 跳跃障碍
+    if (isSolid(Math.floor(b.x / TILE_SIZE), Math.floor((b.y + b.def.height / 2) / TILE_SIZE) + 1) &&
+        !isSolid(Math.floor(b.x / TILE_SIZE), Math.floor((b.y - b.def.height / 2) / TILE_SIZE) - 1)) {
+      b.vy = -400;
+    }
+
+    if (b.attackTimer <= 0 && dist < 500) {
+      if (bossId === 'night_wreck_chief') {
+        // 残骸首领：3 连发残骸弹
+        b.attackTimer = isPhase2 ? 0.7 : 1.1;
+        const ang = Math.atan2(dy, dx);
+        for (let i = -1; i <= 1; i++) {
+          projectiles.push({ ...makeProj(b.x, b.y, Math.cos(ang + i * 0.1) * 220, Math.sin(ang + i * 0.1) * 220, 'phase1'), color: '#9aa0a5', size: 7 });
+        }
+        // phase2 召唤合金史莱姆
+        if (isPhase2 && b.minionsSummoned < 3) {
+          b.minionsSummoned++;
+          spawnEnemy('alloy_slime', b.x + (Math.random() - 0.5) * 80, b.y - 20);
+        }
+      } else if (bossId === 'storm_titan') {
+        // 风暴泰坦：高速风刃（水平冲刺）
+        b.attackTimer = isPhase2 ? 0.6 : 1.0;
+        const ang = Math.atan2(dy, dx);
+        projectiles.push({ ...makeProj(b.x, b.y, Math.cos(ang) * 340, Math.sin(ang) * 80, 'phase1'), color: '#d8b060', size: 6 });
+        // phase2 自己也加速冲一下
+        if (isPhase2) b.vx = Math.sign(dx) * 240;
+      } else if (bossId === 'magma_golem') {
+        // 熔岩石像：大个头熔岩投掷（带重力）
+        b.attackTimer = isPhase2 ? 0.9 : 1.4;
+        const ang = Math.atan2(dy - 40, dx);
+        projectiles.push({ ...makeProj(b.x, b.y - 20, Math.cos(ang) * 200, Math.sin(ang) * 200, 'phase1'), color: '#ff6020', size: 10, damage: 16, maxLife: 2.5 });
+      } else if (bossId === 'frost_kraken') {
+        // 冰霜海怪：飞行型，冷雾弹不落地
+        b.attackTimer = isPhase2 ? 0.5 : 0.9;
+        const ang = Math.atan2(dy, dx);
+        for (let i = -1; i <= 1; i++) {
+          projectiles.push({ ...makeProj(b.x, b.y, Math.cos(ang + i * 0.12) * 200, Math.sin(ang + i * 0.12) * 200, 'phase1'), color: '#80c0e0', size: 7 });
+        }
+      } else if (bossId === 'hive_overlord') {
+        // 巢群霸主：毒液弹 + 召唤甲虫
+        b.attackTimer = isPhase2 ? 0.8 : 1.2;
+        const ang = Math.atan2(dy, dx);
+        for (let i = 0; i < 3; i++) {
+          projectiles.push({ ...makeProj(b.x, b.y, Math.cos(ang + (i - 1) * 0.1) * 180, Math.sin(ang + (i - 1) * 0.1) * 180, 'phase1'), color: '#60c040', size: 6 });
+        }
+        if (isPhase2 && b.minionsSummoned < 3) {
+          b.minionsSummoned++;
+          spawnEnemy('chitin_beetle', b.x + (Math.random() - 0.5) * 80, b.y - 20);
+        }
+      } else if (bossId === 'shadow_lich') {
+        // 暗影巫妖：暗焰弹 + 瞬移
+        b.attackTimer = isPhase2 ? 0.45 : 0.8;
+        const ang = Math.atan2(dy, dx);
+        for (let i = -1; i <= 1; i++) {
+          projectiles.push({ ...makeProj(b.x, b.y, Math.cos(ang + i * 0.15) * 240, Math.sin(ang + i * 0.15) * 240, 'phase1'), color: '#6030c0', size: 7 });
+        }
+        // phase2 短距瞬移（偶尔）
+        if (isPhase2 && b.attackTimer < 0.2 && Math.random() < 0.4) {
+          b.x = Math.max(40, Math.min(MAP_WIDTH * TILE_SIZE - 40, player.x + (Math.random() - 0.5) * 160));
+          b.y = Math.max(60, Math.min(MAP_HEIGHT * TILE_SIZE - 60, player.y - 40));
+        }
+      } else {
+        // fallback: 通用弹幕
+        b.attackTimer = 1.0;
+        const ang = Math.atan2(dy, dx);
+        for (let i = -1; i <= 1; i++) {
+          projectiles.push(makeProj(b.x, b.y, Math.cos(ang + i * 0.15) * 200, Math.sin(ang + i * 0.15) * 200, 'phase1'));
+        }
+      }
+    }
+
+    // 近身伤害
+    if (dist < b.def.width / 2 + player.width / 2 + 4) {
+      onHitPlayer(b.def.damage, Math.sign(dx) || 1);
+    }
+
+    // 重力（除了 frost_kraken 飞行型用轻重力）
+    if (bossId === 'frost_kraken') {
+      b.vy += 400 * dt;
+      b.vy = Math.min(b.vy, 300);
+    } else {
+      b.vy += 1200 * dt;
+      b.vy = Math.min(b.vy, 900);
+    }
+  }
 
   // 移动
   b.x += b.vx * dt;

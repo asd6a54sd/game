@@ -829,9 +829,19 @@ export class Renderer {
   }
 
   /** Boss HP 条（屏幕下方居中）*/
-  drawBossHUD(bosses: { def: { name: string; hp: number }; hp: number; phase: string; isDead: boolean }[]) {
+  drawBossHUD(bosses: { def: { name: string; hp: number; isNightBoss?: boolean }; hp: number; phase: string; isDead: boolean; x?: number; y?: number }[], playerX?: number, playerY?: number) {
     if (bosses.length === 0) return;
-    const boss = bosses[0];
+    // 选最近的 Boss（如果有坐标）
+    let boss = bosses[0];
+    if (playerX !== undefined && playerY !== undefined) {
+      let bestD2 = Infinity;
+      for (const b of bosses) {
+        if (b.isDead) continue;
+        if (b.x === undefined || b.y === undefined) continue;
+        const d2 = (b.x - playerX) ** 2 + (b.y - playerY) ** 2;
+        if (d2 < bestD2) { bestD2 = d2; boss = b; }
+      }
+    }
     if (boss.isDead) return;
     const ctx = this.ctx;
     const w = this.canvas.width;
@@ -839,27 +849,30 @@ export class Renderer {
     const barH = 22;
     const bx = (w - barW) / 2;
     const by = this.canvas.height - 90;
+    // 夜间 Boss 样式调整
+    const isNightBoss = !!boss.def.isNightBoss;
     // 背景框
-    ctx.fillStyle = 'rgba(10, 6, 16, 0.9)';
+    ctx.fillStyle = isNightBoss ? 'rgba(20, 10, 25, 0.92)' : 'rgba(10, 6, 16, 0.9)';
     ctx.fillRect(bx - 4, by - 18, barW + 8, barH + 32);
-    ctx.strokeStyle = '#801080'; ctx.lineWidth = 2;
+    ctx.strokeStyle = isNightBoss ? '#6030a0' : '#801080'; ctx.lineWidth = 2;
     ctx.strokeRect(bx - 3, by - 17, barW + 6, barH + 30);
     // Boss 名
-    ctx.fillStyle = '#ff40c0';
+    ctx.fillStyle = isNightBoss ? '#a080e8' : '#ff40c0';
     ctx.font = 'bold 14px monospace';
     ctx.textAlign = 'center';
-    ctx.fillText(`☠ ${boss.def.name}`, bx + barW / 2, by - 4);
+    const tag = isNightBoss ? '🌙 夜间精英 Boss ' : '☠ ';
+    ctx.fillText(`${tag}${boss.def.name}`, bx + barW / 2, by - 4);
     // HP 条
     ctx.fillStyle = '#1a0a0a';
     ctx.fillRect(bx, by, barW, barH);
     const frac = Math.max(0, boss.hp / boss.def.hp);
-    let hpGrad = '#a840e8';
-    if (boss.phase === 'phase2') hpGrad = '#c060ff';
-    if (boss.phase === 'phase3') hpGrad = '#ff40c0';
+    let hpGrad = isNightBoss ? '#4a58a0' : '#a840e8';
+    if (boss.phase === 'phase2') hpGrad = isNightBoss ? '#6078c0' : '#c060ff';
+    if (boss.phase === 'phase3') hpGrad = isNightBoss ? '#8090e8' : '#ff40c0';
     const grd = ctx.createLinearGradient(bx, by, bx + barW * frac, by);
-    grd.addColorStop(0, '#4a0a60');
+    grd.addColorStop(0, isNightBoss ? '#1a2050' : '#4a0a60');
     grd.addColorStop(0.5, hpGrad);
-    grd.addColorStop(1, '#ff80ff');
+    grd.addColorStop(1, isNightBoss ? '#a8c0ff' : '#ff80ff');
     ctx.fillStyle = grd;
     ctx.fillRect(bx, by, barW * frac, barH);
     // 数值
@@ -867,7 +880,9 @@ export class Renderer {
     ctx.font = 'bold 12px monospace';
     ctx.fillText(`${Math.ceil(boss.hp)} / ${boss.def.hp}`, bx + barW / 2, by + 15);
     // 阶段指示
-    const phaseNames: Record<string, string> = { phase1: '追击', phase2: '召唤+冲击波', phase3: '狂暴' };
+    const phaseNames: Record<string, string> = isNightBoss
+      ? { phase1: '追击+弹幕', phase2: '狂暴+召唤' }
+      : { phase1: '追击', phase2: '召唤+冲击波', phase3: '狂暴' };
     ctx.fillStyle = '#ff8040';
     ctx.font = 'bold 11px monospace';
     ctx.fillText(`阶段：${phaseNames[boss.phase] ?? boss.phase}`, bx + barW / 2, by + barH + 14);

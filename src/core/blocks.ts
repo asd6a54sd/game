@@ -257,6 +257,14 @@ export const BLOCKS: Record<string, BlockDef> = {
     paletteId: 'void03', variants: [],
     drops: [],
   },
+
+  // === M14: 夜间精英 Boss 饰品 ===
+  wreck_warlord_medal: { id: 'wreck_warlord_medal', name: '残骸战勋', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'iron02', variants: [], drops: [] },
+  storm_banner: { id: 'storm_banner', name: '风暴战旗', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'rust01', variants: [], drops: [] },
+  magma_core: { id: 'magma_core', name: '熔岩核心', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'ember02', variants: [], drops: [] },
+  frost_veil: { id: 'frost_veil', name: '冰霜披纱', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'cold02', variants: [], drops: [] },
+  hive_stinger: { id: 'hive_stinger', name: '毒刺护符', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'bone03', variants: [], drops: [] },
+  shadow_cowl: { id: 'shadow_cowl', name: '暗影兜帽', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void04', variants: [], drops: [] },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);
