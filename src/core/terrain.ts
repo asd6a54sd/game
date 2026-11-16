@@ -392,6 +392,22 @@ function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
       if (npcX >= 0 && npcX < MAP_WIDTH && npcY >= 0 && npcY < MAP_HEIGHT) {
         tiles[npcY * MAP_WIDTH + npcX] = bi('merchant_npc');
       }
+      // M21: 残骸试炼坛（小屋右侧）
+      const wx = hutX + hutW + 3;
+      if (wx >= 0 && wx < MAP_WIDTH) tiles[groundY * MAP_WIDTH + wx] = bi('wreck_trial_altar');
+    }
+    // M21: 野兽试炼坛
+    if (hp.name === 'beast_hive') {
+      const bx = hutX + hutW + 3;
+      if (bx >= 0 && bx < MAP_WIDTH) tiles[groundY * MAP_WIDTH + bx] = bi('beast_trial_altar');
+    }
+    // M21: 虚空试炼坛（地底幽谷深层）
+    if (hp.name === 'underground_valley') {
+      const vx = hutX + 2;
+      const vy = Math.min(MAP_HEIGHT - 10, groundY + 15);
+      if (vx >= 0 && vx < MAP_WIDTH && vy >= 0 && vy < MAP_HEIGHT) {
+        tiles[vy * MAP_WIDTH + vx] = bi('void_trial_altar');
+      }
     }
   }
 

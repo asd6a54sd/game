@@ -17,13 +17,14 @@ import { createEnemy } from './core/enemies.js';
 import { ShellManager, SHELLS } from './core/shells.js';
 import { VoidEngine } from './core/voiding.js';
 import { WorldEventManager } from './core/events.js';
-import { createBoss, updateBoss, updateProjectiles, hitBoss, findNearestVoidBarrier, Boss, BossProjectile, bossHalfW, bossHalfH } from './core/bosses.js';
+import { createBoss, updateBoss, updateProjectiles, hitBoss, findNearestVoidBarrier, Boss, BossProjectile, bossHalfW, bossHalfH, BOSS_DEFS } from './core/bosses.js';
 import { Companion, createCivilian, recruitCompanion, updateCompanion } from './core/companions.js';
 import { sfx } from './core/sfx.js';
 import { AccessoryManager, ACCESSORY_DEFS } from './core/accessories.js';
 import { QuestManager, QuestState } from './core/tasks.js';
 import { AchievementManager, AchievementState } from './core/achievements.js';
 import { NPC_DEFS, SELL_PRICES, ShopItem } from './core/npcs.js';
+import { TrialManager, TRIAL_DEFS } from './core/trial.js';
 
 // ========== DOM ==========
 const loading = document.getElementById('loading')!;
@@ -150,6 +151,30 @@ const merchantShop: ShopItem[] = NPC_DEFS.merchant.shop.map(s => ({ ...s }));
 let shopMsg = '';
 let shopMsgTimer = 0;
 
+// M21: 试炼场系统
+const trial = new TrialManager();
+let trialMsg = '';
+let trialMsgTimer = 0;
+trial.onComplete = () => {
+  if (!trial.currentTrial) return;
+  const r = trial.currentTrial.reward;
+  for (const item of r) inv.add(item.blockId, item.count);
+  trialMsg = `🎉 试炼通关！获得 ${r.map(x => `${BLOCKS[x.blockId]?.name ?? x.blockId}×${x.count}`).join(', ')}`;
+  trialMsgTimer = 5;
+  shake(cam, 6);
+  sfx.bossDie();
+};
+trial.onFail = () => {
+  trialMsg = '💀 试炼失败...再来一次吧';
+  trialMsgTimer = 4;
+  sfx.error();
+};
+trial.onWaveStart = (idx, total) => {
+  trialMsg = `⚔ 第 ${idx + 1}/${total} 波来袭！`;
+  trialMsgTimer = 2.5;
+  sfx.bossSummon();
+};
+
 // M20: 检测玩家附近 3 tile 内是否有 merchant_npc
 function isNearMerchant(): boolean {
   const pc = Math.floor(player.x / TILE_SIZE);
@@ -190,6 +215,70 @@ function sellSelected() {
   shopMsg = `出售 ${BLOCKS[sel.blockId]?.name ?? sel.blockId} +${price} 金币`;
   shopMsgTimer = 2;
   sfx.pickup();
+}
+
+// M21: 检测玩家附近的试炼坛，返回试炼 id 或 null
+function getNearbyTrial(): string | null {
+  const pc = Math.floor(player.x / TILE_SIZE);
+  const pr = Math.floor(player.y / TILE_SIZE);
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -3; dx <= 3; dx++) {
+      const tx = pc + dx, ty = pr + dy;
+      if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) continue;
+      const bid = biToBlock(terrain.tiles[ty * MAP_WIDTH + tx]);
+      if (bid === 'wreck_trial_altar') return 'wreck_trial';
+      if (bid === 'void_trial_altar') return 'void_trial';
+      if (bid === 'beast_trial_altar') return 'beast_trial';
+    }
+  }
+  return null;
+}
+
+// M21: 激活试炼
+function activateTrial(trialId: string) {
+  const def = TRIAL_DEFS[trialId];
+  if (!def) return;
+  // 检查消耗
+  for (const c of def.cost) {
+    if (inv.count(c.blockId) < c.count) {
+      trialMsg = `材料不足：需要 ${BLOCKS[c.blockId]?.name ?? c.blockId} ×${c.count}`;
+      trialMsgTimer = 3; sfx.error(); return;
+    }
+  }
+  // 消耗材料
+  for (const c of def.cost) inv.consume(c.blockId, c.count);
+  trial.start(def);
+  trialMsg = `🔥 ${def.emoji} ${def.name} 开始！`;
+  trialMsgTimer = 3;
+  shake(cam, 4);
+  sfx.bossSummon();
+}
+
+// M21: 生成一波试炼敌人
+function spawnTrialWave() {
+  if (!trial.active || !trial.currentTrial || !trial.waveStarted) return;
+  const wave = trial.currentTrial.waves[trial.waveIndex];
+  const cx = player.x, cy = player.y;
+  let enemyCount = 0, bossCount = 0;
+  // 生成敌人
+  for (const defType of wave.enemies) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 200 + Math.random() * 100;
+    const ex = cx + Math.cos(angle) * dist;
+    const ey = cy - 60; // 从上方生成
+    const e = createEnemy(defType, ex, ey);
+    enemies.push(e);
+    enemyCount++;
+  }
+  // 生成 Boss
+  if (wave.boss) {
+    if (BOSS_DEFS[wave.boss]) {
+      const b = createBoss(wave.boss, cx, cy - 100);
+      bosses.push(b);
+      bossCount++;
+    }
+  }
+  trial.setWaveCounts(enemyCount, bossCount);
 }
 
 // M9a: 伤害弹出数字
@@ -373,7 +462,10 @@ function bindInput() {
         sfx.shellSwitch();
         break;
       case 'KeyR':
-        trySummonBoss();
+        // M21: 优先检测试炼坛
+        const nearbyTrial = getNearbyTrial();
+        if (nearbyTrial) activateTrial(nearbyTrial);
+        else trySummonBoss();
         break;
       case 'KeyF':
         tryRecruitCompanion();
@@ -634,6 +726,12 @@ function update(dt: number) {
   }
   // M20: 商店消息倒计时
   if (shopMsgTimer > 0) { shopMsgTimer -= dt; if (shopMsgTimer <= 0) shopMsg = ''; }
+  // M21: 试炼消息倒计时
+  if (trialMsgTimer > 0) { trialMsgTimer -= dt; if (trialMsgTimer <= 0) trialMsg = ''; }
+
+  // M21: 试炼更新
+  const trialResult = trial.update(dt);
+  if (trialResult === 'spawn_wave') spawnTrialWave();
 
   // 破坏系统（考虑躯壳镐等级加成）
   const effectivePower = TOOLS[px.toolName].pickaxePower + (shellMgr.current.passiveKey === 'pickaxe' ? 1 : 0);
@@ -791,6 +889,7 @@ function updateEnemiesSystem(dt: number, _effectivePower: number) {
         if (died) {
           tasks.onKill(false); // M17: 击杀敌人任务
           ach.addProgress('kill_50', 1); // M19: 战士成就
+          if (trial.active) trial.enemyDied(); // M21: 试炼计数
           sfx.enemyDie();
           if (e.def.dropTable) {
             const dropMultM = 1 + (ach.getAggregatedBuff().dropChanceBonus ?? 0);
@@ -893,6 +992,7 @@ function updatePlayerProjectiles(dt: number) {
           tasks.onKill(false);
           ach.addProgress('kill_50', 1);
           ach.addProgress('ranged_kill_20', 1); // M19: 神射手成就
+          if (trial.active) trial.enemyDied(); // M21: 试炼计数
           sfx.enemyDie();
           if (e.def.dropTable) {
             const dropMult = 1 + (ach.getAggregatedBuff().dropChanceBonus ?? 0);
@@ -1015,6 +1115,7 @@ function respawnPlayer() {
   placePlayerOnGround(player, terrain.heightMap);
   player.vx = player.vy = 0;
   playerInvulnerable = 2;
+  if (trial.active) trial.fail(); // M21: 试炼失败
 }
 
 /** M11: 饰品减伤 + M15 闪避几率（shadow_cowl 25%）*/
@@ -1100,6 +1201,8 @@ function render() {
   if (achPopup) renderer.drawAchievementPopup(achPopup.text);
   // M20: 商店面板
   if (shopOpenLocal) renderer.drawShop(merchantShop, inv.count('gold_coin'), shopMsg);
+  // M21: 试炼 HUD + 消息
+  if (trial.active || trialMsg) renderer.drawTrialHUD(trial, trialMsg);
   renderer.drawHotbar(inv);
   if (showMinimap) renderer.drawMinimap(cam, terrain.tiles, player.x, player.y);
 }
@@ -1355,6 +1458,7 @@ function updateBossesSystem(dt: number) {
           ach.addProgress('kill_boss_1', 1);
           ach.addProgress('all_bosses', 1);
           if (boss.def.isNightBoss) ach.addProgress('kill_night_boss_1', 1);
+          if (trial.active) trial.bossDied(); // M21: 试炼计数
           // 击败掉落（按 Boss 类型区分）
           if (boss.def.isNightBoss) {
             // M14: 夜间 Boss 专属掉落

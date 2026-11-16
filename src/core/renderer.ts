@@ -23,6 +23,7 @@ import { WorldEvent } from './events.js';
 import { QuestState } from './tasks.js';
 import { AchievementState } from './achievements.js';
 import { ShopItem } from './npcs.js';
+import { TrialManager } from './trial.js';
 
 
 export class Renderer {
@@ -1147,6 +1148,56 @@ export class Renderer {
       ctx.fillStyle = '#60c0ff';
       ctx.textAlign = 'center';
       ctx.fillText(msg, w / 2, y + h - pad + 2);
+      ctx.textAlign = 'left';
+    }
+  }
+
+  /** M21: 试炼 HUD — 顶部居中显示波次 + 剩余敌人 + 倒计时 */
+  drawTrialHUD(trial: TrialManager, msg: string) {
+    const ctx = this.ctx;
+    const w = this.canvas.width;
+    if (trial.active && trial.currentTrial) {
+      const total = trial.currentTrial.waves.length;
+      const cur = trial.waveIndex + 1;
+      const x = w / 2 - 120;
+      const y = 10;
+      // 背景
+      ctx.fillStyle = 'rgba(60, 10, 10, 0.9)';
+      ctx.fillRect(x, y, 240, 36);
+      ctx.strokeStyle = '#ff4040'; ctx.lineWidth = 2;
+      ctx.strokeRect(x, y, 240, 36);
+      // 试炼名 + 波次
+      ctx.fillStyle = '#ff8040';
+      ctx.font = 'bold 12px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(`${trial.currentTrial.emoji} ${trial.currentTrial.name}`, x + 8, y + 16);
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#ffd060';
+      ctx.fillText(`第 ${cur}/${total} 波`, x + 232, y + 16);
+      ctx.textAlign = 'left';
+      // 剩余敌人 + 倒计时
+      const remaining = trial.enemiesRemaining + trial.bossesRemaining;
+      ctx.fillStyle = remaining > 0 ? '#ff6060' : '#60c060';
+      ctx.font = '11px monospace';
+      if (trial.waveStarted) {
+        ctx.fillText(`剩余敌人: ${remaining}`, x + 8, y + 30);
+      } else {
+        ctx.fillStyle = '#ffd060';
+        ctx.fillText(`下一波 ${trial.waveTimer.toFixed(1)}s...`, x + 8, y + 30);
+      }
+    }
+    // 消息弹窗（通关/失败/波次提示）
+    if (msg) {
+      const tw = Math.max(200, ctx.measureText(msg).width + 40);
+      const y = 60;
+      ctx.fillStyle = 'rgba(30, 10, 10, 0.95)';
+      ctx.fillRect((w - tw) / 2, y, tw, 30);
+      ctx.strokeStyle = '#ff8040'; ctx.lineWidth = 2;
+      ctx.strokeRect((w - tw) / 2, y, tw, 30);
+      ctx.fillStyle = '#ffd060';
+      ctx.font = 'bold 13px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(msg, w / 2, y + 20);
       ctx.textAlign = 'left';
     }
   }

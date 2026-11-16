@@ -276,6 +276,11 @@ export const BLOCKS: Record<string, BlockDef> = {
   // === M20: NPC + 金币 ===
   gold_coin: { id: 'gold_coin', name: '金币', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'gold01', variants: [], drops: [] },
   merchant_npc: { id: 'merchant_npc', name: '流浪商人', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'gold01', variants: [], drops: [] },
+
+  // === M21: 试炼坛 ===
+  wreck_trial_altar: { id: 'wreck_trial_altar', name: '残骸试炼坛', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'rust03', variants: [], drops: [] },
+  void_trial_altar: { id: 'void_trial_altar', name: '虚空试炼坛', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void01', variants: [], drops: [] },
+  beast_trial_altar: { id: 'beast_trial_altar', name: '野兽试炼坛', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'bio02', variants: [], drops: [] },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);
