@@ -14,6 +14,7 @@ import { TOOLS } from './core/tools.js';
 import { WorkbenchUI } from './core/workbench.js';
 import { Enemy, updateEnemy, hitEnemy, trySpawnEnemy } from './core/enemies.js';
 import { ShellManager, SHELLS } from './core/shells.js';
+import { VoidEngine } from './core/voiding.js';
 
 // ========== DOM ==========
 const loading = document.getElementById('loading')!;
@@ -50,6 +51,9 @@ const wb = new WorkbenchUI(inv, {
 
 // 躯壳
 const shellMgr = new ShellManager();
+
+// 黑雾同化系统
+const voidEngine = new VoidEngine();
 
 // 敌人系统
 const enemies: Enemy[] = [];
@@ -101,6 +105,7 @@ init();
 
 async function init() {
   placePlayerOnGround(player, terrain.heightMap);
+  voidEngine.initFromTerrain(terrain.tiles);
   resize();
   window.addEventListener('resize', resize);
   bindInput();
@@ -299,6 +304,10 @@ function update(dt: number) {
   const sel = inv.getSelected();
   if (sel.count > 0 && TOOLS[sel.blockId]) px.toolName = sel.blockId;
 
+  // ========== 黑雾同化系统 ==========
+  voidEngine.updatePurifyTorches(terrain.tiles);
+  voidEngine.update(dt, renderer.timeOfDay, terrain.tiles, setBlock);
+
   // ========== 敌人系统 ==========
   updateEnemiesSystem(dt, effectivePower);
 
@@ -391,6 +400,9 @@ function render() {
   renderer.drawBackground(cam);
   renderer.drawWorld(terrain.tiles, cam, breakState);
 
+  // 同化进度紫色覆盖层
+  renderer.drawVoidProgressOverlay(cam, voidEngine);
+
   if (!inputBlocked) {
     if (mouseRight && mouseTile) {
       const sel = inv.getSelected();
@@ -412,6 +424,7 @@ function render() {
   }
 
   renderer.drawEnemies(enemies, cam);
+  renderer.drawVoidParticles(cam, voidEngine);
   renderer.drawPlayer(player, cam, shellMgr.current, shellMgr.alpha);
   renderer.drawHotbar(inv);
 }
@@ -429,6 +442,12 @@ function updateHUD() {
   if (inputBlocked) { hudBlock.textContent = '工作台已打开 (ESC 关闭)'; hudRegion.textContent = `区块: ${regionNameAt(pcol)}`; return; }
 
   hudPos.textContent = `坐标: (${pcol}, ${prow}) | FPS: ${fpsNow} | 时间: ${formatTime(renderer.timeOfDay)} | ${s.name}${cd}`;
+
+  // 黑雾警告
+  const voidNearby = voidEngine.getProgress(pcol, prow);
+  if (voidNearby > 0) {
+    hudPos.textContent += ` | ⚠ 黑雾污染 ${(voidNearby * 100).toFixed(0)}%`;
+  }
 
   if (mouseTile) {
     const id = getBlock(mouseTile.x, mouseTile.y);

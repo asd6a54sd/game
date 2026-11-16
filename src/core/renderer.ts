@@ -14,6 +14,8 @@ import { Inventory } from './inventory.js';
 import { TOOLS } from './tools.js';
 import { ShellDef, SHELL_COLORS } from './shells.js';
 import { Enemy, enemySpriteColors, enemyHalfW, enemyHalfH } from './enemies.js';
+import { VoidEngine } from './voiding.js';
+import { TILE_SIZE as TS, MAP_WIDTH as MW, MAP_HEIGHT as MH } from './terrain.js';
 
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
@@ -416,5 +418,54 @@ export class Renderer {
     ctx.moveTo(screenX, screenY - 8); ctx.lineTo(screenX, screenY - 2);
     ctx.moveTo(screenX, screenY + 2); ctx.lineTo(screenX, screenY + 8);
     ctx.stroke();
+  }
+
+  /** 黑雾粒子云（在世界层之后、玩家之前绘制） */
+  drawVoidParticles(cam: Camera, voidEngine: VoidEngine) {
+    const ctx = this.ctx;
+    for (const p of voidEngine.particles) {
+      const px = Math.floor(p.x - cam.x);
+      const py = Math.floor(p.y - cam.y);
+      if (px < -20 || px > this.canvas.width + 20) continue;
+      if (py < -20 || py > this.canvas.height + 20) continue;
+      ctx.globalAlpha = p.alpha;
+      const grad = ctx.createRadialGradient(px, py, 0, px, py, p.size);
+      grad.addColorStop(0, 'rgba(30, 10, 50, 0.9)');
+      grad.addColorStop(0.5, 'rgba(40, 20, 70, 0.5)');
+      grad.addColorStop(1, 'rgba(40, 20, 70, 0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(px, py, p.size, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  /** 同化进度覆盖层（紫色发光，用于提示哪些方块正在被污染） */
+  drawVoidProgressOverlay(cam: Camera, voidEngine: VoidEngine) {
+    const ctx = this.ctx;
+    const startX = Math.max(0, Math.floor(cam.x / TS) - 1);
+    const endX = Math.min(MW, Math.ceil((cam.x + cam.width) / TS) + 1);
+    const startY = Math.max(0, Math.floor(cam.y / TS) - 1);
+    const endY = Math.min(MH, Math.ceil((cam.y + cam.height) / TS) + 1);
+    for (let ty = startY; ty < endY; ty++) {
+      for (let tx = startX; tx < endX; tx++) {
+        const prog = voidEngine.progress[ty * MW + tx];
+        if (prog === 0) continue;
+        const frac = prog / 255;
+        const px = Math.floor(tx * TS - cam.x);
+        const py = Math.floor(ty * TS - cam.y);
+        // 紫色覆盖，越满越亮
+        ctx.globalAlpha = 0.15 + frac * 0.25;
+        ctx.fillStyle = `rgba(120, 40, 200, ${0.3 + frac * 0.5})`;
+        ctx.fillRect(px, py, TS, TS);
+        // 闪烁亮点
+        if (Math.random() < 0.02 + frac * 0.05) {
+          ctx.fillStyle = 'rgba(200, 150, 255, 0.9)';
+          ctx.fillRect(px + Math.floor(Math.random() * TS), py + Math.floor(Math.random() * TS), 1, 1);
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
   }
 }

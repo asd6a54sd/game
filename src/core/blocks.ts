@@ -174,6 +174,31 @@ export const BLOCKS: Record<string, BlockDef> = {
     emitsLight: 15,
     drops: [],
   },
+
+  // === 暗能量同化产物（黑雾污染后的方块）===
+  dark_seed: {
+    id: 'dark_seed', name: '暗能晶种', category: 'special',
+    hardness: 30, toolLevel: 2,
+    paletteId: 'void02', variants: ['void01', 'void02', 'void03'],
+    emitsLight: 8,
+    drops: [{ blockId: 'dark_seed', chance: 1.0 }],
+  },
+  dark_filament: {
+    id: 'dark_filament', name: '暗能丝', category: 'special',
+    hardness: 55, toolLevel: 2,
+    paletteId: 'void03', variants: ['void02', 'void03', 'void04'],
+    emitsLight: 12,
+    drops: [{ blockId: 'dark_filament', chance: 1.0 }],
+  },
+
+  // === 对抗黑雾 ===
+  purify_torch: {
+    id: 'purify_torch', name: '净化火炬', category: 'special',
+    hardness: 0, toolLevel: 0,
+    paletteId: 'ember01', variants: ['ember01', 'ember02'],
+    emitsLight: 14,
+    drops: [{ blockId: 'purify_torch', chance: 1.0 }],
+  },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);
