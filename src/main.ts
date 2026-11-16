@@ -1,6 +1,6 @@
 /**
  * 烬海纪元 · 主入口
- * M0 + M1 核心玩法：工程骨架 + 一格破坏 + 背包 + 放置 + 工具 + 日夜
+ * M0 + M1 核心玩法：工程骨架 + 一格破坏 + 背包 + 放置 + 工具 + 日夜 + 工作台
  */
 import './style.css';
 import { generateTerrain, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, biToBlock, regionNameAt } from './core/terrain.js';
@@ -8,11 +8,10 @@ import { BLOCKS, isSolid } from './core/blocks.js';
 import { createCamera, follow } from './core/camera.js';
 import { createPlayer, updatePlayer, placePlayerOnGround, Player } from './core/player.js';
 import { Renderer } from './core/renderer.js';
-import {
-  createBreakState, startBreaking, stopBreaking, updateBreaking, updateParticles, BreakState,
-} from './core/break.js';
+import { createBreakState, startBreaking, stopBreaking, updateBreaking, updateParticles, BreakState } from './core/break.js';
 import { Inventory } from './core/inventory.js';
 import { TOOLS } from './core/tools.js';
+import { WorkbenchUI } from './core/workbench.js';
 
 // ========== DOM ==========
 const loading = document.getElementById('loading')!;
@@ -29,21 +28,27 @@ let player = createPlayer();
 let breakState: BreakState = createBreakState();
 const inv = new Inventory();
 
-// ===== 给玩家挂 inventory + tool =====
-interface PlayerExt extends Player {
-  toolName: string;
-}
+// 玩家扩展
+interface PlayerExt extends Player { toolName: string; }
 const px = player as PlayerExt;
 px.toolName = 'hand_pickaxe';
 
-// 初始给些基础物品方便测试
+// 工作台
+const wb = new WorkbenchUI(inv, {
+  onOpen: () => { inputBlocked = true; },
+  onClose: () => { inputBlocked = false; },
+});
+
+// 初始测试物品
 inv.add('wreck_scrap', 20);
 inv.add('cracked_ground', 30);
 inv.add('wind_rock', 15);
+inv.add('ore_copper', 20);
+inv.add('ore_iron', 15);
+inv.add('ore_gold', 10);
 inv.add('copper_pickaxe', 1);
 inv.add('copper_sword', 1);
 inv.selectHotbar(0);
-// 把镐放到快捷栏第 1 格
 inv.hotbar[1] = { blockId: 'copper_pickaxe', count: 1 };
 inv.hotbar[2] = { blockId: 'copper_sword', count: 1 };
 
@@ -53,6 +58,7 @@ let mouseTile: { x: number; y: number } | null = null;
 let mouseLeft = false;
 let mouseRight = false;
 let mouseRightEdge = false;
+let inputBlocked = false; // 工作台打开时 true
 
 // ========== 启动 ==========
 init();
@@ -62,6 +68,7 @@ async function init() {
   resize();
   window.addEventListener('resize', resize);
   bindInput();
+  bindWorkbenchClose();
   loading.classList.add('hidden');
   requestAnimationFrame(loop);
 }
@@ -74,6 +81,12 @@ function resize() {
 
 function bindInput() {
   window.addEventListener('keydown', e => {
+    if (inputBlocked) {
+      // 工作台打开时仍监听 ESC 和 C
+      if (e.code === 'Escape') wb.close();
+      else if (e.code === 'KeyC') wb.craftSelected(e.shiftKey);
+      return;
+    }
     switch (e.code) {
       case 'ArrowLeft': case 'KeyA': input.left = true; break;
       case 'ArrowRight': case 'KeyD': input.right = true; break;
@@ -88,9 +101,12 @@ function bindInput() {
       case 'Digit7': case 'Numpad7': inv.selectHotbar(6); break;
       case 'Digit8': case 'Numpad8': inv.selectHotbar(7); break;
       case 'Digit9': case 'Numpad9': inv.selectHotbar(8); break;
+      case 'KeyE': wb.toggle(); break;
+      case 'Escape': wb.close(); break;
     }
   });
   window.addEventListener('keyup', e => {
+    if (inputBlocked) return;
     switch (e.code) {
       case 'ArrowLeft': case 'KeyA': input.left = false; break;
       case 'ArrowRight': case 'KeyD': input.right = false; break;
@@ -109,11 +125,13 @@ function bindInput() {
   });
 
   canvas.addEventListener('wheel', e => {
+    if (inputBlocked) return;
     e.preventDefault();
     inv.scrollHotbar(e.deltaY > 0 ? 1 : -1);
   }, { passive: false });
 
   canvas.addEventListener('mousedown', e => {
+    if (inputBlocked) return;
     if (e.button === 0) mouseLeft = true;
     if (e.button === 2) { mouseRight = true; mouseRightEdge = true; }
   });
@@ -122,6 +140,10 @@ function bindInput() {
     if (e.button === 2) mouseRight = false;
   });
   canvas.addEventListener('contextmenu', e => e.preventDefault());
+}
+
+function bindWorkbenchClose() {
+  document.getElementById('wb-close-btn')?.addEventListener('click', () => wb.close());
 }
 
 // ========== 世界查询 ==========
@@ -135,9 +157,7 @@ function setBlock(tx: number, ty: number, id: string) {
   const idx = ids.indexOf(id);
   if (idx >= 0) terrain.tiles[ty * MAP_WIDTH + tx] = idx;
 }
-function getTileSolid(tx: number, ty: number) {
-  return isSolid(getBlock(tx, ty));
-}
+function getTileSolid(tx: number, ty: number) { return isSolid(getBlock(tx, ty)); }
 
 // ========== 主循环 ==========
 let lastT = performance.now();
@@ -157,21 +177,25 @@ function loop(t: number) {
 }
 
 function update(dt: number) {
+  // 工作台打开：暂停游戏更新
+  if (inputBlocked) {
+    updateHUD();
+    return;
+  }
+
   // 日夜循环（每 240 秒 = 完整一天）
   renderer.timeOfDay = (renderer.timeOfDay + dt / 240) % 1;
 
   // 玩家
   updatePlayer(player, dt, input, getTileSolid);
-
-  // 摄像机跟随
   follow(cam, player.x, player.y, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE);
 
   // 破坏系统（左键）
   if (mouseLeft && mouseTile) {
-  const pcol = Math.floor(player.x / TILE_SIZE);
-  const prow = Math.floor(player.y / TILE_SIZE);
-  const colDist = Math.abs(mouseTile.x - pcol) + Math.abs(mouseTile.y - prow);
-  if (colDist <= 6) {
+    const pcol = Math.floor(player.x / TILE_SIZE);
+    const prow = Math.floor(player.y / TILE_SIZE);
+    const colDist = Math.abs(mouseTile.x - pcol) + Math.abs(mouseTile.y - prow);
+    if (colDist <= 6) {
       if (!breakState.targetTile) {
         startBreaking(breakState, mouseTile.x, mouseTile.y, getBlock, px.toolName);
       } else if (breakState.targetTile.x !== mouseTile.x || breakState.targetTile.y !== mouseTile.y) {
@@ -209,9 +233,7 @@ function update(dt: number) {
     }
   }
 
-  // 工具自动切换（快捷栏 1-2 是工具）
   updateToolSelection();
-
   updateHUD();
 }
 
@@ -220,7 +242,6 @@ function updateToolSelection() {
   if (sel.count > 0 && TOOLS[sel.blockId]) {
     px.toolName = sel.blockId;
   } else {
-    // 没选中工具就徒手
     px.toolName = 'hand_pickaxe';
   }
 }
@@ -230,25 +251,23 @@ function render() {
   renderer.drawBackground(cam);
   renderer.drawWorld(terrain.tiles, cam, breakState);
 
-  // 放置预览
-  if (mouseRight && mouseTile) {
-    const sel = inv.getSelected();
-    if (sel.count > 0 && sel.blockId && BLOCKS[sel.blockId]) {
-      const below = getBlock(mouseTile.x, mouseTile.y);
-      renderer.drawPlacementGhost(sel.blockId, mouseTile.x, mouseTile.y, cam, below !== 'empty');
+  if (!inputBlocked) {
+    if (mouseRight && mouseTile) {
+      const sel = inv.getSelected();
+      if (sel.count > 0 && sel.blockId && BLOCKS[sel.blockId]) {
+        const below = getBlock(mouseTile.x, mouseTile.y);
+        renderer.drawPlacementGhost(sel.blockId, mouseTile.x, mouseTile.y, cam, below !== 'empty');
+      }
     }
+    renderer.drawPlayer(player, cam);
+    if (mouseTile) {
+      const sx = mouseTile.x * TILE_SIZE - cam.x + TILE_SIZE / 2;
+      const sy = mouseTile.y * TILE_SIZE - cam.y + TILE_SIZE / 2;
+      renderer.drawCrosshair(sx, sy);
+    }
+  } else {
+    renderer.drawPlayer(player, cam);
   }
-
-  renderer.drawPlayer(player, cam);
-
-  // 十字准星
-  if (mouseTile) {
-    const sx = mouseTile.x * TILE_SIZE - cam.x + TILE_SIZE / 2;
-    const sy = mouseTile.y * TILE_SIZE - cam.y + TILE_SIZE / 2;
-    renderer.drawCrosshair(sx, sy);
-  }
-
-  // 快捷栏 UI
   renderer.drawHotbar(inv);
 }
 
@@ -256,7 +275,10 @@ function updateHUD() {
   const pcol = Math.floor(player.x / TILE_SIZE);
   const prow = Math.floor(player.y / TILE_SIZE);
   const tool = TOOLS[px.toolName];
-  hudPos.textContent = `坐标: (${pcol}, ${prow}) | FPS: ${fpsNow} | 时间: ${formatTime(renderer.timeOfDay)} | ${tool.name}`;
+  const wbStatus = wb.open ? ' | 工作台' : '';
+  hudPos.textContent = `坐标: (${pcol}, ${prow}) | FPS: ${fpsNow} | 时间: ${formatTime(renderer.timeOfDay)} | ${tool.name}${wbStatus}`;
+
+  if (inputBlocked) { hudBlock.textContent = '工作台已打开 (ESC 关闭)'; hudRegion.textContent = `区块: ${regionNameAt(pcol)}`; return; }
 
   if (mouseTile) {
     const id = getBlock(mouseTile.x, mouseTile.y);
@@ -280,4 +302,3 @@ function formatTime(t: number): string {
   const m = Math.floor((t * 24 - h) * 60);
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
-

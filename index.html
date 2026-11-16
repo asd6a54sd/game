@@ -23,19 +23,182 @@
         color: #ff7a3a; font-size: 18px; background: #0a0a0a; z-index: 100;
       }
       #loading.hidden { display: none; }
+
+      /* ========== 工作台 UI ========== */
+      #workbench {
+        position: fixed; inset: 0; z-index: 50;
+        display: flex; align-items: center; justify-content: center;
+        background: rgba(5, 3, 2, 0.75);
+        backdrop-filter: blur(2px);
+        pointer-events: auto;
+      }
+      #workbench.hidden { display: none; }
+
+      .wb-panel {
+        display: flex; gap: 12px;
+        background: linear-gradient(180deg, #2a1a12 0%, #1a1008 100%);
+        border: 2px solid #5a3828;
+        border-radius: 4px;
+        padding: 16px;
+        box-shadow: 0 4px 32px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255, 122, 58, 0.2);
+        max-width: 96vw;
+        max-height: 92vh;
+        overflow: auto;
+      }
+
+      .wb-col { display: flex; flex-direction: column; gap: 8px; }
+
+      /* 背包面板 */
+      #wb-inventory { width: 360px; }
+
+      /* 配方列 */
+      .wb-recipes-col { width: 280px; }
+
+      /* 详情列 */
+      .wb-detail-col { width: 240px; }
+
+      /* 标题 */
+      .wb-section-title {
+        color: #e8c547; font-size: 11px; letter-spacing: 2px;
+        text-transform: uppercase; margin-bottom: 4px;
+        border-bottom: 1px solid #5a3828; padding-bottom: 3px;
+      }
+
+      /* 格子网格 */
+      .wb-grid {
+        display: grid;
+        grid-template-columns: repeat(var(--cols, 13), 26px);
+        gap: 2px;
+      }
+
+      .wb-slot {
+        width: 26px; height: 26px;
+        background: #0e0806;
+        border: 1px solid #3a2818;
+        border-radius: 2px;
+        position: relative;
+        cursor: default;
+        transition: border-color 0.1s;
+      }
+      .wb-slot:hover { border-color: #e8c547; }
+
+      .wb-slot-count {
+        position: absolute; right: 1px; bottom: 0;
+        color: #fff; font-size: 10px; font-weight: bold;
+        text-shadow: 1px 1px 0 #000, -1px -1px 0 #000;
+        line-height: 1;
+      }
+
+      /* 配方列表 */
+      .wb-recipe-list {
+        display: flex; flex-direction: column; gap: 2px;
+        max-height: 320px; overflow-y: auto;
+        padding-right: 4px;
+      }
+      .wb-recipe-item {
+        padding: 6px 8px; font-size: 12px; cursor: pointer;
+        border: 1px solid #2a1a0e; border-radius: 2px;
+        transition: all 0.15s; user-select: none;
+      }
+      .wb-recipe-item.wb-available { background: #1a1208; color: #e8c547; }
+      .wb-recipe-item.wb-locked { background: #0e0a06; color: #5a4838; text-decoration: line-through; }
+      .wb-recipe-item.wb-selected { border-color: #ff7a3a; background: #2a1a0e; color: #ff7a3a; }
+      .wb-recipe-item:hover:not(.wb-locked) { border-color: #e8c547; }
+
+      /* 详情 */
+      .wb-hint { color: #5a4838; font-size: 12px; text-align: center; padding: 20px; }
+
+      .wb-detail-header {
+        color: #ff7a3a; font-size: 14px; font-weight: bold;
+        border-bottom: 1px solid #5a3828; padding-bottom: 6px;
+      }
+
+      .wb-detail-preview {
+        width: 64px; height: 64px; margin: 8px auto;
+        border: 2px solid #5a3828; border-radius: 4px;
+        box-shadow: inset 0 0 0 2px rgba(0,0,0,0.4);
+      }
+
+      .wb-mat-title { color: #e8c547; font-size: 11px; margin-top: 6px; letter-spacing: 1px; }
+      .wb-mat-row {
+        display: flex; align-items: center; gap: 6px;
+        padding: 3px 0; font-size: 12px; color: #c8b898;
+      }
+      .wb-mat-color {
+        width: 14px; height: 14px; border-radius: 2px;
+        border: 1px solid rgba(0,0,0,0.4); flex-shrink: 0;
+      }
+      .wb-mat-name { flex: 1; }
+      .wb-mat-count.ok { color: #7ad4e8; }
+      .wb-mat-count.bad { color: #ff4a3a; }
+
+      .wb-warn {
+        margin-top: 8px; color: #ff7a3a; font-size: 11px;
+        text-align: center; padding: 4px; border: 1px dashed #ff7a3a;
+      }
+
+      .wb-craft-btn {
+        width: 100%; margin-top: 10px; padding: 10px;
+        background: linear-gradient(180deg, #c4603a 0%, #943a2a 100%);
+        color: #fff; font-family: inherit; font-size: 13px;
+        font-weight: bold; letter-spacing: 2px;
+        border: 1px solid #ff7a3a; border-radius: 3px; cursor: pointer;
+        transition: all 0.15s;
+      }
+      .wb-craft-btn:hover:not(.wb-disabled) { background: linear-gradient(180deg, #e88a4a 0%, #c4603a 100%); }
+      .wb-craft-btn.wb-secondary {
+        background: linear-gradient(180deg, #3a2818 0%, #1a1008 100%);
+        border-color: #5a3828; color: #c8b898;
+      }
+      .wb-craft-btn.wb-secondary:hover:not(.wb-disabled) { border-color: #e8c547; color: #e8c547; }
+      .wb-craft-btn.wb-disabled { opacity: 0.4; cursor: not-allowed; }
+
+      /* 关闭按钮 */
+      .wb-close {
+        position: absolute; top: 8px; right: 12px;
+        background: none; border: none; color: #5a4838;
+        font-size: 20px; cursor: pointer; line-height: 1;
+        font-family: inherit;
+      }
+      .wb-close:hover { color: #ff7a3a; }
+
+      /* 滚动条 */
+      .wb-recipe-list::-webkit-scrollbar { width: 6px; }
+      .wb-recipe-list::-webkit-scrollbar-track { background: #0e0806; }
+      .wb-recipe-list::-webkit-scrollbar-thumb { background: #5a3828; border-radius: 3px; }
+
+      /* 提示条 */
+      #wb-help {
+        position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+        background: rgba(26, 16, 8, 0.9); border: 1px solid #5a3828;
+        border-radius: 3px; padding: 6px 14px; font-size: 11px; color: #c8b898;
+        pointer-events: none; z-index: 40;
+      }
     </style>
   </head>
   <body>
     <div id="loading">渲染特恩无人区中…</div>
     <canvas id="game"></canvas>
-    <div id="crosshair" hidden></div>
+
+    <!-- 工作台 UI 容器 -->
+    <div id="workbench" class="hidden">
+      <div class="wb-panel">
+        <button class="wb-close" id="wb-close-btn">×</button>
+        <div class="wb-col" id="wb-inventory"></div>
+        <div class="wb-col wb-recipes-col" id="wb-recipes"></div>
+        <div class="wb-col wb-detail-col" id="wb-detail"></div>
+      </div>
+    </div>
+    <div id="wb-help">按键: E = 合成台 | ESC = 关闭 | 1-9 = 选槽</div>
+
     <div id="hud">
-      <div class="title">烬海纪元 · M0 一格破坏验证</div>
+      <div class="title">烬海纪元 · 特恩无人区</div>
       <div id="hud-pos">坐标: (0, 0)</div>
       <div id="hud-block">方块: — (硬度 —)</div>
       <div id="hud-region">区块: —</div>
-      <div style="margin-top:6px;opacity:0.7">← → 移动 | ↑/空格 跳跃 | 左键 破坏 | 右键 放置</div>
+      <div style="margin-top:6px;opacity:0.7">← → 移动 | ↑/空格 跳跃 | 左键 破坏 | 右键 放置 | E 合成 | ESC 关闭</div>
     </div>
+
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
