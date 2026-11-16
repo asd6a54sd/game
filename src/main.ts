@@ -21,6 +21,7 @@ import { createBoss, updateBoss, updateProjectiles, hitBoss, findNearestVoidBarr
 import { Companion, createCivilian, recruitCompanion, updateCompanion } from './core/companions.js';
 import { sfx } from './core/sfx.js';
 import { AccessoryManager, ACCESSORY_DEFS } from './core/accessories.js';
+import { QuestManager, QuestState } from './core/tasks.js';
 
 // ========== DOM ==========
 const loading = document.getElementById('loading')!;
@@ -53,6 +54,7 @@ px.hurtEnemies = new Set();
 const wb = new WorkbenchUI(inv, {
   onOpen: () => { inputBlocked = true; },
   onClose: () => { inputBlocked = false; },
+  onCraftSuccess: (r) => { tasks.onCraft(r.resultBlockId, r.resultCount); }, // M17: 合成任务
 });
 
 // 躯壳
@@ -68,6 +70,7 @@ let playerInvulnerable = 0;
 let playerKnockback = { vx: 0, vy: 0 };
 let swingCd = 0; // M16: 玩家攻击冷却
 let wasOnGround = false; // M16: 上一帧是否在地面（检测落地瞬间）
+let lastRegion = '';     // M17: 玩家上一帧所在区块（检测区块变化）
 
 // Boss 系统
 const bosses: Boss[] = [];
@@ -98,6 +101,17 @@ ev.onEventStart = (e) => {
 };
 ev.onEventEnd = (e) => {
   console.log(`[事件] 💨 ${e.name} 结束`);
+};
+
+// M17: 任务系统
+const tasks = new QuestManager();
+let questPopup: { text: string; timer: number } | null = null;
+tasks.onComplete = (q: QuestState) => {
+  questPopup = { text: `✅ 任务完成：${q.def.name}`, timer: 3 };
+  sfx.pickup();
+  // 自动领取奖励
+  const rewards = tasks.claimReward(q);
+  for (const r of rewards) inv.add(r.blockId, r.count);
 };
 
 // M9a: 伤害弹出数字
@@ -400,6 +414,19 @@ function update(dt: number) {
   const playerColForEvent = Math.floor(player.x / TILE_SIZE);
   ev.update(dt, renderer.timeOfDay, playerColForEvent);
 
+  // M17: 任务 — 区块变化检测
+  let curRegion = 'wreck_zone';
+  if (playerColForEvent < 60) curRegion = 'wreck_zone';
+  else if (playerColForEvent < 120) curRegion = 'crack_waste';
+  else if (playerColForEvent < 180) curRegion = 'gobi_mine';
+  else if (playerColForEvent < 240) curRegion = 'silent_sea';
+  else if (playerColForEvent < 300) curRegion = 'beast_hive';
+  else curRegion = 'underground_valley';
+  if (curRegion !== lastRegion) {
+    lastRegion = curRegion;
+    tasks.onEnterRegion(curRegion);
+  }
+
   // 日夜循环
   renderer.timeOfDay = (renderer.timeOfDay + dt / 240) % 1;
 
@@ -488,6 +515,12 @@ function update(dt: number) {
   follow(cam, player.x, player.y, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE);
   updateShake(cam, dt);
 
+  // M17: 任务完成弹窗倒计时
+  if (questPopup) {
+    questPopup.timer -= dt;
+    if (questPopup.timer <= 0) questPopup = null;
+  }
+
   // 破坏系统（考虑躯壳镐等级加成）
   const effectivePower = TOOLS[px.toolName].pickaxePower + (shellMgr.current.passiveKey === 'pickaxe' ? 1 : 0);
   if (mouseLeft && mouseTile) {
@@ -510,6 +543,9 @@ function update(dt: number) {
     const power = TOOLS[px.toolName].pickaxePower + (shellMgr.current.passiveKey === 'pickaxe' ? 1 : 0);
     if (power >= 2) sfx.digHard(); else sfx.dig();
   }
+  // M17: 任务 — 挖方块触发
+  for (const bid of breakState.removedBlocks) tasks.onMine(bid);
+  breakState.removedBlocks.length = 0;
   breakState.removedThisFrame = 0;
 
   // 放置
@@ -619,6 +655,7 @@ function updateEnemiesSystem(dt: number, _effectivePower: number) {
           spawnDmgText(e.x, e.y - e.def.height / 2 - 14, buffLocal.poisonDps, '#60c040', 0, 1);
         }
         if (died) {
+          tasks.onKill(false); // M17: 击杀敌人任务
           sfx.enemyDie();
           if (e.def.dropTable) {
             for (const drop of e.def.dropTable) {
@@ -812,6 +849,9 @@ function render() {
   renderer.drawBossHUD(bosses.filter(b => !b.isDead), player.x, player.y);
   // M15: 事件 HUD（固定屏幕位置）
   if (ev.current) renderer.drawEventHUD(ev.current);
+  // M17: 任务 HUD + 完成弹窗
+  renderer.drawQuestHUD(tasks.quests);
+  if (questPopup) renderer.drawQuestPopup(questPopup.text);
   renderer.drawHotbar(inv);
   if (showMinimap) renderer.drawMinimap(cam, terrain.tiles, player.x, player.y);
 }
@@ -1058,6 +1098,7 @@ function updateBossesSystem(dt: number) {
         const died = hitBoss(boss, TOOLS[px.toolName].damage + shellMgr.current.damage * 0.5, 80, player.facing as 1 | -1);
         spawnDmgText(boss.x, boss.y - bossHalfH(boss), TOOLS[px.toolName].damage + shellMgr.current.damage * 0.5, '#c040e8', baseCrit, 1.5 * (buffLocal.critDamageMult ?? 1));
         if (died) {
+          tasks.onKill(true, !!boss.def.isNightBoss); // M17: 击杀 Boss 任务
           // 击败掉落（按 Boss 类型区分）
           if (boss.def.isNightBoss) {
             // M14: 夜间 Boss 专属掉落

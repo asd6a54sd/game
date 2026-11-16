@@ -20,6 +20,7 @@ import { Boss, BossProjectile, bossHalfW, bossHalfH } from './bosses.js';
 import { Companion, companionSpriteColors, compHalfW, compHalfH } from './companions.js';
 import { AccessoryManager, ACCESSORY_DEFS } from './accessories.js';
 import { WorldEvent } from './events.js';
+import { QuestState } from './tasks.js';
 
 export class Renderer {
   // public 以便 main.ts 震屏偏移（save/translate/restore）
@@ -967,5 +968,75 @@ export class Renderer {
         ctx.fillRect(sx, sy, 2, 2);
       }
     }
+  }
+
+  /** M17: 任务 HUD — 右侧列表面板，显示未完成任务 + 已完成未领取的闪烁 */
+  drawQuestHUD(quests: QuestState[]) {
+    const ctx = this.ctx;
+    const active = quests.filter(q => !q.claimed);
+    if (active.length === 0) return;
+    const w = 200;
+    const rowH = 26;
+    const pad = 6;
+    const x = this.canvas.width - w - 8;
+    const y = 8;
+    // 背景
+    ctx.fillStyle = 'rgba(10, 6, 16, 0.85)';
+    ctx.fillRect(x - 3, y - 3, w + 6, active.length * rowH + pad * 2 + 14);
+    ctx.strokeStyle = '#806040'; ctx.lineWidth = 1;
+    ctx.strokeRect(x - 3, y - 3, w + 6, active.length * rowH + pad * 2 + 14);
+    // 标题
+    ctx.fillStyle = '#ffd060';
+    ctx.font = 'bold 11px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('📜 任务', x, y + 8);
+    // 任务列表
+    let cy = y + 22;
+    for (const q of active) {
+      const frac = q.progress / q.def.targetCount;
+      // 已完成未领取 → 闪烁金色边框
+      if (q.completed) {
+        ctx.fillStyle = 'rgba(60, 40, 10, 0.8)';
+        ctx.fillRect(x, cy - 10, w, rowH);
+        ctx.strokeStyle = '#ffd060';
+        ctx.strokeRect(x, cy - 10, w, rowH);
+      } else {
+        ctx.fillStyle = 'rgba(30, 20, 10, 0.6)';
+        ctx.fillRect(x, cy - 10, w, rowH);
+      }
+      // 任务名
+      ctx.fillStyle = q.completed ? '#ffd060' : '#e0e0e0';
+      ctx.font = '11px monospace';
+      ctx.fillText(q.def.name, x + 4, cy + 2);
+      // 进度条
+      ctx.fillStyle = '#1a0a0a';
+      ctx.fillRect(x + 4, cy + 5, w - 8, 4);
+      ctx.fillStyle = q.completed ? '#ffd060' : '#40c060';
+      ctx.fillRect(x + 4, cy + 5, (w - 8) * frac, 4);
+      // 进度文字
+      ctx.fillStyle = '#a0a0a0';
+      ctx.font = '9px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(`${q.progress}/${q.def.targetCount}`, x + w - 4, cy + 8);
+      ctx.textAlign = 'left';
+      cy += rowH;
+    }
+  }
+
+  /** M17: 任务完成弹窗 — 屏幕中央显示 3 秒 */
+  drawQuestPopup(text: string) {
+    const ctx = this.ctx;
+    const w = this.canvas.width;
+    const y = 110;
+    ctx.fillStyle = 'rgba(60, 40, 10, 0.9)';
+    const tw = ctx.measureText(text).width + 30;
+    ctx.fillRect((w - tw) / 2, y, tw, 28);
+    ctx.strokeStyle = '#ffd060'; ctx.lineWidth = 2;
+    ctx.strokeRect((w - tw) / 2, y, tw, 28);
+    ctx.fillStyle = '#ffd060';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(text, w / 2, y + 19);
+    ctx.textAlign = 'left';
   }
 }

@@ -17,6 +17,7 @@ export interface BreakState {
   particles: Particle[];
   drops: DropItem[];
   removedThisFrame: number;
+  removedBlocks: string[]; // M17: 本帧被破坏的方块 id 列表（任务系统用）
 }
 
 export interface Particle {
@@ -44,6 +45,7 @@ export function createBreakState(): BreakState {
     particles: [],
     drops: [],
     removedThisFrame: 0,
+    removedBlocks: [],
   };
 }
 
@@ -101,6 +103,7 @@ export function updateBreaking(
     breakBlock(state, tx, ty, id, setBlock);
     stopBreaking(state);
     state.removedThisFrame++;
+    state.removedBlocks.push(id); // M17: 记录被破坏的方块
     return true;
   }
   return false;
