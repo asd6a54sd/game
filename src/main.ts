@@ -17,6 +17,7 @@ import { createEnemy } from './core/enemies.js';
 import { ShellManager, SHELLS } from './core/shells.js';
 import { VoidEngine } from './core/voiding.js';
 import { createBoss, updateBoss, updateProjectiles, hitBoss, findNearestVoidBarrier, Boss, BossProjectile, bossHalfW, bossHalfH } from './core/bosses.js';
+import { Companion, createCivilian, recruitCompanion, updateCompanion } from './core/companions.js';
 
 // ========== DOM ==========
 const loading = document.getElementById('loading')!;
@@ -68,6 +69,12 @@ const bosses: Boss[] = [];
 const bossProjectiles: BossProjectile[] = [];
 let bossSpawnCooldown = 0;
 
+// AI 队友系统
+const companions: Companion[] = [];
+interface CompProj { x: number; y: number; vx: number; vy: number; damage: number; ownerId: number; life: number; maxLife: number; }
+const compProjs: CompProj[] = [];
+let companionsInitialized = false;
+
 // 输入
 const input = { left: false, right: false, jump: false, brake: false };
 let mouseTile: { x: number; y: number } | null = null;
@@ -113,6 +120,7 @@ init();
 async function init() {
   placePlayerOnGround(player, terrain.heightMap);
   voidEngine.initFromTerrain(terrain.tiles);
+  initCompanions();
   resize();
   window.addEventListener('resize', resize);
   bindInput();
@@ -167,6 +175,9 @@ function bindInput() {
         break;
       case 'KeyR':
         trySummonBoss();
+        break;
+      case 'KeyF':
+        tryRecruitCompanion();
         break;
     }
   });
@@ -324,6 +335,9 @@ function update(dt: number) {
   // ========== 敌人系统 ==========
   updateEnemiesSystem(dt, effectivePower);
 
+  // ========== AI 队友 ==========
+  updateCompanionsSystem(dt);
+
   updateHUD();
 }
 
@@ -440,6 +454,8 @@ function render() {
   renderer.drawBossProjectiles(bossProjectiles, cam);
   for (const b of bosses) renderer.drawBoss(b, cam);
   renderer.drawVoidParticles(cam, voidEngine);
+  renderer.drawCompanions(companions, cam);
+  renderer.drawCompanionProjs(compProjs, cam);
   renderer.drawPlayer(player, cam, shellMgr.current, shellMgr.alpha);
   renderer.drawHotbar(inv);
 }
@@ -604,6 +620,96 @@ function purifyNearbyVoidBarrier(bx: number, by: number) {
       if ((dx * dx + dy * dy) > 64) continue;
       if (terrain.tiles[y * MAP_WIDTH + x] === vbIdx) {
         setBlock(x, y, 'ore_rock');
+      }
+    }
+  }
+}
+
+// ========== AI 队友初始化 ==========
+function initCompanions() {
+  if (companionsInitialized) return;
+  companionsInitialized = true;
+  // 在玩家出生点附近生成 2 个 civilian NPC（地底幽谷入口）
+  const spawnX = 10 * TILE_SIZE;
+  const spawnY = player.y;
+  const iron = createCivilian('iron_guard', spawnX, spawnY);
+  iron.state = 'civilian';
+  const ember = createCivilian('ember_mage', spawnX + 3 * TILE_SIZE, spawnY);
+  ember.state = 'civilian';
+  companions.push(iron, ember);
+}
+
+// ========== 招募 ==========
+function tryRecruitCompanion() {
+  const followCount = companions.filter(c => c.state === 'follow' && c.hp > 0).length;
+  if (followCount >= 2) { console.warn('[队友] 已满员（最多 2 人）'); return; }
+  // 找最近的 civilian
+  let nearest: Companion | null = null;
+  let bestD = 200 * 200;
+  for (const c of companions) {
+    if (c.state !== 'civilian') continue;
+    if (c.hp <= 0) continue;
+    const d2 = (c.x - player.x) ** 2 + (c.y - player.y) ** 2;
+    if (d2 < bestD) { bestD = d2; nearest = c; }
+  }
+  if (!nearest) { console.warn('[队友] 附近没有可招募的 NPC'); return; }
+  if (bestD > 100 * 100) { console.warn('[队友] 走远一点（靠近 NPC）'); return; }
+  const cost = nearest.def.recruitCost;
+  if (cost && inv.count(cost.blockId) < cost.count) {
+    console.warn(`[队友] 需要 ${cost.count} 个 ${cost.blockId}`); return;
+  }
+  if (cost) inv.consume(cost.blockId, cost.count);
+  recruitCompanion(nearest);
+  console.log(`[队友] ✅ ${nearest.def.name} 已加入队伍！`);
+}
+
+// ========== 队友 AI ==========
+function updateCompanionsSystem(dt: number) {
+  const enemiesForComp = enemies.map(e => ({ id: e.id, x: e.x, y: e.y, hp: e.hp }));
+  for (const c of companions) {
+    if (c.hp <= 0) continue;
+    updateCompanion(c, {
+      dt,
+      player: { x: player.x, y: player.y },
+      enemies: enemiesForComp,
+      isSolid: getTileSolid,
+      onProj: (x, y, vx, vy, damage, ownerId) => {
+        compProjs.push({ x, y, vx, vy, damage, ownerId, life: 0, maxLife: 2 });
+      },
+    });
+    // 近战队友命中敌人
+    if (c.state === 'attack' && c.def.weapon === 'melee' && c.attackTimer > 0.5 && c.attackTimer < 0.7) {
+      for (const e of enemies) {
+        if (e.hp <= 0) continue;
+        if (Math.abs(e.x - c.x) < 30 && Math.abs(e.y - c.y) < 24) {
+          hitEnemy(e, c.def.damage, 100, c.facing as 1 | -1);
+        }
+      }
+    }
+  }
+  // 远程弹更新
+  for (let i = compProjs.length - 1; i >= 0; i--) {
+    const p = compProjs[i];
+    p.life += dt;
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    if (p.life >= p.maxLife) { compProjs.splice(i, 1); continue; }
+    // 命中敌人
+    for (const e of enemies) {
+      if (e.hp <= 0) continue;
+      if (Math.abs(p.x - e.x) < 16 && Math.abs(p.y - e.y) < 16) {
+        hitEnemy(e, p.damage, 80, Math.sign(p.vx) as 1 | -1);
+        compProjs.splice(i, 1);
+        break;
+      }
+    }
+    // 命中 Boss
+    for (const b of bosses) {
+      if (b.isDead) continue;
+      if (Math.abs(p.x - b.x) < 30 && Math.abs(p.y - b.y) < 30) {
+        hitBoss(b, p.damage, 50, Math.sign(p.vx) as 1 | -1);
+        compProjs.splice(i, 1);
+        break;
       }
     }
   }

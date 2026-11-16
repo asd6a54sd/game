@@ -17,6 +17,7 @@ import { Enemy, enemySpriteColors, enemyHalfW, enemyHalfH } from './enemies.js';
 import { VoidEngine } from './voiding.js';
 import { TILE_SIZE as TS, MAP_WIDTH as MW, MAP_HEIGHT as MH } from './terrain.js';
 import { Boss, BossProjectile, bossHalfW, bossHalfH } from './bosses.js';
+import { Companion, companionSpriteColors, compHalfW, compHalfH } from './companions.js';
 
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
@@ -565,6 +566,61 @@ export class Renderer {
       ctx.globalAlpha = 1;
       ctx.fillStyle = '#fff';
       ctx.beginPath(); ctx.arc(px, py, p.size - 2, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  drawCompanions(companions: Companion[], cam: Camera) {
+    const ctx = this.ctx;
+    for (const c of companions) {
+      if (c.hp <= 0) continue;
+      const cpx = Math.floor(c.x - cam.x - compHalfW(c));
+      const cpy = Math.floor(c.y - cam.y - compHalfH(c));
+      const sc = companionSpriteColors(c);
+      // 身体
+      ctx.fillStyle = sc.body;
+      ctx.fillRect(cpx, cpy + TILE_SIZE, TILE_SIZE * 0.75, TILE_SIZE * 0.75);
+      // 头
+      ctx.fillStyle = sc.head;
+      ctx.fillRect(cpx + 2, cpy + 2, TILE_SIZE * 0.75 - 4, TILE_SIZE - 4);
+      // 眼
+      ctx.fillStyle = sc.eye;
+      const eyeX = c.facing === 1 ? cpx + TILE_SIZE * 0.75 - 6 : cpx + 4;
+      ctx.fillRect(eyeX, cpy + 6, 2, 2);
+      // 武器指示
+      const wColor = c.def.weapon === 'melee' ? '#e8c547' : '#ff8040';
+      ctx.fillStyle = wColor;
+      const handX = c.facing === 1 ? cpx + TILE_SIZE * 0.75 : cpx - 6;
+      ctx.fillRect(handX, cpy + TILE_SIZE + 2, 6, 2);
+      // HP bar
+      ctx.fillStyle = '#1a1a1a';
+      ctx.fillRect(cpx - 1, cpy - 5, TILE_SIZE * 0.75 + 2, 2);
+      ctx.fillStyle = '#7ad4e8';
+      ctx.fillRect(cpx - 1, cpy - 5, (TILE_SIZE * 0.75 + 2) * (c.hp / c.def.hp), 2);
+      // 名字
+      ctx.fillStyle = '#c8b898';
+      ctx.font = 'bold 8px monospace';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText(c.def.name, cpx + TILE_SIZE * 0.75 / 2, cpy - 8);
+      // 招募提示（civilian 状态）
+      if (c.state === 'civilian') {
+        ctx.fillStyle = '#e8c547';
+        ctx.font = 'bold 10px monospace';
+        ctx.fillText('[F] 招募', cpx + TILE_SIZE * 0.75 / 2, cpy - 20);
+      }
+    }
+  }
+
+  drawCompanionProjs(projs: { x: number; y: number; vx: number; vy: number; damage: number; ownerId: number; life: number; maxLife: number }[], cam: Camera) {
+    const ctx = this.ctx;
+    for (const p of projs) {
+      const px = Math.floor(p.x - cam.x), py = Math.floor(p.y - cam.y);
+      ctx.globalAlpha = 0.7;
+      ctx.fillStyle = '#ffc85a';
+      ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.arc(px, py, 2, 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;
   }
