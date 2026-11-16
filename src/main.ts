@@ -3,7 +3,7 @@
  * M0-M3: 工程骨架 + 破坏 + 背包 + 放置 + 工具 + 合成 + 敌人 AI + 躯壳切换
  */
 import './style.css';
-import { generateTerrain, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, biToBlock, regionNameAt } from './core/terrain.js';
+import { generateTerrain, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, biToBlock, regionNameAt, regionIdAt } from './core/terrain.js';
 import { BLOCKS, isSolid } from './core/blocks.js';
 import { createCamera, follow, shake, updateShake, getShakeOffset } from './core/camera.js';
 import { createPlayer, updatePlayer, placePlayerOnGround, Player } from './core/player.js';
@@ -27,6 +27,7 @@ import { NPC_DEFS, SELL_PRICES, ShopItem } from './core/npcs.js';
 import { TrialManager, TRIAL_DEFS } from './core/trial.js';
 import { POTION_DEFS, aggregateBuffs } from './core/potions.js';
 import { MOUNT_DEFS } from './core/mounts.js';
+import { rollCatch, rollChestLoot, FISH_DEFS } from './core/fishing.js';
 
 // ========== DOM ==========
 const loading = document.getElementById('loading')!;
@@ -328,6 +329,99 @@ function toggleMount() {
   sfx.pickup();
 }
 
+// M24: 钓鱼系统
+interface FishingState {
+  active: boolean;       // 是否正在钓鱼
+  biteTimer: number;     // 距离上钩的剩余时间
+  hasBite: boolean;      // 是否已上钩（等待收竿）
+  biteWindow: number;    // 上钩后可收竿的时间窗口
+  floatX: number;        // 浮标世界坐标
+  floatY: number;
+  rodQuality: number;    // 当前鱼竿品质
+}
+const fishing: FishingState = {
+  active: false, biteTimer: 0, hasBite: false, biteWindow: 0,
+  floatX: 0, floatY: 0, rodQuality: 1,
+};
+let fishingMsg = '';
+let fishingMsgTimer = 0;
+
+// M24: 钓鱼 — 检测玩家附近是否有液态方块
+function findNearbyLiquid(): { tx: number; ty: number } | null {
+  const ptx = Math.floor(player.x / TILE_SIZE);
+  const pty = Math.floor(player.y / TILE_SIZE);
+  for (let dy = -2; dy <= 3; dy++) {
+    for (let dx = -3; dx <= 3; dx++) {
+      const tx = ptx + dx, ty = pty + dy;
+      const b = getBlock(tx, ty);
+      if (BLOCKS[b]?.liquid) return { tx, ty };
+    }
+  }
+  return null;
+}
+
+// M24: 开始钓鱼
+function startFishing() {
+  const sel = inv.getSelected();
+  if (!sel.blockId) { fishingMsg = '需要选中钓鱼竿'; fishingMsgTimer = 2; return; }
+  const tool = TOOLS[sel.blockId];
+  if (!tool || tool.category !== 'fishing') { fishingMsg = '需要选中钓鱼竿'; fishingMsgTimer = 2; return; }
+  const liquid = findNearbyLiquid();
+  if (!liquid) { fishingMsg = '附近没有水域'; fishingMsgTimer = 2; return; }
+  fishing.active = true;
+  fishing.hasBite = false;
+  fishing.rodQuality = tool.rodQuality ?? 1;
+  // 浮标位置 = 液态方块中心
+  fishing.floatX = liquid.tx * TILE_SIZE + TILE_SIZE / 2;
+  fishing.floatY = liquid.ty * TILE_SIZE + TILE_SIZE / 2;
+  // 上钩等待时间 2~6 秒（强化竿更快）
+  const baseWait = fishing.rodQuality >= 2 ? 1.5 : 2.5;
+  fishing.biteTimer = baseWait + Math.random() * 4;
+  fishingMsg = '抛竿…等待上钩';
+  fishingMsgTimer = 2;
+  sfx.pickup();
+}
+
+// M24: 收竿
+function reelIn() {
+  if (!fishing.active) return;
+  if (fishing.hasBite) {
+    // 成功钓到
+    const pcol = Math.floor(player.x / TILE_SIZE);
+    const region = regionIdAt(pcol);
+    const catchId = rollCatch(region, fishing.rodQuality);
+    if (catchId === 'old_chest') {
+      // 旧宝箱：随机掉落
+      const loot = rollChestLoot();
+      for (const l of loot) inv.add(l.blockId, l.count);
+      fishingMsg = `钓到旧宝箱！获得 ${loot.map(l => `${BLOCKS[l.blockId]?.name ?? l.blockId}×${l.count}`).join('、')}`;
+    } else {
+      inv.add(catchId, 1);
+      const fish = FISH_DEFS[catchId];
+      fishingMsg = `钓到 ${fish?.name ?? catchId}！${fish?.isRare ? '（稀有）' : ''}`;
+    }
+    fishingMsgTimer = 3;
+    sfx.pickup();
+  } else {
+    fishingMsg = '收竿太早了…';
+    fishingMsgTimer = 1.5;
+  }
+  fishing.active = false;
+  fishing.hasBite = false;
+}
+
+// M24: 钓鱼按键 — 选中钓鱼竿时 F 键抛竿/收竿，否则招募队友
+function handleFishingKey() {
+  const sel = inv.getSelected();
+  const tool = sel.blockId ? TOOLS[sel.blockId] : null;
+  if (tool && tool.category === 'fishing') {
+    if (fishing.active) reelIn();
+    else startFishing();
+    return true;
+  }
+  return false;
+}
+
 // M22: 药水系统
 let currentPotionBuff = aggregateBuffs([]);
 
@@ -526,7 +620,8 @@ function bindInput() {
         else trySummonBoss();
         break;
       case 'KeyF':
-        tryRecruitCompanion();
+        // M24: 选中钓鱼竿时抛竿/收竿，否则招募队友
+        if (!handleFishingKey()) tryRecruitCompanion();
         break;
       case 'KeyM':
         showMinimap = !showMinimap;
@@ -736,6 +831,30 @@ function update(dt: number) {
 
   // M16: 攻击冷却 tick
   if (swingCd > 0) swingCd -= dt;
+
+  // M24: 钓鱼计时
+  if (fishing.active) {
+    if (!fishing.hasBite) {
+      fishing.biteTimer -= dt;
+      if (fishing.biteTimer <= 0) {
+        fishing.hasBite = true;
+        fishing.biteWindow = 2.5; // 2.5秒内收竿
+        fishingMsg = '上钩了！快按 F 收竿！';
+        fishingMsgTimer = 2.5;
+        sfx.hitEnemy();
+      }
+    } else {
+      fishing.biteWindow -= dt;
+      if (fishing.biteWindow <= 0) {
+        // 错过了
+        fishing.active = false;
+        fishing.hasBite = false;
+        fishingMsg = '鱼跑了…';
+        fishingMsgTimer = 1.5;
+      }
+    }
+  }
+  if (fishingMsgTimer > 0) { fishingMsgTimer -= dt; if (fishingMsgTimer <= 0) fishingMsg = ''; }
 
   // M16: 熔岩核心 — 落地震伤（上一帧不在地面，这一帧在地面，且 vy 足够大）
   const buffLocalLanding = acc.getAggregatedBuff();
@@ -1267,6 +1386,7 @@ function render() {
   renderer.drawCompanions(companions, cam);
   renderer.drawCompanionProjs(compProjs, cam);
   renderer.drawMount(player, cam);
+  renderer.drawFishing(fishing.active, fishing.hasBite, fishing.floatX, fishing.floatY, player.x, player.y, cam);
   renderer.drawPlayer(player, cam, shellMgr.current, shellMgr.alpha);
   renderer.drawDamageTexts(dmgTexts, cam);
 
@@ -1328,6 +1448,8 @@ function updateHUD() {
   } else {
     hudBlock.textContent = `${tool.name} (速度 ${tool.miningSpeed}/s) · 被动: ${s.passive}`;
   }
+  // M24: 钓鱼消息
+  if (fishingMsg) hudBlock.textContent = `🎣 ${fishingMsg}`;
 
   // 故事引导 HUD（区块目标 + Boss 召唤提示）
   const guideParts: string[] = [`${regionNameAt(pcol)} · ${guide.subtitle} · 目标: ${guide.goal}`];

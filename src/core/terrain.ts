@@ -311,6 +311,10 @@ export function regionNameAt(col: number): string {
   return REGIONS[regionIdxAt(col)].name;
 }
 
+export function regionIdAt(col: number): RegionId {
+  return REGIONS[regionIdxAt(col)].id;
+}
+
 /**
  * 区块内结构生成：每个区块 1 个 NPC 小屋 / 据点
  * 小屋 = 4×3 内部空间 + rebel_brick 墙

@@ -37,6 +37,11 @@ export const SELL_PRICES: Record<string, number> = {
   // 饰品
   dash_boots: 40, regen_ring: 35, defense_charm: 45,
   magnet_crystal: 50, speed_glove: 30, wing_charm: 60,
+  // M24: 鱼
+  rust_scaled_fish: 5, rock_bone_fish: 6, gold_vein_fish: 10,
+  glow_worm_fish: 8, shadow_eel: 12,
+  liquid_metal_fish: 30, void_koi: 50,
+  old_chest: 15,
 };
 
 /** 商人商品列表（玩家可购买）*/

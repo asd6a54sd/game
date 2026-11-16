@@ -293,6 +293,18 @@ export const BLOCKS: Record<string, BlockDef> = {
   wreck_horse_saddle: { id: 'wreck_horse_saddle', name: '残骸战马鞍', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'rust02', variants: [], drops: [] },
   slime_saddle: { id: 'slime_saddle', name: '史莱姆鞍', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'bio01', variants: [], drops: [] },
   void_drake_saddle: { id: 'void_drake_saddle', name: '虚空飞龙鞍', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void01', variants: [], drops: [] },
+
+  // === M24: 钓鱼 ===
+  rust_scaled_fish: { id: 'rust_scaled_fish', name: '锈鳞鱼', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'rust02', variants: [], drops: [] },
+  rock_bone_fish: { id: 'rock_bone_fish', name: '岩骨鱼', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'bone02', variants: [], drops: [] },
+  gold_vein_fish: { id: 'gold_vein_fish', name: '金矿鱼', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'gold01', variants: [], drops: [] },
+  liquid_metal_fish: { id: 'liquid_metal_fish', name: '液态金属鱼', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'cold02', variants: [], drops: [] },
+  glow_worm_fish: { id: 'glow_worm_fish', name: '荧光虫鱼', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void02', variants: [], drops: [] },
+  shadow_eel: { id: 'shadow_eel', name: '暗影鳗鱼', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void01', variants: [], drops: [] },
+  void_koi: { id: 'void_koi', name: '虚空锦鲤', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void03', variants: [], drops: [] },
+  old_chest: { id: 'old_chest', name: '旧宝箱', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'rust03', variants: [], drops: [] },
+  basic_fishing_rod: { id: 'basic_fishing_rod', name: '基础钓鱼竿', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'rust02', variants: [], drops: [] },
+  reinforced_fishing_rod: { id: 'reinforced_fishing_rod', name: '强化钓鱼竿', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'iron01', variants: [], drops: [] },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);

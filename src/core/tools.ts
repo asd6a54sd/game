@@ -10,12 +10,14 @@ export interface ToolDef {
   miningSpeed: number;    // 每秒破坏能量（基础 = 8）
   damage: number;         // 近战/远程伤害
   paletteId: string;      // 调色板 id
-  category: 'pickaxe' | 'axe' | 'hammer' | 'sword' | 'ranged';
+  category: 'pickaxe' | 'axe' | 'hammer' | 'sword' | 'ranged' | 'fishing';
   // M18: 远程武器专用
   ammoType?: string;      // 弹药方块 id（ranged 必须）
   shootCooldown?: number; // 射击间隔（秒）
   projectileSpeed?: number; // 弹丸速度 px/s
   piercing?: boolean;     // 弹丸是否穿透（暗焰法杖）
+  // M24: 钓鱼竿专用
+  rodQuality?: number;    // 钓鱼竿品质（1=基础, 2=强化）
 }
 
 export const TOOLS: Record<string, ToolDef> = {
@@ -51,6 +53,20 @@ export const TOOLS: Record<string, ToolDef> = {
     pickaxePower: 0, miningSpeed: 4, damage: 18,
     paletteId: 'void03', category: 'ranged',
     ammoType: 'dark_bolt', shootCooldown: 0.4, projectileSpeed: 420, piercing: true,
+  },
+
+  // === M24: 钓鱼竿 ===
+  basic_fishing_rod: {
+    id: 'basic_fishing_rod', name: '基础钓鱼竿',
+    pickaxePower: 0, miningSpeed: 4, damage: 3,
+    paletteId: 'rust02', category: 'fishing',
+    rodQuality: 1,
+  },
+  reinforced_fishing_rod: {
+    id: 'reinforced_fishing_rod', name: '强化钓鱼竿',
+    pickaxePower: 0, miningSpeed: 4, damage: 5,
+    paletteId: 'iron01', category: 'fishing',
+    rodQuality: 2,
   },
 };
 

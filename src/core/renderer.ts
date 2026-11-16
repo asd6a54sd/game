@@ -250,6 +250,31 @@ export class Renderer {
     }
   }
 
+  // M24: 钓鱼渲染 — 鱼线 + 浮标
+  drawFishing(active: boolean, hasBite: boolean, floatX: number, floatY: number, px: number, py: number, cam: Camera) {
+    if (!active) return;
+    const ctx = this.ctx;
+    const fx = Math.floor(floatX - cam.x);
+    const fy = Math.floor(floatY - cam.y);
+    const hx = Math.floor(px - cam.x);
+    const hy = Math.floor(py - cam.y - 8);
+
+    // 鱼线
+    ctx.strokeStyle = '#e8e8e8';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(hx, hy);
+    ctx.lineTo(fx, fy);
+    ctx.stroke();
+
+    // 浮标（上钩时闪烁红色）
+    const blink = hasBite && Math.floor(Date.now() / 120) % 2 === 0;
+    ctx.fillStyle = hasBite ? (blink ? '#ff4040' : '#ff8080') : '#f0f0f0';
+    ctx.fillRect(fx - 2, fy - 3, 4, 5);
+    ctx.fillStyle = '#c04040';
+    ctx.fillRect(fx - 1, fy - 1, 2, 2);
+  }
+
   drawPlayer(p: Player, cam: Camera, shell?: ShellDef, alpha = 1) {
     const ctx = this.ctx;
     ctx.globalAlpha = alpha;
