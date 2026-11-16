@@ -71,21 +71,23 @@ export class VoidEngine {
     }
   }
 
-  /** 主更新 */
-  update(dt: number, timeOfDay: number, tiles: Uint8Array, setBlock: (tx: number, ty: number, id: string) => void) {
+  /** 主更新 — voidSpeedMult 来自虚空裂隙事件等外部触发（默认 1）*/
+  update(dt: number, timeOfDay: number, tiles: Uint8Array, setBlock: (tx: number, ty: number, id: string) => void, voidSpeedMult = 1) {
     const isNight = timeOfDay > 0.55 || timeOfDay < 0.1;
     // 夜晚 ×3，白天 ×0.3
     const dayFactor = isNight ? 3 : 0.3;
+    // M15: 外部加速（虚空裂隙 ×3）
+    const finalFactor = dayFactor * voidSpeedMult;
 
     // 扩散：每 0.8 秒尝试一次
     this.spreadTimer += dt;
     if (this.spreadTimer >= 0.8) {
       this.spreadTimer = 0;
-      this.spreadOnce(tiles, dayFactor);
+      this.spreadOnce(tiles, finalFactor);
     }
 
     // 进度增长：每帧给被污染方块加一点
-    this.growProgress(dt, dayFactor, tiles, setBlock);
+    this.growProgress(dt, finalFactor, tiles, setBlock);
 
     // 粒子生成
     this.particleTimer += dt;

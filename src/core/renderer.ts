@@ -19,6 +19,7 @@ import { TILE_SIZE as TS, MAP_WIDTH as MW, MAP_HEIGHT as MH } from './terrain.js
 import { Boss, BossProjectile, bossHalfW, bossHalfH } from './bosses.js';
 import { Companion, companionSpriteColors, compHalfW, compHalfH } from './companions.js';
 import { AccessoryManager, ACCESSORY_DEFS } from './accessories.js';
+import { WorldEvent } from './events.js';
 
 export class Renderer {
   // public 以便 main.ts 震屏偏移（save/translate/restore）
@@ -887,5 +888,84 @@ export class Renderer {
     ctx.font = 'bold 11px monospace';
     ctx.fillText(`阶段：${phaseNames[boss.phase] ?? boss.phase}`, bx + barW / 2, by + barH + 14);
     ctx.textAlign = 'start';
+  }
+
+  /** M15: 事件 HUD（顶部居中倒计时条）*/
+  drawEventHUD(e: WorldEvent) {
+    const ctx = this.ctx;
+    const w = this.canvas.width;
+    const barW = 300, barH = 14;
+    const bx = (w - barW) / 2;
+    const by = 46;
+    // 不同事件的颜色
+    const COLOR: Record<string, { bg: string; fg: string; border: string }> = {
+      blood_moon: { bg: '#2a0505', fg: '#e04030', border: '#c02020' },
+      sandstorm: { bg: '#2a1a00', fg: '#c8a840', border: '#b09040' },
+      glow_tide: { bg: '#051a2a', fg: '#40c0e0', border: '#30a0c0' },
+      void_rift: { bg: '#150520', fg: '#9040e8', border: '#6020a0' },
+    };
+    const c = COLOR[e.type] ?? COLOR.blood_moon;
+    // 背景
+    ctx.fillStyle = c.bg;
+    ctx.fillRect(bx - 3, by - 3, barW + 6, barH + 18);
+    ctx.strokeStyle = c.border; ctx.lineWidth = 2;
+    ctx.strokeRect(bx - 2, by - 2, barW + 4, barH + 16);
+    // 事件名
+    ctx.fillStyle = c.fg;
+    ctx.font = 'bold 12px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`${e.emoji} ${e.name}  ${Math.ceil(e.remaining)}s`, bx + barW / 2, by + 10);
+    // 倒计时条
+    const frac = e.remaining / e.duration;
+    ctx.fillStyle = '#0a0610';
+    ctx.fillRect(bx, by + 16, barW, 4);
+    ctx.fillStyle = c.fg;
+    ctx.fillRect(bx, by + 16, barW * frac, 4);
+    ctx.textAlign = 'start';
+  }
+
+  /** M15: 世界事件滤镜层（在震屏偏移内，影响世界层但不影响 HUD）*/
+  drawEventOverlay(e: WorldEvent | null) {
+    if (!e) return;
+    const ctx = this.ctx;
+    const { width, height } = this.canvas;
+    // 不同事件颜色滤镜
+    if (e.type === 'blood_moon') {
+      ctx.fillStyle = 'rgba(200, 30, 10, 0.15)';
+      ctx.fillRect(0, 0, width, height);
+    } else if (e.type === 'sandstorm') {
+      ctx.fillStyle = 'rgba(200, 160, 60, 0.20)';
+      ctx.fillRect(0, 0, width, height);
+      // 沙粒闪烁（少量随机点）
+      const t = performance.now() / 1000;
+      ctx.fillStyle = 'rgba(220, 180, 80, 0.35)';
+      for (let i = 0; i < 40; i++) {
+        const sx = ((i * 137 + t * 200) % width);
+        const sy = ((i * 89 + t * 120) % height);
+        ctx.fillRect(sx, sy, 2, 2);
+      }
+    } else if (e.type === 'glow_tide') {
+      ctx.fillStyle = 'rgba(60, 160, 200, 0.18)';
+      ctx.fillRect(0, 0, width, height);
+      // 飘光点
+      const t = performance.now() / 1000;
+      ctx.fillStyle = 'rgba(120, 220, 240, 0.45)';
+      for (let i = 0; i < 25; i++) {
+        const sx = ((i * 211 + t * 100) % width);
+        const sy = ((i * 149 + Math.sin(t + i) * 50 + height * 0.3) % height);
+        ctx.fillRect(sx, sy, 2, 2);
+      }
+    } else if (e.type === 'void_rift') {
+      ctx.fillStyle = 'rgba(120, 40, 180, 0.18)';
+      ctx.fillRect(0, 0, width, height);
+      // 紫色闪电粒子
+      const t = performance.now() / 1000;
+      ctx.fillStyle = 'rgba(180, 100, 240, 0.5)';
+      for (let i = 0; i < 30; i++) {
+        const sx = ((i * 173 + t * 250) % width);
+        const sy = ((i * 97 + t * 180) % height);
+        ctx.fillRect(sx, sy, 2, 2);
+      }
+    }
   }
 }

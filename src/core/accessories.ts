@@ -25,13 +25,22 @@ export interface AccessoryBuff {
   magnetBonus?: number;     // 拾取范围倍率加成
   moveSpeedBonus?: number;  // 移速倍率加成
   glideFallSpeed?: number;  // 滑翔下落速度上限 (px/s)
-  // M13: Boss 专属 Buff
+  // Boss 专属 Buff
   jumpBonus?: number;       // 跳跃倍率加成
   gravityReduction?: number; // 重力减轻比例 (0-1)
   critBonus?: number;       // 额外暴击率 (0-1)
   critDamageMult?: number;  // 暴击伤害倍率
   voidResistance?: number;  // 黑雾同化抗性 (0-1)
   nightVisionBonus?: number; // 夜间视野加成 (0-1)
+  // M15: 实装的夜间 Boss Buff
+  attackSpeedBonus?: number; // 攻击速度倍率（伤害/秒）
+  dashCooldownMult?: number; // 冲刺冷却倍率（0.6 = -40%）
+  dashSpeedMult?: number;    // 冲刺速度倍率（1.25 = +25% 距离）
+  poisonDps?: number;        // 持续伤害 dps
+  poisonDuration?: number;   // 持续伤害时长（秒）
+  jumpSplashDamage?: number; // 落地震伤半径
+  jumpSplashRadius?: number; // 落地震伤半径
+  dodgeChance?: number;      // 受击几率豁免（0.25 = 25% 几率无伤害）
 }
 
 export const ACCESSORY_DEFS: Record<string, AccessoryDef> = {
@@ -110,37 +119,37 @@ export const ACCESSORY_DEFS: Record<string, AccessoryDef> = {
     buff: { voidResistance: 0.3, nightVisionBonus: 0.3 },
   },
 
-  // === M14: 夜间精英 Boss 专属饰品 ===
+  // === M14: 夜间精英 Boss 专属饰品（M15 实装）===
   wreck_warlord_medal: {
     id: 'wreck_warlord_medal',
     name: '残骸战勋',
     paletteId: 'iron02',
     iconChar: '⚔',
     desc: '攻击速度 +25%（伤害/秒）',
-    buff: { moveSpeedBonus: 1.0 }, // 占位（不重复已有）
+    buff: { attackSpeedBonus: 1.25 },
   },
   storm_banner: {
     id: 'storm_banner',
     name: '风暴战旗',
     paletteId: 'rust01',
     iconChar: '⚡',
-    desc: '冲刺冷却 -40% · 冲刺距离 +25%',
-    buff: { moveSpeedBonus: 1.15 },
+    desc: '冲刺冷却 -40% · 冲刺速度 +25%',
+    buff: { dashCooldownMult: 0.6, dashSpeedMult: 1.25 },
   },
   magma_core: {
     id: 'magma_core',
     name: '熔岩核心',
     paletteId: 'ember02',
     iconChar: '☀',
-    desc: '跳跃伤害 +20%（落地震伤周围）',
-    buff: { damageReduction: -0.1 }, // 反向：实际是攻击加成
+    desc: '落地时 50 px 范围震伤 10 点',
+    buff: { jumpSplashDamage: 10, jumpSplashRadius: 50 },
   },
   frost_veil: {
     id: 'frost_veil',
     name: '冰霜披纱',
     paletteId: 'cold02',
     iconChar: '❄',
-    desc: '飞行/滑翔下落速度 -30%',
+    desc: '滑翔下落速度 -30% · 空中控制 +30%',
     buff: { glideFallSpeed: 70 },
   },
   hive_stinger: {
@@ -148,16 +157,16 @@ export const ACCESSORY_DEFS: Record<string, AccessoryDef> = {
     name: '毒刺护符',
     paletteId: 'bone03',
     iconChar: '♚',
-    desc: '攻击附带持续伤害（+5 每秒 × 3 秒）',
-    buff: { regenAmount: -1, regenInterval: 999 }, // 占位
+    desc: '剑击附带 5 dps × 3 秒持续伤害',
+    buff: { poisonDps: 5, poisonDuration: 3 },
   },
   shadow_cowl: {
     id: 'shadow_cowl',
     name: '暗影兜帽',
     paletteId: 'void04',
     iconChar: '⌘',
-    desc: '受伤有 25% 几率短暂无敌（0.35s）',
-    buff: { damageReduction: 0.35 },
+    desc: '25% 几率闪避伤害（无伤害、无受击硬直）',
+    buff: { dodgeChance: 0.25 },
   },
 };
 
@@ -256,6 +265,31 @@ export class AccessoryManager {
       if (b.nightVisionBonus) {
         result.nightVisionBonus = Math.max(result.nightVisionBonus ?? 0, b.nightVisionBonus);
       }
+      // M15: 新增 buff
+      if (b.attackSpeedBonus) {
+        result.attackSpeedBonus = Math.max(result.attackSpeedBonus ?? 1, b.attackSpeedBonus);
+      }
+      if (b.dashCooldownMult) {
+        result.dashCooldownMult = Math.min(result.dashCooldownMult ?? 1, b.dashCooldownMult);
+      }
+      if (b.dashSpeedMult) {
+        result.dashSpeedMult = Math.max(result.dashSpeedMult ?? 1, b.dashSpeedMult);
+      }
+      if (b.poisonDps) {
+        result.poisonDps = Math.max(result.poisonDps ?? 0, b.poisonDps);
+      }
+      if (b.poisonDuration) {
+        result.poisonDuration = Math.max(result.poisonDuration ?? 0, b.poisonDuration);
+      }
+      if (b.jumpSplashDamage) {
+        result.jumpSplashDamage = Math.max(result.jumpSplashDamage ?? 0, b.jumpSplashDamage);
+      }
+      if (b.jumpSplashRadius) {
+        result.jumpSplashRadius = Math.max(result.jumpSplashRadius ?? 0, b.jumpSplashRadius);
+      }
+      if (b.dodgeChance) {
+        result.dodgeChance = Math.max(result.dodgeChance ?? 0, b.dodgeChance);
+      }
     }
     return result;
   }
@@ -267,9 +301,12 @@ export class AccessoryManager {
     if (!buff.dashSpeed) return 0;
     this.isDashing = true;
     this.dashTimer = buff.dashDuration ?? 0.25;
-    this.dashCooldownTimer = buff.dashCooldown ?? 1.2;
+    // M15: dashCooldownMult 实装（风暴战旗 -40%）
+    const baseCd = buff.dashCooldown ?? 1.2;
+    this.dashCooldownTimer = baseCd * (buff.dashCooldownMult ?? 1);
     this.dashDir = facing;
-    return buff.dashSpeed;
+    // M15: dashSpeedMult 实装（风暴战旗 +25%）
+    return (buff.dashSpeed ?? 520) * (buff.dashSpeedMult ?? 1);
   }
 
   update(dt: number) {

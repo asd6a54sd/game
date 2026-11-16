@@ -16,6 +16,7 @@ import { Enemy, updateEnemy, hitEnemy, trySpawnEnemy } from './core/enemies.js';
 import { createEnemy } from './core/enemies.js';
 import { ShellManager, SHELLS } from './core/shells.js';
 import { VoidEngine } from './core/voiding.js';
+import { WorldEventManager } from './core/events.js';
 import { createBoss, updateBoss, updateProjectiles, hitBoss, findNearestVoidBarrier, Boss, BossProjectile, bossHalfW, bossHalfH } from './core/bosses.js';
 import { Companion, createCivilian, recruitCompanion, updateCompanion } from './core/companions.js';
 import { sfx } from './core/sfx.js';
@@ -85,6 +86,17 @@ let companionsInitialized = false;
 // M11: 饰品系统
 const acc = new AccessoryManager();
 let dashKeyHeld = false;
+
+// M15: 世界事件系统
+const ev = new WorldEventManager();
+ev.onEventStart = (e) => {
+  console.log(`[事件] ✨ ${e.emoji} ${e.name} 开始！${e.desc}`);
+  shake(cam, 5);
+  sfx.bossSummon(); // 复用（事件触发也有紧张感）
+};
+ev.onEventEnd = (e) => {
+  console.log(`[事件] 💨 ${e.name} 结束`);
+};
 
 // M9a: 伤害弹出数字
 interface DmgText { x: number; y: number; vy: number; text: string; color: string; life: number; maxLife: number; crit: boolean; }
@@ -382,6 +394,10 @@ function update(dt: number) {
   // M11: 饰品系统更新
   acc.update(dt);
 
+  // M15: 世界事件更新（先跑，让事件状态在当前帧内生效）
+  const playerColForEvent = Math.floor(player.x / TILE_SIZE);
+  ev.update(dt, renderer.timeOfDay, playerColForEvent);
+
   // 日夜循环
   renderer.timeOfDay = (renderer.timeOfDay + dt / 240) % 1;
 
@@ -490,7 +506,13 @@ function update(dt: number) {
 
   // ========== 黑雾同化系统 ==========
   voidEngine.updatePurifyTorches(terrain.tiles);
-  voidEngine.update(dt, renderer.timeOfDay, terrain.tiles, setBlock);
+  // M15: 虚空裂隙事件 → 黑雾加速 ×3；同化之心饰品有 voidResistance 减免
+  const buffLocal = acc.getAggregatedBuff();
+  let voidMult = 1;
+  if (ev.isEvent('void_rift')) {
+    voidMult = 3 * (1 - (buffLocal.voidResistance ?? 0)); // 抗性 30% → 实际 3×0.7=2.1×
+  }
+  voidEngine.update(dt, renderer.timeOfDay, terrain.tiles, setBlock, voidMult);
 
   // ========== Boss 系统 ==========
   updateBossesSystem(dt);
@@ -684,9 +706,14 @@ function respawnPlayer() {
   playerInvulnerable = 2;
 }
 
-/** M11: 饰品减伤（defense_charm 等） */
+/** M11: 饰品减伤 + M15 闪避几率（shadow_cowl 25%）*/
 function reduceDamage(damage: number): number {
   const buff = acc.getAggregatedBuff();
+  // M15: dodgeChance（暗影兜帽 25% 几率完全豁免）
+  if (buff.dodgeChance && Math.random() < buff.dodgeChance) {
+    spawnDmgText(player.x, player.y - player.height / 2, 0, '#a080e0', 0, 1);
+    return 0; // 完全闪避
+  }
   const reduction = buff.damageReduction ?? 0;
   return Math.max(1, Math.round(damage * (1 - reduction)));
 }
@@ -701,6 +728,9 @@ function render() {
   ctx.translate(ox, oy);
   renderer.drawBackground(cam);
   renderer.drawWorld(terrain.tiles, cam, breakState);
+
+  // M15: 世界事件滤镜层（在震屏偏移内）
+  renderer.drawEventOverlay(ev.current);
 
   // 同化进度紫色覆盖层
   renderer.drawVoidProgressOverlay(cam, voidEngine);
@@ -740,6 +770,8 @@ function render() {
   // HUD（固定屏幕位置）
   renderer.drawPlayerHUD(player.hp, player.maxHp, shellMgr.current.name, shellMgr.switchCooldown, playerInvulnerable > 0, acc);
   renderer.drawBossHUD(bosses.filter(b => !b.isDead), player.x, player.y);
+  // M15: 事件 HUD（固定屏幕位置）
+  if (ev.current) renderer.drawEventHUD(ev.current);
   renderer.drawHotbar(inv);
   if (showMinimap) renderer.drawMinimap(cam, terrain.tiles, player.x, player.y);
 }
@@ -927,8 +959,11 @@ function updateBossesSystem(dt: number) {
     else if (playerCol < 300) region = 'beast_hive';
     else region = 'underground_valley';
     if (nightBossSpawnedRegions.has(region)) return; // 本夜已刷过
-    // 5% 几率（因为已经有定时器节流了）
-    if (Math.random() < 0.05) {
+    // M15: 血月 ×2；沙暴/幽光潮/虚空裂隙 ×1.5
+    let spawnChance = 0.05;
+    if (ev.isEvent('blood_moon')) spawnChance = 0.10;
+    else if (ev.isEvent('sandstorm') || ev.isEvent('glow_tide') || ev.isEvent('void_rift')) spawnChance = 0.075;
+    if (Math.random() < spawnChance) {
       const NIGHT_BOSS_MAP: Record<string, string> = {
         wreck_zone: 'night_wreck_chief',
         crack_waste: 'storm_titan',
