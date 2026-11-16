@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 烬海纪元 · Canvas 渲染器
  * 像素锁定渲染 —— 每 tile 16×16，调色板色填充 + 简单噪声纹理
  * 含：世界渲染 / 玩家 / 破坏覆盖 / 快捷栏 UI / 放置预览 / 日夜效果
@@ -22,6 +22,8 @@ import { AccessoryManager, ACCESSORY_DEFS } from './accessories.js';
 import { WorldEvent } from './events.js';
 import { QuestState } from './tasks.js';
 import { AchievementState } from './achievements.js';
+import { ShopItem } from './npcs.js';
+
 
 export class Renderer {
   // public 以便 main.ts 震屏偏移（save/translate/restore）
@@ -1084,5 +1086,68 @@ export class Renderer {
     ctx.textAlign = 'center';
     ctx.fillText(text, w / 2, y + 21);
     ctx.textAlign = 'left';
+  }
+
+  /** M20: 商店面板 — 居中显示商品列表 + 金币 + 操作提示 */
+  drawShop(items: ShopItem[], gold: number, msg: string) {
+    const ctx = this.ctx;
+    const w = this.canvas.width;
+    const panelW = 340;
+    const rowH = 22;
+    const pad = 8;
+    const headerH = 40;
+    const x = (w - panelW) / 2;
+    const y = 60;
+    const h = headerH + items.length * rowH + pad * 2 + 40;
+    // 背景
+    ctx.fillStyle = 'rgba(10, 6, 16, 0.95)';
+    ctx.fillRect(x, y, panelW, h);
+    ctx.strokeStyle = '#ffd060'; ctx.lineWidth = 2;
+    ctx.strokeRect(x, y, panelW, h);
+    // 标题 + 金币
+    ctx.fillStyle = '#ffd060';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('🛒 流浪商人', x + pad, y + 20);
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#ffd040';
+    ctx.fillText(`🪙 ${gold}`, x + panelW - pad, y + 20);
+    ctx.textAlign = 'left';
+    // 商品列表
+    let cy = y + headerH;
+    items.forEach((item, i) => {
+      const name = BLOCKS[item.blockId]?.name ?? item.blockId;
+      const soldOut = item.stock === 0;
+      // 行背景
+      ctx.fillStyle = i % 2 === 0 ? 'rgba(40, 20, 10, 0.6)' : 'rgba(20, 10, 5, 0.6)';
+      ctx.fillRect(x, cy - 14, panelW, rowH);
+      // 序号
+      ctx.fillStyle = '#a0a0a0';
+      ctx.font = '11px monospace';
+      ctx.fillText(`${i + 1}.`, x + pad, cy);
+      // 名称
+      ctx.fillStyle = soldOut ? '#666' : '#e0e0e0';
+      ctx.fillText(name, x + pad + 20, cy);
+      // 价格
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#ffd040';
+      ctx.fillText(`🪙 ${item.buyPrice}`, x + panelW - pad - 40, cy);
+      // 库存
+      ctx.fillStyle = soldOut ? '#ff6040' : '#80c060';
+      ctx.fillText(item.stock < 0 ? '∞' : `x${item.stock}`, x + panelW - pad, cy);
+      ctx.textAlign = 'left';
+      cy += rowH;
+    });
+    // 底部提示
+    ctx.fillStyle = '#a0a0a0';
+    ctx.font = '10px monospace';
+    ctx.fillText('数字键=购买  T=出售选中  E/B=关闭', x + pad, y + h - pad - 10);
+    // 消息
+    if (msg) {
+      ctx.fillStyle = '#60c0ff';
+      ctx.textAlign = 'center';
+      ctx.fillText(msg, w / 2, y + h - pad + 2);
+      ctx.textAlign = 'left';
+    }
   }
 }

@@ -384,6 +384,15 @@ function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
       width: hutW, height: hutH,
       region: hp.name,
     });
+
+    // M20: wreck_zone 小屋内放流浪商人 NPC
+    if (hp.name === 'wreck_zone') {
+      const npcX = hutX + 1;
+      const npcY = groundY - 1;
+      if (npcX >= 0 && npcX < MAP_WIDTH && npcY >= 0 && npcY < MAP_HEIGHT) {
+        tiles[npcY * MAP_WIDTH + npcX] = bi('merchant_npc');
+      }
+    }
   }
 
   // deep crystal altar（第二个 Boss 位置）

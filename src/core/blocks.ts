@@ -272,6 +272,10 @@ export const BLOCKS: Record<string, BlockDef> = {
   copper_bow: { id: 'copper_bow', name: '铜弓', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'rust02', variants: [], drops: [] },
   void_crossbow: { id: 'void_crossbow', name: '虚空弩', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void01', variants: [], drops: [] },
   void_staff: { id: 'void_staff', name: '暗焰法杖', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void03', variants: [], drops: [] },
+
+  // === M20: NPC + 金币 ===
+  gold_coin: { id: 'gold_coin', name: '金币', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'gold01', variants: [], drops: [] },
+  merchant_npc: { id: 'merchant_npc', name: '流浪商人', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'gold01', variants: [], drops: [] },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);

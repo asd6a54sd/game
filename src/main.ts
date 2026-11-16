@@ -23,6 +23,7 @@ import { sfx } from './core/sfx.js';
 import { AccessoryManager, ACCESSORY_DEFS } from './core/accessories.js';
 import { QuestManager, QuestState } from './core/tasks.js';
 import { AchievementManager, AchievementState } from './core/achievements.js';
+import { NPC_DEFS, SELL_PRICES, ShopItem } from './core/npcs.js';
 
 // ========== DOM ==========
 const loading = document.getElementById('loading')!;
@@ -142,6 +143,54 @@ ach.onUnlock = (a: AchievementState) => {
   const othersUnlocked = ach.achievements.filter(x => x.def.id !== 'all_achievements').every(x => x.unlocked);
   if (othersUnlocked) ach.addProgress('all_achievements', 1);
 };
+
+// M20: 商店系统
+let shopOpenLocal = false;
+const merchantShop: ShopItem[] = NPC_DEFS.merchant.shop.map(s => ({ ...s }));
+let shopMsg = '';
+let shopMsgTimer = 0;
+
+// M20: 检测玩家附近 3 tile 内是否有 merchant_npc
+function isNearMerchant(): boolean {
+  const pc = Math.floor(player.x / TILE_SIZE);
+  const pr = Math.floor(player.y / TILE_SIZE);
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -3; dx <= 3; dx++) {
+      const tx = pc + dx, ty = pr + dy;
+      if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) continue;
+      if (biToBlock(terrain.tiles[ty * MAP_WIDTH + tx]) === 'merchant_npc') return true;
+    }
+  }
+  return false;
+}
+
+// M20: 购买商品
+function buyItem(index: number) {
+  const item = merchantShop[index];
+  if (!item) return;
+  if (item.stock === 0) { shopMsg = '已售罄'; shopMsgTimer = 2; return; }
+  const gold = inv.count('gold_coin');
+  if (gold < item.buyPrice) { shopMsg = `金币不足（需要 ${item.buyPrice}）`; shopMsgTimer = 2; sfx.error(); return; }
+  inv.consume('gold_coin', item.buyPrice);
+  inv.add(item.blockId, 1);
+  if (item.stock > 0) item.stock--;
+  shopMsg = `购买成功：${BLOCKS[item.blockId]?.name ?? item.blockId}`;
+  shopMsgTimer = 2;
+  sfx.pickup();
+}
+
+// M20: 出售选中快捷栏物品
+function sellSelected() {
+  const sel = inv.getSelected();
+  if (!sel.blockId || sel.count <= 0) { shopMsg = '选中格为空'; shopMsgTimer = 2; return; }
+  const price = SELL_PRICES[sel.blockId];
+  if (!price) { shopMsg = '该物品无法出售'; shopMsgTimer = 2; return; }
+  inv.consume(sel.blockId, 1);
+  inv.add('gold_coin', price);
+  shopMsg = `出售 ${BLOCKS[sel.blockId]?.name ?? sel.blockId} +${price} 金币`;
+  shopMsgTimer = 2;
+  sfx.pickup();
+}
 
 // M9a: 伤害弹出数字
 interface DmgText { x: number; y: number; vy: number; text: string; color: string; life: number; maxLife: number; crit: boolean; }
@@ -294,17 +343,28 @@ function bindInput() {
         }
         break;
       case 'ShiftLeft': case 'ShiftRight': input.brake = true; break;
-      case 'Digit1': case 'Numpad1': inv.selectHotbar(0); break;
-      case 'Digit2': case 'Numpad2': inv.selectHotbar(1); break;
-      case 'Digit3': case 'Numpad3': inv.selectHotbar(2); break;
-      case 'Digit4': case 'Numpad4': inv.selectHotbar(3); break;
-      case 'Digit5': case 'Numpad5': inv.selectHotbar(4); break;
-      case 'Digit6': case 'Numpad6': inv.selectHotbar(5); break;
-      case 'Digit7': case 'Numpad7': inv.selectHotbar(6); break;
-      case 'Digit8': case 'Numpad8': inv.selectHotbar(7); break;
-      case 'Digit9': case 'Numpad9': inv.selectHotbar(8); break;
-      case 'KeyE': wb.toggle(); break;
-      case 'Escape': wb.close(); break;
+      // M20: 商店打开时，数字键购买商品
+      case 'Digit1': case 'Numpad1': if (shopOpenLocal) buyItem(0); else inv.selectHotbar(0); break;
+      case 'Digit2': case 'Numpad2': if (shopOpenLocal) buyItem(1); else inv.selectHotbar(1); break;
+      case 'Digit3': case 'Numpad3': if (shopOpenLocal) buyItem(2); else inv.selectHotbar(2); break;
+      case 'Digit4': case 'Numpad4': if (shopOpenLocal) buyItem(3); else inv.selectHotbar(3); break;
+      case 'Digit5': case 'Numpad5': if (shopOpenLocal) buyItem(4); else inv.selectHotbar(4); break;
+      case 'Digit6': case 'Numpad6': if (shopOpenLocal) buyItem(5); else inv.selectHotbar(5); break;
+      case 'Digit7': case 'Numpad7': if (shopOpenLocal) buyItem(6); else inv.selectHotbar(6); break;
+      case 'Digit8': case 'Numpad8': if (shopOpenLocal) buyItem(7); else inv.selectHotbar(7); break;
+      case 'Digit9': case 'Numpad9': if (shopOpenLocal) buyItem(8); else inv.selectHotbar(8); break;
+      case 'KeyE':
+        if (shopOpenLocal) { shopOpenLocal = false; inputBlocked = false; }
+        else wb.toggle();
+        break;
+      case 'Escape':
+        wb.close();
+        if (shopOpenLocal) { shopOpenLocal = false; inputBlocked = false; }
+        break;
+      // M20: 商店 — 出售选中快捷栏物品
+      case 'KeyT':
+        if (shopOpenLocal) sellSelected();
+        break;
       case 'Tab':
         e.preventDefault();
         if (e.shiftKey) shellMgr.prev();
@@ -324,6 +384,17 @@ function bindInput() {
       case 'KeyV':
         sfx.toggle();
         console.log(`[音效] ${sfx.isEnabled() ? '开启' : '关闭'}`);
+        break;
+      // M20: 打开商店（靠近商人时）
+      case 'KeyB':
+        if (shopOpenLocal) {
+          shopOpenLocal = false; inputBlocked = false;
+        } else if (isNearMerchant()) {
+          shopOpenLocal = true; inputBlocked = true;
+          shopMsg = `欢迎！按数字键购买，按 T 出售选中`; shopMsgTimer = 3;
+        } else {
+          shopMsg = '附近没有商人'; shopMsgTimer = 2;
+        }
         break;
       // M11: 饰品系统
       case 'KeyQ':
@@ -561,6 +632,8 @@ function update(dt: number) {
     achPopup.timer -= dt;
     if (achPopup.timer <= 0) achPopup = null;
   }
+  // M20: 商店消息倒计时
+  if (shopMsgTimer > 0) { shopMsgTimer -= dt; if (shopMsgTimer <= 0) shopMsg = ''; }
 
   // 破坏系统（考虑躯壳镐等级加成）
   const effectivePower = TOOLS[px.toolName].pickaxePower + (shellMgr.current.passiveKey === 'pickaxe' ? 1 : 0);
@@ -1025,6 +1098,8 @@ function render() {
   // M19: 成就 HUD + 解锁弹窗
   renderer.drawAchievementHUD(ach.achievements);
   if (achPopup) renderer.drawAchievementPopup(achPopup.text);
+  // M20: 商店面板
+  if (shopOpenLocal) renderer.drawShop(merchantShop, inv.count('gold_coin'), shopMsg);
   renderer.drawHotbar(inv);
   if (showMinimap) renderer.drawMinimap(cam, terrain.tiles, player.x, player.y);
 }
