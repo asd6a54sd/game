@@ -516,32 +516,49 @@ function formatTime(t: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-// ========== Boss 召唤 ==========
+// ========== Boss 召唤（M7：两个 Boss 检测） ==========
 function trySummonBoss() {
-  if (bosses.length > 0) return; // 已有 Boss 在战斗
+  if (bosses.length > 0) return;
   if (bossSpawnCooldown > 0) return;
-  const cost = inv.count('dark_filament');
-  if (cost < 3) {
-    // 提示：需要 3 暗能丝（先不给真正 UI，用 console）
-    console.warn('[Boss] 需要 3 个暗能丝 (dark_filament)');
+
+  // --- 优先检测：crystal_warden（靠近晶体祭坛） ---
+  const altar = terrain.structures.find(s => s.kind === 'crystal_altar');
+  if (altar) {
+    const ax = (altar.x + altar.width / 2) * TILE_SIZE;
+    const ay = (altar.y + altar.height / 2) * TILE_SIZE;
+    if ((ax - player.x) ** 2 + (ay - player.y) ** 2 < (15 * TILE_SIZE) ** 2) {
+      if (inv.count('dark_seed') < 5 || inv.count('void_crystal') < 3) {
+        console.warn('[Boss·晶殿] 需要 5 暗种 + 3 虚空晶体');
+        return;
+      }
+      inv.consume('dark_seed', 5);
+      inv.consume('void_crystal', 3);
+      const boss = createBoss('crystal_warden', ax, ay - 40);
+      bosses.push(boss);
+      bossSpawnCooldown = 30;
+      console.log('[Boss] 💎 幽紫晶体守卫 已降临！');
+      return;
+    }
+  }
+
+  // --- 默认：void_assimilator（靠近暗能量结界） ---
+  if (inv.count('dark_filament') < 3) {
+    console.warn('[Boss·黑雾] 需要 3 个暗能丝');
     return;
   }
   const spot = findNearestVoidBarrier(terrain.tiles, player.x, player.y);
   if (!spot) {
-    console.warn('[Boss] 附近没有暗能量结界（void_barrier）');
+    console.warn('[Boss] 附近没有暗能量结界');
     return;
   }
-  const dist2 = (spot.x - player.x) ** 2 + (spot.y - player.y) ** 2;
-  if (dist2 > (15 * TILE_SIZE) ** 2) {
+  if ((spot.x - player.x) ** 2 + (spot.y - player.y) ** 2 > (15 * TILE_SIZE) ** 2) {
     console.warn('[Boss] 太远了，靠近地底幽谷的暗能量结界');
     return;
   }
-  // 扣材料
   inv.consume('dark_filament', 3);
-  // 在 void_barrier 位置召唤 Boss
   const boss = createBoss('void_assimilator', spot.x, spot.y - 30);
   bosses.push(boss);
-  bossSpawnCooldown = 30; // 30s 冷却
+  bossSpawnCooldown = 30;
   console.log('[Boss] ☠ 黑雾同化体 已降临！');
 }
 
@@ -575,13 +592,20 @@ function updateBossesSystem(dt: number) {
           Math.abs(attackY - boss.y) < bossHalfH(boss) + 10) {
         const died = hitBoss(boss, TOOLS[px.toolName].damage + shellMgr.current.damage * 0.5, 80, player.facing as 1 | -1);
         if (died) {
-          // 击败掉落
-          breakState.drops.push({ x: boss.x, y: boss.y, vx: 0, vy: -100, blockId: 'dark_seed', life: 60 });
-          breakState.drops.push({ x: boss.x + 20, y: boss.y, vx: 50, vy: -80, blockId: 'dark_seed', life: 60 });
-          breakState.drops.push({ x: boss.x - 20, y: boss.y, vx: -50, vy: -80, blockId: 'dark_filament', life: 60 });
-          // 净化：把附近的 void_barrier 变成 ore_rock
-          purifyNearbyVoidBarrier(boss.x, boss.y);
-          console.log('[Boss] ✅ 黑雾同化体 已被净化！');
+          // 击败掉落（按 Boss 类型区分）
+          if (boss.def.id === 'crystal_warden') {
+            breakState.drops.push({ x: boss.x, y: boss.y, vx: 0, vy: -100, blockId: 'void_crystal', life: 60 });
+            breakState.drops.push({ x: boss.x + 20, y: boss.y, vx: 50, vy: -80, blockId: 'void_crystal', life: 60 });
+            breakState.drops.push({ x: boss.x - 20, y: boss.y, vx: -50, vy: -80, blockId: 'dark_seed', life: 60 });
+            purifyNearbyVoidBarrier(boss.x, boss.y);
+            console.log('[Boss] ✅ 幽紫晶体守卫 已被净化！');
+          } else {
+            breakState.drops.push({ x: boss.x, y: boss.y, vx: 0, vy: -100, blockId: 'dark_seed', life: 60 });
+            breakState.drops.push({ x: boss.x + 20, y: boss.y, vx: 50, vy: -80, blockId: 'dark_seed', life: 60 });
+            breakState.drops.push({ x: boss.x - 20, y: boss.y, vx: -50, vy: -80, blockId: 'dark_filament', life: 60 });
+            purifyNearbyVoidBarrier(boss.x, boss.y);
+            console.log('[Boss] ✅ 黑雾同化体 已被净化！');
+          }
         }
       }
     }
@@ -625,18 +649,31 @@ function purifyNearbyVoidBarrier(bx: number, by: number) {
   }
 }
 
-// ========== AI 队友初始化 ==========
+// ========== AI 队友初始化（M7：从 terrain.structures 读取） ==========
 function initCompanions() {
   if (companionsInitialized) return;
   companionsInitialized = true;
-  // 在玩家出生点附近生成 2 个 civilian NPC（地底幽谷入口）
-  const spawnX = 10 * TILE_SIZE;
-  const spawnY = player.y;
-  const iron = createCivilian('iron_guard', spawnX, spawnY);
-  iron.state = 'civilian';
-  const ember = createCivilian('ember_mage', spawnX + 3 * TILE_SIZE, spawnY);
-  ember.state = 'civilian';
-  companions.push(iron, ember);
+
+  // 区块 → NPC 类型映射
+  const regionNpcPool: Record<string, string[]> = {
+    wreck_zone: ['iron_guard', 'rust_archer'],
+    crack_waste: ['bone_scout', 'rust_archer'],
+    gobi_mine: ['iron_guard', 'cold_engineer'],
+    silent_sea: ['cold_engineer', 'ember_mage'],
+    beast_hive: ['bone_scout'],
+    underground_valley: ['iron_guard', 'ember_mage', 'cold_engineer'],
+  };
+
+  // 每个 hut/camp 门口放 1 个 civilian
+  for (const s of terrain.structures) {
+    if (s.kind === 'crystal_altar') continue;
+    const pool = regionNpcPool[s.region] ?? ['iron_guard'];
+    const npcId = pool[Math.floor(Math.random() * pool.length)];
+    // 门口 = 结构底部中心
+    const doorX = (s.x + Math.floor(s.width / 2)) * TILE_SIZE + TILE_SIZE / 2;
+    const doorY = (s.y + s.height) * TILE_SIZE;
+    companions.push(createCivilian(npcId, doorX, doorY));
+  }
 }
 
 // ========== 招募 ==========
