@@ -25,6 +25,13 @@ export interface AccessoryBuff {
   magnetBonus?: number;     // 拾取范围倍率加成
   moveSpeedBonus?: number;  // 移速倍率加成
   glideFallSpeed?: number;  // 滑翔下落速度上限 (px/s)
+  // M13: Boss 专属 Buff
+  jumpBonus?: number;       // 跳跃倍率加成
+  gravityReduction?: number; // 重力减轻比例 (0-1)
+  critBonus?: number;       // 额外暴击率 (0-1)
+  critDamageMult?: number;  // 暴击伤害倍率
+  voidResistance?: number;  // 黑雾同化抗性 (0-1)
+  nightVisionBonus?: number; // 夜间视野加成 (0-1)
 }
 
 export const ACCESSORY_DEFS: Record<string, AccessoryDef> = {
@@ -75,6 +82,32 @@ export const ACCESSORY_DEFS: Record<string, AccessoryDef> = {
     iconChar: '^',
     desc: '在空中按住跳跃键可缓慢滑翔',
     buff: { glideFallSpeed: 90 },
+  },
+
+  // === M13: Boss 专属饰品（100% 掉落）===
+  rock_titan_crown: {
+    id: 'rock_titan_crown',
+    name: '岩石泰坦王冠',
+    paletteId: 'iron04',
+    iconChar: '♔',
+    desc: '重力减轻 40% · 跳跃力 +25%',
+    buff: { jumpBonus: 1.25, gravityReduction: 0.4 },
+  },
+  crystal_warden_core: {
+    id: 'crystal_warden_core',
+    name: '晶守核心',
+    paletteId: 'void01',
+    iconChar: '✧',
+    desc: '额外 15% 暴击率 · 暴击伤害 × 1.5',
+    buff: { critBonus: 0.15, critDamageMult: 1.5 },
+  },
+  void_assimilator_heart: {
+    id: 'void_assimilator_heart',
+    name: '同化之心',
+    paletteId: 'void03',
+    iconChar: '☠',
+    desc: '黑雾同化抗性 30% · 夜间视野 +30%',
+    buff: { voidResistance: 0.3, nightVisionBonus: 0.3 },
   },
 };
 
@@ -154,6 +187,24 @@ export class AccessoryManager {
       }
       if (b.glideFallSpeed) {
         result.glideFallSpeed = Math.min(result.glideFallSpeed ?? Infinity, b.glideFallSpeed);
+      }
+      if (b.jumpBonus) {
+        result.jumpBonus = Math.max(result.jumpBonus ?? 1, b.jumpBonus);
+      }
+      if (b.gravityReduction) {
+        result.gravityReduction = Math.max(result.gravityReduction ?? 0, b.gravityReduction);
+      }
+      if (b.critBonus) {
+        result.critBonus = Math.max(result.critBonus ?? 0, b.critBonus);
+      }
+      if (b.critDamageMult) {
+        result.critDamageMult = Math.max(result.critDamageMult ?? 1, b.critDamageMult);
+      }
+      if (b.voidResistance) {
+        result.voidResistance = Math.max(result.voidResistance ?? 0, b.voidResistance);
+      }
+      if (b.nightVisionBonus) {
+        result.nightVisionBonus = Math.max(result.nightVisionBonus ?? 0, b.nightVisionBonus);
       }
     }
     return result;

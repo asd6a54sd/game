@@ -237,6 +237,26 @@ export const BLOCKS: Record<string, BlockDef> = {
     paletteId: 'cold01', variants: [],
     drops: [],
   },
+
+  // === M13: Boss 专属饰品（不可合成，100% 掉落）===
+  rock_titan_crown: {
+    id: 'rock_titan_crown', name: '岩石泰坦王冠', category: 'special',
+    hardness: 0, toolLevel: 0,
+    paletteId: 'iron04', variants: [],
+    drops: [],
+  },
+  crystal_warden_core: {
+    id: 'crystal_warden_core', name: '晶守核心', category: 'special',
+    hardness: 0, toolLevel: 0,
+    paletteId: 'void01', variants: [],
+    drops: [],
+  },
+  void_assimilator_heart: {
+    id: 'void_assimilator_heart', name: '同化之心', category: 'special',
+    hardness: 0, toolLevel: 0,
+    paletteId: 'void03', variants: [],
+    drops: [],
+  },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);

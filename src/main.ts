@@ -122,9 +122,10 @@ function updateDropPhysics(dt: number) {
   }
 }
 
-function spawnDmgText(x: number, y: number, damage: number, color = '#fff', critChance = 0.08) {
+function spawnDmgText(x: number, y: number, damage: number, color = '#fff', critChance = 0.08, critMult = 1.5) {
   const crit = Math.random() < critChance;
-  const text = crit ? `CRIT ${Math.floor(damage * 1.5)}!` : String(Math.floor(damage));
+  const finalDmg = crit ? Math.floor(damage * critMult) : Math.floor(damage);
+  const text = crit ? `CRIT ${finalDmg}!` : String(finalDmg);
   dmgTexts.push({ x, y, vy: -60, text, color: crit ? '#ff8040' : color, life: crit ? 0.9 : 0.7, maxLife: crit ? 0.9 : 0.7, crit });
 }
 
@@ -387,8 +388,12 @@ function update(dt: number) {
   const baseSpeed = shellMgr.current.speed * (buff.moveSpeedBonus ?? 1);
   const savedSpeed = player.moveSpeed ?? 180;
   const savedJump = player.jumpSpeed ?? 380;
+  const savedGravityMult = player.gravityMult ?? 1;
   player.moveSpeed = baseSpeed;
-  player.jumpSpeed = shellMgr.current.jumpSpeed;
+  // M13: jumpBonus（rock_titan_crown）
+  player.jumpSpeed = shellMgr.current.jumpSpeed * (buff.jumpBonus ?? 1);
+  // M13: gravityReduction（rock_titan_crown）
+  player.gravityMult = 1 - (buff.gravityReduction ?? 0);
 
   // 冲刺触发：按住 Ctrl 且有冲刺靴
   if (dashKeyHeld && !acc.isDashing) {
@@ -410,6 +415,7 @@ function update(dt: number) {
   updatePlayer(player, dt, input, getTileSolid);
   player.moveSpeed = savedSpeed;
   player.jumpSpeed = savedJump;
+  player.gravityMult = savedGravityMult;
 
   // 滑翔：空中按住跳跃键时限制下落速度
   if (!player.onGround && input.jump && buff.glideFallSpeed && player.vy > buff.glideFallSpeed) {
@@ -544,8 +550,10 @@ function updateEnemiesSystem(dt: number, _effectivePower: number) {
       const e = enemies[i];
       if (e.state === 'dead') continue;
       if (Math.abs(e.x - attackX) < hitHalfW && Math.abs(e.y - attackY) < 24) {
+        const buffLocal = acc.getAggregatedBuff();
+        const baseCrit = 0.10 + (buffLocal.critBonus ?? 0);
         const died = hitEnemy(e, sword.damage + shellMgr.current.damage * 0.5, 160, player.facing as 1 | -1);
-        spawnDmgText(e.x, e.y - e.def.height / 2, sword.damage + shellMgr.current.damage * 0.5, '#ff8040', 0.12);
+        spawnDmgText(e.x, e.y - e.def.height / 2, sword.damage + shellMgr.current.damage * 0.5, '#ff8040', baseCrit, 1.5 * (buffLocal.critDamageMult ?? 1));
         sfx.hitEnemy();
         if (died) {
           sfx.enemyDie();
@@ -557,6 +565,12 @@ function updateEnemiesSystem(dt: number, _effectivePower: number) {
                 }
               }
             }
+          }
+          // M13: 精英敌人有 accessoryDropChance 命中则掉随机普通饰品
+          if (e.isElite && e.def.accessoryDropChance && Math.random() < e.def.accessoryDropChance) {
+            const REGULAR_ACCESSORIES = ['dash_boots', 'regen_ring', 'defense_charm', 'magnet_crystal', 'speed_glove', 'wing_charm'];
+            const picked = REGULAR_ACCESSORIES[Math.floor(Math.random() * REGULAR_ACCESSORIES.length)];
+            breakState.drops.push({ x: e.x, y: e.y, vx: (Math.random() - 0.5) * 180, vy: -160, blockId: picked, life: 60 });
           }
         }
       }
@@ -914,8 +928,10 @@ function updateBossesSystem(dt: number) {
       const attackY = player.y;
       if (Math.abs(attackX - boss.x) < bossHalfW(boss) + 10 &&
           Math.abs(attackY - boss.y) < bossHalfH(boss) + 10) {
+        const buffLocal = acc.getAggregatedBuff();
+        const baseCrit = 0.12 + (buffLocal.critBonus ?? 0);
         const died = hitBoss(boss, TOOLS[px.toolName].damage + shellMgr.current.damage * 0.5, 80, player.facing as 1 | -1);
-        spawnDmgText(boss.x, boss.y - bossHalfH(boss), TOOLS[px.toolName].damage + shellMgr.current.damage * 0.5, '#c040e8', 0.15);
+        spawnDmgText(boss.x, boss.y - bossHalfH(boss), TOOLS[px.toolName].damage + shellMgr.current.damage * 0.5, '#c040e8', baseCrit, 1.5 * (buffLocal.critDamageMult ?? 1));
         if (died) {
           // 击败掉落（按 Boss 类型区分）
           if (boss.def.id === 'rock_titan') {
@@ -924,23 +940,35 @@ function updateBossesSystem(dt: number) {
             breakState.drops.push({ x: boss.x + 20, y: boss.y, vx: 50, vy: -80, blockId: 'ore_gold', life: 60 });
             breakState.drops.push({ x: boss.x - 20, y: boss.y, vx: -50, vy: -80, blockId: 'void_crystal', life: 60 });
             breakState.drops.push({ x: boss.x + 40, y: boss.y, vx: 80, vy: -120, blockId: 'dark_filament', life: 60 });
+            // M13: 100% 岩石泰坦王冠
+            breakState.drops.push({ x: boss.x, y: boss.y - 30, vx: 0, vy: -160, blockId: 'rock_titan_crown', life: 60 });
             purifyNearbyVoidBarrier(boss.x, boss.y);
             sfx.bossDie();
-            console.log('[Boss] ✅ 岩石泰坦 已崩塌！');
+            console.log('[Boss] ✅ 岩石泰坦 已崩塌！→ 岩石泰坦王冠');
           } else if (boss.def.id === 'crystal_warden') {
             breakState.drops.push({ x: boss.x, y: boss.y, vx: 0, vy: -100, blockId: 'void_crystal', life: 60 });
             breakState.drops.push({ x: boss.x + 20, y: boss.y, vx: 50, vy: -80, blockId: 'void_crystal', life: 60 });
             breakState.drops.push({ x: boss.x - 20, y: boss.y, vx: -50, vy: -80, blockId: 'dark_seed', life: 60 });
+            // M13: 100% 晶守核心
+            breakState.drops.push({ x: boss.x, y: boss.y - 30, vx: 0, vy: -160, blockId: 'crystal_warden_core', life: 60 });
             purifyNearbyVoidBarrier(boss.x, boss.y);
             sfx.bossDie();
-            console.log('[Boss] ✅ 幽紫晶体守卫 已被净化！');
+            console.log('[Boss] ✅ 幽紫晶体守卫 已被净化！→ 晶守核心');
           } else {
             breakState.drops.push({ x: boss.x, y: boss.y, vx: 0, vy: -100, blockId: 'dark_seed', life: 60 });
             breakState.drops.push({ x: boss.x + 20, y: boss.y, vx: 50, vy: -80, blockId: 'dark_seed', life: 60 });
             breakState.drops.push({ x: boss.x - 20, y: boss.y, vx: -50, vy: -80, blockId: 'dark_filament', life: 60 });
+            // M13: 100% 同化之心
+            breakState.drops.push({ x: boss.x, y: boss.y - 30, vx: 0, vy: -160, blockId: 'void_assimilator_heart', life: 60 });
             purifyNearbyVoidBarrier(boss.x, boss.y);
             sfx.bossDie();
-            console.log('[Boss] ✅ 黑雾同化体 已被净化！');
+            console.log('[Boss] ✅ 黑雾同化体 已被净化！→ 同化之心');
+          }
+          // M13: 每个 Boss 30% 概率额外掉 1 件随机普通饰品
+          if (Math.random() < 0.30) {
+            const REGULAR = ['dash_boots', 'regen_ring', 'defense_charm', 'magnet_crystal', 'speed_glove', 'wing_charm'];
+            const picked = REGULAR[Math.floor(Math.random() * REGULAR.length)];
+            breakState.drops.push({ x: boss.x + 30, y: boss.y, vx: 80, vy: -150, blockId: picked, life: 60 });
           }
         }
       }

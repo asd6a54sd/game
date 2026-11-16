@@ -13,7 +13,9 @@ export interface EnemyDef {
   width: number; height: number;
   cooldownAttack: number; cooldownHurtFlash: number;
   dropTable?: { blockId: string; chance: number; count: number }[];
+  accessoryDropChance?: number; // 精英敌人掉普通饰品的概率（0-1）
   spawnAtNight: boolean; spawnAtDay: boolean;
+  isElite?: boolean; // 精英标记（血更厚、发光描边）
 }
 
 export const ENEMY_DEFS: Record<string, EnemyDef> = {
@@ -42,6 +44,11 @@ export const ENEMY_DEFS: Record<string, EnemyDef> = {
   void_flyer: { type: 'void_flyer', name: '幽蓝飞虫', paletteId: 'void01', behavior: 'flyer', hp: 8, damage: 5, speed: 110, jumpForce: 0, width: 18, height: 12, cooldownAttack: 0.5, cooldownHurtFlash: 0.2, dropTable: [{ blockId: 'bio_glow', chance: 0.35, count: 1 }], spawnAtNight: true, spawnAtDay: true },
   void_wraith: { type: 'void_wraith', name: '暗能游魂', paletteId: 'void04', behavior: 'flyer', hp: 26, damage: 13, speed: 170, jumpForce: 0, width: 22, height: 16, cooldownAttack: 0.7, cooldownHurtFlash: 0.3, dropTable: [{ blockId: 'dark_seed', chance: 0.6, count: 1 }, { blockId: 'void_crystal', chance: 0.2, count: 1 }], spawnAtNight: true, spawnAtDay: true },
   rebel_ghost: { type: 'rebel_ghost', name: '叛影', paletteId: 'iron05', behavior: 'chaser', hp: 45, damage: 15, speed: 95, jumpForce: 360, width: 14, height: 28, cooldownAttack: 0.8, cooldownHurtFlash: 0.35, dropTable: [{ blockId: 'rebel_brick', chance: 0.8, count: 1 }, { blockId: 'ore_iron', chance: 0.5, count: 1 }], spawnAtNight: true, spawnAtDay: false },
+
+  // === M13: 精英敌人（夜间专属） ===
+  elite_iron_tyrant: { type: 'elite_iron_tyrant', name: '钢铁暴君', paletteId: 'iron01', behavior: 'chaser', hp: 120, damage: 22, speed: 110, jumpForce: 400, width: 24, height: 36, cooldownAttack: 0.6, cooldownHurtFlash: 0.4, dropTable: [{ blockId: 'ore_iron', chance: 1.0, count: 2 }, { blockId: 'ore_gold', chance: 0.5, count: 1 }, { blockId: 'wreck_scrap', chance: 1.0, count: 3 }], accessoryDropChance: 0.08, spawnAtNight: true, spawnAtDay: false, isElite: true },
+  elite_void_ravager: { type: 'elite_void_ravager', name: '虚空屠戮者', paletteId: 'void04', behavior: 'flyer', hp: 90, damage: 18, speed: 200, jumpForce: 0, width: 28, height: 20, cooldownAttack: 0.5, cooldownHurtFlash: 0.35, dropTable: [{ blockId: 'dark_seed', chance: 1.0, count: 2 }, { blockId: 'void_crystal', chance: 0.4, count: 1 }], accessoryDropChance: 0.12, spawnAtNight: true, spawnAtDay: false, isElite: true },
+  elite_chitin_queen: { type: 'elite_chitin_queen', name: '蜂巢女王', paletteId: 'bone01', behavior: 'hopper', hp: 140, damage: 20, speed: 180, jumpForce: 360, width: 30, height: 24, cooldownAttack: 0.7, cooldownHurtFlash: 0.4, dropTable: [{ blockId: 'chitin_hive', chance: 1.0, count: 3 }, { blockId: 'bio_glow', chance: 0.8, count: 2 }], accessoryDropChance: 0.10, spawnAtNight: true, spawnAtDay: false, isElite: true },
 };
 
 export interface Enemy {
@@ -50,13 +57,14 @@ export interface Enemy {
   state: 'patrol' | 'chase' | 'attack' | 'dead';
   stateTimer: number; attackCooldown: number; hurtCooldown: number;
   flyPhase: number; deathProgress: number;
+  isElite: boolean; // M13: 精英敌人（发光描边）
 }
 
 let enemyIdCounter = 1;
 
 export function createEnemy(defType: string, x: number, y: number): Enemy {
   const def = ENEMY_DEFS[defType];
-  return { id: enemyIdCounter++, def, x, y, vx: 0, vy: 0, hp: def.hp, onGround: false, facing: 1, state: 'patrol', stateTimer: 0, attackCooldown: 0, hurtCooldown: 0, flyPhase: Math.random() * Math.PI * 2, deathProgress: 0 };
+  return { id: enemyIdCounter++, def, x, y, vx: 0, vy: 0, hp: def.hp, onGround: false, facing: 1, state: 'patrol', stateTimer: 0, attackCooldown: 0, hurtCooldown: 0, flyPhase: Math.random() * Math.PI * 2, deathProgress: 0, isElite: !!def.isElite };
 }
 
 export function enemyHalfW(e: Enemy): number { return e.def.width / 2; }
@@ -84,14 +92,14 @@ function findSpawnTile(px: number, py: number, mapW: number, mapH: number, isSol
   return null;
 }
 
-// 区块 → 敌人类型池（白天/夜间权重）
-const REGION_ENEMY_POOL: Record<string, { day: string[]; night: string[] }> = {
-  wreck_zone: { day: ['wreck_drone'], night: ['alloy_slime', 'wreck_soldier', 'wreck_drone'] },
-  crack_waste: { day: [], night: ['wind_scorpion', 'dust_wraith'] },
-  gobi_mine: { day: ['rock_golem', 'gem_eye'], night: ['rock_golem', 'gem_eye', 'dust_wraith'] },
-  silent_sea: { day: ['metal_serpent', 'cold_hunter'], night: ['metal_serpent', 'cold_hunter'] },
-  beast_hive: { day: ['hive_stalker'], night: ['chitin_beetle', 'hive_stalker'] },
-  underground_valley: { day: ['void_flyer'], night: ['void_flyer', 'void_wraith', 'rebel_ghost'] },
+// 区块 → 敌人类型池（白天/夜间权重 + 精英池）
+const REGION_ENEMY_POOL: Record<string, { day: string[]; night: string[]; elite: string[] }> = {
+  wreck_zone: { day: ['wreck_drone'], night: ['alloy_slime', 'wreck_soldier', 'wreck_drone'], elite: ['elite_iron_tyrant'] },
+  crack_waste: { day: [], night: ['wind_scorpion', 'dust_wraith'], elite: ['elite_iron_tyrant'] },
+  gobi_mine: { day: ['rock_golem', 'gem_eye'], night: ['rock_golem', 'gem_eye', 'dust_wraith'], elite: ['elite_iron_tyrant'] },
+  silent_sea: { day: ['metal_serpent', 'cold_hunter'], night: ['metal_serpent', 'cold_hunter'], elite: ['elite_void_ravager'] },
+  beast_hive: { day: ['hive_stalker'], night: ['chitin_beetle', 'hive_stalker'], elite: ['elite_chitin_queen'] },
+  underground_valley: { day: ['void_flyer'], night: ['void_flyer', 'void_wraith', 'rebel_ghost'], elite: ['elite_void_ravager'] },
 };
 
 function regionColToRegion(pxCol: number): string {
@@ -112,12 +120,16 @@ export function trySpawnEnemy(existing: Enemy[], _count: number, player: { x: nu
   const region = regionColToRegion(playerCol);
 
   // 选敌人类型
-  const pool = REGION_ENEMY_POOL[region] ?? { day: [], night: ['void_flyer'] };
+  const pool = REGION_ENEMY_POOL[region] ?? { day: [], night: ['void_flyer'], elite: [] };
   let candidates = isNight ? pool.night : pool.day;
-  // 白天没有专属敌人时，用夜间池（但减少生成率由外部控制）
   if (candidates.length === 0) candidates = pool.night;
-  // 全局 fallback
   if (candidates.length === 0) candidates = ['void_flyer', 'alloy_slime'];
+
+  // M13: 夜间有 15% 几率刷精英（存在精英时降低几率到 5%）
+  const existingElites = existing.filter(e => e.isElite).length;
+  if (isNight && pool.elite.length > 0 && Math.random() < (existingElites > 0 ? 0.05 : 0.15)) {
+    candidates = pool.elite;
+  }
 
   const type = candidates[Math.floor(Math.random() * candidates.length)];
   const def = ENEMY_DEFS[type];

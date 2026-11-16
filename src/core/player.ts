@@ -19,6 +19,7 @@ export interface Player {
   maxHp: number;
   moveSpeed: number;
   jumpSpeed: number;
+  gravityMult: number;     // M13: 重力倍率（rock_titan_crown 减轻重力）
   breakProgress: number;     // 当前破坏进度 0-1
   breakingTile: { x: number; y: number } | null;
   breakCooldown: number;    // 破坏间隔
@@ -37,6 +38,7 @@ export function createPlayer(): Player {
     hp: 100, maxHp: 100,
     moveSpeed: PHYSICS.moveSpeed,
     jumpSpeed: PHYSICS.jumpSpeed,
+    gravityMult: 1,
     breakProgress: 0,
     breakingTile: null,
     breakCooldown: 0,
@@ -75,8 +77,8 @@ export function updatePlayer(
     p.onGround = false;
   }
 
-  // 重力
-  p.vy += PHYSICS.gravity * dt;
+  // 重力（M13: 支持 gravityMult，rock_titan_crown 减轻 40%）
+  p.vy += PHYSICS.gravity * (p.gravityMult ?? 1) * dt;
   p.vy = Math.min(p.vy, 900);
 
   // 碰撞检测（分轴）
