@@ -1,16 +1,19 @@
 /**
- * 烬海纪元 · 一格破坏系统（M0 核心验证）
- * - 破坏进度条（基于硬度）
- * - 破坏动画（碎块飞溅 + 淡出）
- * - 掉落物（物理 + 自动拾取）
+ * 烬海纪元 · 一格破坏系统
+ * - 支持工具等级：低等级工具挖不动高硬度方块
+ * - 工具挖掘速度倍率
+ * - 破坏进度条（基于硬度 / 挖掘速度）
+ * - 粒子飞溅 + 掉落物理
  */
 import { BLOCKS, BlockDef } from './blocks.js';
 import { TILE_SIZE } from './terrain.js';
+import { TOOLS } from './tools.js';
 
 export interface BreakState {
   targetTile: { x: number; y: number } | null;
-  progress: number;     // 0–1+
-  required: number;     // 破坏所需的总"能量"
+  progress: number;
+  required: number;
+  canBreak: boolean;
   particles: Particle[];
   drops: DropItem[];
   removedThisFrame: number;
@@ -37,26 +40,27 @@ export function createBreakState(): BreakState {
     targetTile: null,
     progress: 0,
     required: 0,
+    canBreak: true,
     particles: [],
     drops: [],
     removedThisFrame: 0,
   };
 }
 
-const BREAK_ENERGY_PER_SECOND = 8; // 徒手破坏能量
-
-export function startBreaking(state: BreakState, tx: number, ty: number, getBlock: (x: number, y: number) => string): boolean {
+export function startBreaking(state: BreakState, tx: number, ty: number, getBlock: (x: number, y: number) => string, toolId: string): boolean {
   const id = getBlock(tx, ty);
   if (id === 'empty') return false;
   const def = BLOCKS[id];
   if (!def || def.hardness <= 0) return false;
 
   if (state.targetTile && state.targetTile.x === tx && state.targetTile.y === ty) {
-    // 同一块，继续
+    // 同一块，只在工具切换时重置
   } else {
     state.targetTile = { x: tx, y: ty };
     state.progress = 0;
     state.required = def.hardness;
+    const tool = TOOLS[toolId] ?? TOOLS.hand_pickaxe;
+    state.canBreak = tool.pickaxePower >= def.toolLevel;
   }
   return true;
 }
@@ -65,10 +69,11 @@ export function stopBreaking(state: BreakState) {
   state.targetTile = null;
   state.progress = 0;
   state.required = 0;
+  state.canBreak = true;
 }
 
 export function updateBreaking(
-  state: BreakState, dt: number,
+  state: BreakState, dt: number, toolId: string,
   getBlock: (x: number, y: number) => string,
   setBlock: (x: number, y: number, id: string) => void,
 ): boolean {
@@ -78,20 +83,22 @@ export function updateBreaking(
   const id = getBlock(tx, ty);
   if (id === 'empty') { stopBreaking(state); return false; }
 
-  state.progress += BREAK_ENERGY_PER_SECOND * dt;
+  const def = BLOCKS[id];
+  const tool = TOOLS[toolId] ?? TOOLS.hand_pickaxe;
+
+  // 工具等级不足 → 挖不动（仅产生 1 秒 1 能量，非常慢）
+  const effectiveSpeed = tool.pickaxePower >= def.toolLevel ? tool.miningSpeed : 1;
+  state.progress += effectiveSpeed * dt;
 
   // 周期性产生破坏粒子
-  if (state.progress < state.required) {
-    const particleCount = 3;
-    for (let i = 0; i < particleCount; i++) {
-      const def = BLOCKS[id];
+  if (state.progress < state.required && tool.pickaxePower >= def.toolLevel) {
+    for (let i = 0; i < 2; i++) {
       state.particles.push(makeBreakParticle(tx, ty, def.paletteId));
     }
   }
 
   if (state.progress >= state.required) {
-    // 破坏完成
-    breakBlock(state, tx, ty, id, getBlock, setBlock);
+    breakBlock(state, tx, ty, id, setBlock);
     stopBreaking(state);
     state.removedThisFrame++;
     return true;
@@ -99,19 +106,11 @@ export function updateBreaking(
   return false;
 }
 
-function breakBlock(
-  state: BreakState, tx: number, ty: number, id: string,
-  _getBlock: (x: number, y: number) => string,
-  setBlock: (x: number, y: number, id: string) => void,
-) {
+function breakBlock(state: BreakState, tx: number, ty: number, id: string, setBlock: (x: number, y: number, id: string) => void) {
   const def = BLOCKS[id];
-
-  // 大量碎块飞溅
   for (let i = 0; i < 14; i++) {
     state.particles.push(makeBreakParticle(tx, ty, def.paletteId, true));
   }
-
-  // 掉落
   if (def.drops) {
     for (const drop of def.drops) {
       if (Math.random() < drop.chance) {
@@ -119,13 +118,10 @@ function breakBlock(
       }
     }
   }
-
   setBlock(tx, ty, 'empty');
 }
 
 function makeBreakParticle(tx: number, ty: number, paletteId: string, big = false): Particle {
-  const colors = paletteIdToColors(paletteId);
-  const color = colors[Math.floor(Math.random() * colors.length)];
   return {
     x: tx * TILE_SIZE + Math.random() * TILE_SIZE,
     y: ty * TILE_SIZE + Math.random() * TILE_SIZE,
@@ -133,7 +129,7 @@ function makeBreakParticle(tx: number, ty: number, paletteId: string, big = fals
     vy: (Math.random() - 0.8) * (big ? 160 : 80),
     life: big ? 0.8 : 0.4,
     maxLife: big ? 0.8 : 0.4,
-    color,
+    color: paletteId,
     size: big ? 3 + Math.random() * 3 : 2 + Math.random() * 2,
     gravity: 500,
   };
@@ -150,13 +146,7 @@ function makeDrop(tx: number, ty: number, blockId: string): DropItem {
   };
 }
 
-function paletteIdToColors(id: string): string[] {
-  // 简化：直接返回 id 对应的 hex
-  return [id];
-}
-
 export function updateParticles(state: BreakState, dt: number, isSolid: (x: number, y: number) => boolean) {
-  // 粒子
   for (let i = state.particles.length - 1; i >= 0; i--) {
     const p = state.particles[i];
     p.life -= dt;
@@ -164,7 +154,6 @@ export function updateParticles(state: BreakState, dt: number, isSolid: (x: numb
     p.vy += p.gravity * dt;
     p.x += p.vx * dt;
     p.y += p.vy * dt;
-    // 简单地面对撞
     const tx = Math.floor(p.x / TILE_SIZE);
     const ty = Math.floor(p.y / TILE_SIZE);
     if (isSolid(tx, ty)) {
@@ -173,8 +162,6 @@ export function updateParticles(state: BreakState, dt: number, isSolid: (x: numb
       p.y = ty * TILE_SIZE - 1;
     }
   }
-
-  // 掉落物
   for (let i = state.drops.length - 1; i >= 0; i--) {
     const d = state.drops[i];
     d.life -= dt;
@@ -194,7 +181,7 @@ export function updateParticles(state: BreakState, dt: number, isSolid: (x: numb
   }
 }
 
-export function findDropAt(drops: DropItem[], px: number, py: number, r = 20): DropItem | null {
+export function findDropAt(drops: DropItem[], px: number, py: number, r = 24): DropItem | null {
   for (let i = 0; i < drops.length; i++) {
     const d = drops[i];
     const dx = d.x - px, dy = d.y - py;
@@ -203,5 +190,4 @@ export function findDropAt(drops: DropItem[], px: number, py: number, r = 20): D
   return null;
 }
 
-// 空引用修正
 export const _BLOCKS_REF = BLOCKS as Record<string, BlockDef>;
