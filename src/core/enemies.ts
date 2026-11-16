@@ -58,13 +58,25 @@ export interface Enemy {
   stateTimer: number; attackCooldown: number; hurtCooldown: number;
   flyPhase: number; deathProgress: number;
   isElite: boolean; // M13: 精英敌人（发光描边）
+  // M16: 持续伤害 DoT（毒刺护符等触发）
+  dotDps: number;
+  dotDuration: number;
+  dotTick: number; // 上次 tick 计时
+  dotTotalDmg: number; // 累计已掉血（用于 HUD 显示）
 }
 
 let enemyIdCounter = 1;
 
 export function createEnemy(defType: string, x: number, y: number): Enemy {
   const def = ENEMY_DEFS[defType];
-  return { id: enemyIdCounter++, def, x, y, vx: 0, vy: 0, hp: def.hp, onGround: false, facing: 1, state: 'patrol', stateTimer: 0, attackCooldown: 0, hurtCooldown: 0, flyPhase: Math.random() * Math.PI * 2, deathProgress: 0, isElite: !!def.isElite };
+  return {
+    id: enemyIdCounter++, def, x, y, vx: 0, vy: 0,
+    hp: def.hp, onGround: false, facing: 1,
+    state: 'patrol', stateTimer: 0, attackCooldown: 0, hurtCooldown: 0,
+    flyPhase: Math.random() * Math.PI * 2, deathProgress: 0,
+    isElite: !!def.isElite,
+    dotDps: 0, dotDuration: 0, dotTick: 0, dotTotalDmg: 0,
+  };
 }
 
 export function enemyHalfW(e: Enemy): number { return e.def.width / 2; }
@@ -147,6 +159,21 @@ export interface AIUpdateParams { dt: number; player: { x: number; y: number; wi
 export function updateEnemy(e: Enemy, params: AIUpdateParams) {
   const { dt, player, isSolid } = params;
   if (e.state === 'dead') { e.deathProgress += dt * 3; return; }
+
+  // M16: DoT tick（每秒一次，dotDuration 倒计时）
+  if (e.dotDps > 0 && e.dotDuration > 0) {
+    e.dotTick += dt;
+    if (e.dotTick >= 1) {
+      e.dotTick -= 1;
+      const dmg = e.dotDps;
+      e.hp -= dmg;
+      e.dotTotalDmg += dmg;
+      if (e.hp <= 0) { e.state = 'dead'; e.hp = 0; return; }
+    }
+    e.dotDuration -= dt;
+    if (e.dotDuration <= 0) { e.dotDps = 0; e.dotDuration = 0; }
+  }
+
   e.hurtCooldown = Math.max(0, e.hurtCooldown - dt);
   e.attackCooldown = Math.max(0, e.attackCooldown - dt);
   e.stateTimer += dt;

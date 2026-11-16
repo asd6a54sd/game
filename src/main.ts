@@ -66,6 +66,8 @@ const enemies: Enemy[] = [];
 let spawnTimer = 0;
 let playerInvulnerable = 0;
 let playerKnockback = { vx: 0, vy: 0 };
+let swingCd = 0; // M16: 玩家攻击冷却
+let wasOnGround = false; // M16: 上一帧是否在地面（检测落地瞬间）
 
 // Boss 系统
 const bosses: Boss[] = [];
@@ -438,6 +440,33 @@ function update(dt: number) {
   player.jumpSpeed = savedJump;
   player.gravityMult = savedGravityMult;
 
+  // M16: 攻击冷却 tick
+  if (swingCd > 0) swingCd -= dt;
+
+  // M16: 熔岩核心 — 落地震伤（上一帧不在地面，这一帧在地面，且 vy 足够大）
+  const buffLocalLanding = acc.getAggregatedBuff();
+  if (wasOnGround === false && player.onGround && player.vy > 300 &&
+      buffLocalLanding.jumpSplashDamage && buffLocalLanding.jumpSplashRadius) {
+    const radius = buffLocalLanding.jumpSplashRadius;
+    const dmg = buffLocalLanding.jumpSplashDamage;
+    let hitAny = false;
+    for (const e of enemies) {
+      if (e.state === 'dead') continue;
+      const dxe = e.x - player.x, dye = e.y - player.y;
+      if (dxe * dxe + dye * dye < radius * radius) {
+        const dir = Math.sign(dxe) || 1;
+        hitEnemy(e, dmg, 100, dir as 1 | -1);
+        spawnDmgText(e.x, e.y - e.def.height / 2, dmg, '#ff6020', 0, 1);
+        hitAny = true;
+      }
+    }
+    if (hitAny) {
+      shake(cam, 2);
+      sfx.hitEnemy();
+    }
+  }
+  wasOnGround = player.onGround;
+
   // 滑翔：空中按住跳跃键时限制下落速度
   if (!player.onGround && input.jump && buff.glideFallSpeed && player.vy > buff.glideFallSpeed) {
     player.vy = buff.glideFallSpeed;
@@ -582,6 +611,13 @@ function updateEnemiesSystem(dt: number, _effectivePower: number) {
         const died = hitEnemy(e, sword.damage + shellMgr.current.damage * 0.5, 160, player.facing as 1 | -1);
         spawnDmgText(e.x, e.y - e.def.height / 2, sword.damage + shellMgr.current.damage * 0.5, '#ff8040', baseCrit, 1.5 * (buffLocal.critDamageMult ?? 1));
         sfx.hitEnemy();
+        // M16: 毒刺护符 — 剑击附加持续伤害
+        if (buffLocal.poisonDps && buffLocal.poisonDuration) {
+          e.dotDps = buffLocal.poisonDps;
+          e.dotDuration = buffLocal.poisonDuration;
+          e.dotTick = 0;
+          spawnDmgText(e.x, e.y - e.def.height / 2 - 14, buffLocal.poisonDps, '#60c040', 0, 1);
+        }
         if (died) {
           sfx.enemyDie();
           if (e.def.dropTable) {
@@ -610,10 +646,14 @@ function updateEnemiesSystem(dt: number, _effectivePower: number) {
 }
 
 function isPlayerSwingingWeapon(): boolean {
+  if (swingCd > 0) return false; // M16: 冷却中不能攻击
   if (mouseLeft && TOOLS[px.toolName].category === 'sword') {
     if (!(window as any).__swingSfxPlayed) {
       sfx.swing(); (window as any).__swingSfxPlayed = true;
     }
+    // M16: 攻击冷却 — 基础 0.35s，乘 attackSpeedBonus 倒数
+    const buffLocal = acc.getAggregatedBuff();
+    swingCd = 0.35 / (buffLocal.attackSpeedBonus ?? 1);
     return true;
   }
   (window as any).__swingSfxPlayed = false;
