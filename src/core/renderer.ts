@@ -21,6 +21,7 @@ import { Companion, companionSpriteColors, compHalfW, compHalfH } from './compan
 import { AccessoryManager, ACCESSORY_DEFS } from './accessories.js';
 import { WorldEvent } from './events.js';
 import { QuestState } from './tasks.js';
+import { AchievementState } from './achievements.js';
 
 export class Renderer {
   // public 以便 main.ts 震屏偏移（save/translate/restore）
@@ -1037,6 +1038,51 @@ export class Renderer {
     ctx.font = 'bold 14px monospace';
     ctx.textAlign = 'center';
     ctx.fillText(text, w / 2, y + 19);
+    ctx.textAlign = 'left';
+  }
+
+  /** M19: 成就 HUD — 底部紧凑进度条，显示已解锁/总数 */
+  drawAchievementHUD(achievements: AchievementState[]) {
+    const ctx = this.ctx;
+    const w = this.canvas.width;
+    const unlocked = achievements.filter(a => a.unlocked).length;
+    const total = achievements.length;
+    const barW = 140, barH = 10;
+    const bx = w - barW - 8;
+    const by = this.canvas.height - 60;
+    // 背景
+    ctx.fillStyle = 'rgba(10, 6, 16, 0.8)';
+    ctx.fillRect(bx - 5, by - 14, barW + 10, barH + 20);
+    ctx.strokeStyle = '#a08040'; ctx.lineWidth = 1;
+    ctx.strokeRect(bx - 5, by - 14, barW + 10, barH + 20);
+    // 标题
+    ctx.fillStyle = '#ffd060';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(`🏆 成就 ${unlocked}/${total}`, bx, by - 4);
+    // 进度条
+    const frac = unlocked / total;
+    ctx.fillStyle = '#1a0a0a';
+    ctx.fillRect(bx, by, barW, barH);
+    ctx.fillStyle = '#ffd060';
+    ctx.fillRect(bx, by, barW * frac, barH);
+    ctx.textAlign = 'left';
+  }
+
+  /** M19: 成就解锁弹窗 — 屏幕中央上方，持续 4 秒 */
+  drawAchievementPopup(text: string) {
+    const ctx = this.ctx;
+    const w = this.canvas.width;
+    const y = 150;
+    const tw = Math.max(260, ctx.measureText(text).width + 40);
+    ctx.fillStyle = 'rgba(40, 30, 10, 0.95)';
+    ctx.fillRect((w - tw) / 2, y, tw, 32);
+    ctx.strokeStyle = '#ffd060'; ctx.lineWidth = 2;
+    ctx.strokeRect((w - tw) / 2, y, tw, 32);
+    ctx.fillStyle = '#ffd060';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(text, w / 2, y + 21);
     ctx.textAlign = 'left';
   }
 }

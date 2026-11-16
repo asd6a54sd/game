@@ -22,6 +22,7 @@ import { Companion, createCivilian, recruitCompanion, updateCompanion } from './
 import { sfx } from './core/sfx.js';
 import { AccessoryManager, ACCESSORY_DEFS } from './core/accessories.js';
 import { QuestManager, QuestState } from './core/tasks.js';
+import { AchievementManager, AchievementState } from './core/achievements.js';
 
 // ========== DOM ==========
 const loading = document.getElementById('loading')!;
@@ -54,7 +55,11 @@ px.hurtEnemies = new Set();
 const wb = new WorkbenchUI(inv, {
   onOpen: () => { inputBlocked = true; },
   onClose: () => { inputBlocked = false; },
-  onCraftSuccess: (r) => { tasks.onCraft(r.resultBlockId, r.resultCount); }, // M17: 合成任务
+  onCraftSuccess: (r) => {
+    tasks.onCraft(r.resultBlockId, r.resultCount);
+    // M19: 初探者成就 — 合成工具
+    if (TOOLS[r.resultBlockId]) ach.addProgress('first_tool', 1);
+  },
 });
 
 // 躯壳
@@ -71,6 +76,7 @@ let playerKnockback = { vx: 0, vy: 0 };
 let swingCd = 0; // M16: 玩家攻击冷却
 let wasOnGround = false; // M16: 上一帧是否在地面（检测落地瞬间）
 let lastRegion = '';     // M17: 玩家上一帧所在区块（检测区块变化）
+let achCheckTimer = 0;   // M19: 收藏家成就检查间隔
 
 // Boss 系统
 const bosses: Boss[] = [];
@@ -96,10 +102,14 @@ let dashKeyHeld = false;
 
 // M15: 世界事件系统
 const ev = new WorldEventManager();
+const eventTypesSeen = new Set<string>(); // M19: 事件幸存者成就
 ev.onEventStart = (e) => {
   console.log(`[事件] ✨ ${e.emoji} ${e.name} 开始！${e.desc}`);
   shake(cam, 5);
   sfx.bossSummon(); // 复用（事件触发也有紧张感）
+  // M19: 事件幸存者成就
+  eventTypesSeen.add(e.type);
+  ach.setProgress('survive_3_events', eventTypesSeen.size);
 };
 ev.onEventEnd = (e) => {
   console.log(`[事件] 💨 ${e.name} 结束`);
@@ -114,6 +124,23 @@ tasks.onComplete = (q: QuestState) => {
   // 自动领取奖励
   const rewards = tasks.claimReward(q);
   for (const r of rewards) inv.add(r.blockId, r.count);
+};
+
+// M19: 成就系统
+const ach = new AchievementManager();
+let achPopup: { text: string; timer: number } | null = null;
+ach.onUnlock = (a: AchievementState) => {
+  achPopup = { text: `🏆 成就解锁：${a.def.emoji} ${a.def.name}`, timer: 4 };
+  sfx.bossSummon(); // 复用（成就感音效）
+  console.log(`[成就] 🏆 ${a.def.emoji} ${a.def.name} — ${a.def.desc}`);
+  // 应用永久 buff（最大 HP 立即生效）
+  if (a.def.reward.maxHpBonus) {
+    player.maxHp += a.def.reward.maxHpBonus;
+    player.hp = Math.min(player.maxHp, player.hp + a.def.reward.maxHpBonus);
+  }
+  // 烬海之王检测（其他 9 个全解锁）
+  const othersUnlocked = ach.achievements.filter(x => x.def.id !== 'all_achievements').every(x => x.unlocked);
+  if (othersUnlocked) ach.addProgress('all_achievements', 1);
 };
 
 // M9a: 伤害弹出数字
@@ -431,6 +458,7 @@ function update(dt: number) {
   if (curRegion !== lastRegion) {
     lastRegion = curRegion;
     tasks.onEnterRegion(curRegion);
+    ach.addProgress('explore_all', 1); // M19: 探险家成就
   }
 
   // 日夜循环
@@ -446,6 +474,8 @@ function update(dt: number) {
   const savedJump = player.jumpSpeed ?? 380;
   const savedGravityMult = player.gravityMult ?? 1;
   player.moveSpeed = baseSpeed;
+  // M19: 探险家成就 — 移速 buff
+  player.moveSpeed *= ach.getAggregatedBuff().moveSpeedMult ?? 1;
   // M13: jumpBonus（rock_titan_crown）
   player.jumpSpeed = shellMgr.current.jumpSpeed * (buff.jumpBonus ?? 1);
   // M13: gravityReduction（rock_titan_crown）
@@ -526,9 +556,16 @@ function update(dt: number) {
     questPopup.timer -= dt;
     if (questPopup.timer <= 0) questPopup = null;
   }
+  // M19: 成就解锁弹窗倒计时
+  if (achPopup) {
+    achPopup.timer -= dt;
+    if (achPopup.timer <= 0) achPopup = null;
+  }
 
   // 破坏系统（考虑躯壳镐等级加成）
   const effectivePower = TOOLS[px.toolName].pickaxePower + (shellMgr.current.passiveKey === 'pickaxe' ? 1 : 0);
+  // M19: 初探者成就 — 挖矿速度 buff
+  breakState.miningSpeedMult = ach.getAggregatedBuff().miningSpeedMult ?? 1;
   if (mouseLeft && mouseTile) {
     const pcol = Math.floor(player.x / TILE_SIZE);
     const prow = Math.floor(player.y / TILE_SIZE);
@@ -570,6 +607,17 @@ function update(dt: number) {
   // M9b: 掉落物理 + 拾取 + M9a: 伤害数字更新
   updateDropPhysics(dt);
   updateDmgTexts(dt);
+
+  // M19: 收藏家成就 — 每 2s 检查背包不同方块种类
+  achCheckTimer -= dt;
+  if (achCheckTimer <= 0) {
+    achCheckTimer = 2;
+    const uniqueBlocks = new Set<string>();
+    for (const s of [...inv.hotbar, ...inv.slots]) {
+      if (s.blockId && s.count > 0) uniqueBlocks.add(s.blockId);
+    }
+    ach.setProgress('collect_10', uniqueBlocks.size);
+  }
 
   // 工具自动切换
   const sel = inv.getSelected();
@@ -652,9 +700,13 @@ function updateEnemiesSystem(dt: number, _effectivePower: number) {
       if (e.state === 'dead') continue;
       if (Math.abs(e.x - attackX) < hitHalfW && Math.abs(e.y - attackY) < 24) {
         const buffLocal = acc.getAggregatedBuff();
-        const baseCrit = 0.10 + (buffLocal.critBonus ?? 0);
-        const died = hitEnemy(e, sword.damage + shellMgr.current.damage * 0.5, 160, player.facing as 1 | -1);
-        spawnDmgText(e.x, e.y - e.def.height / 2, sword.damage + shellMgr.current.damage * 0.5, '#ff8040', baseCrit, 1.5 * (buffLocal.critDamageMult ?? 1));
+        const achBuff = ach.getAggregatedBuff();
+        const isNight = renderer.timeOfDay > 0.55 || renderer.timeOfDay < 0.1;
+        const meleeDmg = (sword.damage + shellMgr.current.damage * 0.5)
+          * (achBuff.damageMult ?? 1) * (isNight ? (achBuff.nightDamageMult ?? 1) : 1);
+        const baseCrit = 0.10 + (buffLocal.critBonus ?? 0) + (achBuff.critBonus ?? 0);
+        const died = hitEnemy(e, meleeDmg, 160, player.facing as 1 | -1);
+        spawnDmgText(e.x, e.y - e.def.height / 2, meleeDmg, '#ff8040', baseCrit, 1.5 * (buffLocal.critDamageMult ?? 1));
         sfx.hitEnemy();
         // M16: 毒刺护符 — 剑击附加持续伤害
         if (buffLocal.poisonDps && buffLocal.poisonDuration) {
@@ -665,10 +717,12 @@ function updateEnemiesSystem(dt: number, _effectivePower: number) {
         }
         if (died) {
           tasks.onKill(false); // M17: 击杀敌人任务
+          ach.addProgress('kill_50', 1); // M19: 战士成就
           sfx.enemyDie();
           if (e.def.dropTable) {
+            const dropMultM = 1 + (ach.getAggregatedBuff().dropChanceBonus ?? 0);
             for (const drop of e.def.dropTable) {
-              if (Math.random() < drop.chance) {
+              if (Math.random() < drop.chance * dropMultM) {
                 for (let k = 0; k < drop.count; k++) {
                   breakState.drops.push({ x: e.x, y: e.y, vx: (Math.random() - 0.5) * 120, vy: -100 - Math.random() * 80, blockId: drop.blockId, life: 30 });
                 }
@@ -704,10 +758,15 @@ function isPlayerSwingingWeapon(): boolean {
       const dist = Math.hypot(dx, dy) || 1;
       const spd = tool.projectileSpeed ?? 500;
       const isArrow = tool.ammoType === 'wooden_arrow';
+      const isNight = renderer.timeOfDay > 0.55 || renderer.timeOfDay < 0.1;
+      const achBuffR = ach.getAggregatedBuff();
+      const rangedDmg = (tool.damage + shellMgr.current.damage * 0.5)
+        * (achBuffR.damageMult ?? 1) * (achBuffR.rangedDamageMult ?? 1)
+        * (isNight ? (achBuffR.nightDamageMult ?? 1) : 1);
       playerProjectiles.push({
         x: player.x, y: player.y - 8,
         vx: (dx / dist) * spd, vy: (dy / dist) * spd,
-        damage: tool.damage + shellMgr.current.damage * 0.5,
+        damage: rangedDmg,
         piercing: !!tool.piercing,
         color: isArrow ? '#d8b060' : '#a040e8',
         size: isArrow ? 4 : 6,
@@ -759,10 +818,13 @@ function updatePlayerProjectiles(dt: number) {
         p.hitIds.add(e.id);
         if (died) {
           tasks.onKill(false);
+          ach.addProgress('kill_50', 1);
+          ach.addProgress('ranged_kill_20', 1); // M19: 神射手成就
           sfx.enemyDie();
           if (e.def.dropTable) {
+            const dropMult = 1 + (ach.getAggregatedBuff().dropChanceBonus ?? 0);
             for (const drop of e.def.dropTable) {
-              if (Math.random() < drop.chance) {
+              if (Math.random() < drop.chance * dropMult) {
                 for (let k = 0; k < drop.count; k++) {
                   breakState.drops.push({ x: e.x, y: e.y, vx: (Math.random() - 0.5) * 120, vy: -100 - Math.random() * 80, blockId: drop.blockId, life: 30 });
                 }
@@ -960,6 +1022,9 @@ function render() {
   // M17: 任务 HUD + 完成弹窗
   renderer.drawQuestHUD(tasks.quests);
   if (questPopup) renderer.drawQuestPopup(questPopup.text);
+  // M19: 成就 HUD + 解锁弹窗
+  renderer.drawAchievementHUD(ach.achievements);
+  if (achPopup) renderer.drawAchievementPopup(achPopup.text);
   renderer.drawHotbar(inv);
   if (showMinimap) renderer.drawMinimap(cam, terrain.tiles, player.x, player.y);
 }
@@ -1202,11 +1267,19 @@ function updateBossesSystem(dt: number) {
       if (Math.abs(attackX - boss.x) < bossHalfW(boss) + 10 &&
           Math.abs(attackY - boss.y) < bossHalfH(boss) + 10) {
         const buffLocal = acc.getAggregatedBuff();
-        const baseCrit = 0.12 + (buffLocal.critBonus ?? 0);
-        const died = hitBoss(boss, TOOLS[px.toolName].damage + shellMgr.current.damage * 0.5, 80, player.facing as 1 | -1);
-        spawnDmgText(boss.x, boss.y - bossHalfH(boss), TOOLS[px.toolName].damage + shellMgr.current.damage * 0.5, '#c040e8', baseCrit, 1.5 * (buffLocal.critDamageMult ?? 1));
+        const achBuffB = ach.getAggregatedBuff();
+        const isNightB = renderer.timeOfDay > 0.55 || renderer.timeOfDay < 0.1;
+        const bossDmg = (TOOLS[px.toolName].damage + shellMgr.current.damage * 0.5)
+          * (achBuffB.damageMult ?? 1) * (isNightB ? (achBuffB.nightDamageMult ?? 1) : 1);
+        const baseCrit = 0.12 + (buffLocal.critBonus ?? 0) + (achBuffB.critBonus ?? 0);
+        const died = hitBoss(boss, bossDmg, 80, player.facing as 1 | -1);
+        spawnDmgText(boss.x, boss.y - bossHalfH(boss), bossDmg, '#c040e8', baseCrit, 1.5 * (buffLocal.critDamageMult ?? 1));
         if (died) {
           tasks.onKill(true, !!boss.def.isNightBoss); // M17: 击杀 Boss 任务
+          // M19: 成就
+          ach.addProgress('kill_boss_1', 1);
+          ach.addProgress('all_bosses', 1);
+          if (boss.def.isNightBoss) ach.addProgress('kill_night_boss_1', 1);
           // 击败掉落（按 Boss 类型区分）
           if (boss.def.isNightBoss) {
             // M14: 夜间 Boss 专属掉落

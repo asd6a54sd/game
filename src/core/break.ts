@@ -18,6 +18,7 @@ export interface BreakState {
   drops: DropItem[];
   removedThisFrame: number;
   removedBlocks: string[]; // M17: 本帧被破坏的方块 id 列表（任务系统用）
+  miningSpeedMult: number; // M19: 挖矿速度倍率（成就 buff）
 }
 
 export interface Particle {
@@ -46,6 +47,7 @@ export function createBreakState(): BreakState {
     drops: [],
     removedThisFrame: 0,
     removedBlocks: [],
+    miningSpeedMult: 1,
   };
 }
 
@@ -89,7 +91,7 @@ export function updateBreaking(
   const tool = TOOLS[toolId] ?? TOOLS.hand_pickaxe;
 
   // 工具等级不足 → 挖不动（仅产生 1 秒 1 能量，非常慢）
-  const effectiveSpeed = tool.pickaxePower >= def.toolLevel ? tool.miningSpeed : 1;
+  const effectiveSpeed = (tool.pickaxePower >= def.toolLevel ? tool.miningSpeed : 1) * state.miningSpeedMult;
   state.progress += effectiveSpeed * dt;
 
   // 周期性产生破坏粒子
