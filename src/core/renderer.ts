@@ -18,6 +18,7 @@ import { VoidEngine } from './voiding.js';
 import { TILE_SIZE as TS, MAP_WIDTH as MW, MAP_HEIGHT as MH } from './terrain.js';
 import { Boss, BossProjectile, bossHalfW, bossHalfH } from './bosses.js';
 import { Companion, companionSpriteColors, compHalfW, compHalfH } from './companions.js';
+import { AccessoryManager, ACCESSORY_DEFS } from './accessories.js';
 
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
@@ -709,8 +710,8 @@ export class Renderer {
     ctx.setLineDash([]);
   }
 
-  /** 玩家 HP 条 + 躯壳 HUD（左上）*/
-  drawPlayerHUD(hp: number, maxHp: number, shellName: string, shellCooldown: number, invulnerable: boolean) {
+  /** 玩家 HP 条 + 躯壳 HUD + 饰品槽（左上）*/
+  drawPlayerHUD(hp: number, maxHp: number, shellName: string, shellCooldown: number, invulnerable: boolean, acc: AccessoryManager) {
     const ctx = this.ctx;
     const barW = 200, barH = 18;
     const bx = 12, by = 12;
@@ -753,6 +754,77 @@ export class Renderer {
       ctx.fillStyle = '#c8b898';
       ctx.fillText(`切换冷却 ${shellCooldown.toFixed(1)}s`, bx + 144, by + barH + 12);
     }
+
+    // M11: 饰品槽绘制（左下，HP 条下方 20px 起）
+    const slotY = by + barH + 22;
+    const slotSize = 28;
+    const slotGap = 4;
+    const slotX = bx;
+    const maxSlots = 3;
+    const dashBuff = acc.getAggregatedBuff();
+    const dashCd = dashBuff.dashCooldown ?? 1.2;
+
+    for (let i = 0; i < maxSlots; i++) {
+      const sx = slotX + i * (slotSize + slotGap);
+      const isActive = i === acc.slotIndex;
+      // 槽背景
+      ctx.fillStyle = isActive ? '#2a1830' : '#1a1410';
+      ctx.fillRect(sx, slotY, slotSize, slotSize);
+      ctx.strokeStyle = isActive ? '#a860e8' : '#3a2828';
+      ctx.lineWidth = isActive ? 2 : 1;
+      ctx.strokeRect(sx + 0.5, slotY + 0.5, slotSize - 1, slotSize - 1);
+
+      if (i < acc.slots.length) {
+        const aId = acc.slots[i].accessoryId;
+        const aDef = ACCESSORY_DEFS[aId];
+        if (aDef) {
+          // 图标色块
+          ctx.fillStyle = PALETTE_MAP.get(aDef.paletteId) ?? '#888';
+          ctx.fillRect(sx + 4, slotY + 4, slotSize - 8, slotSize - 8);
+          // 深色装饰
+          ctx.fillStyle = 'rgba(0,0,0,0.35)';
+          ctx.fillRect(sx + 4, slotY + slotSize - 10, slotSize - 8, 6);
+          // 字符图标
+          ctx.fillStyle = '#fff';
+          ctx.font = 'bold 11px monospace';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(aDef.iconChar, sx + slotSize / 2, slotY + slotSize / 2 - 2);
+          ctx.textBaseline = 'alphabetic';
+
+          // 冲刺冷却遮罩（如果是 dash_boots 冷却中）
+          if (aId === 'dash_boots' && acc.dashCooldownTimer > 0) {
+            const ratio = acc.dashCooldownTimer / dashCd;
+            ctx.fillStyle = 'rgba(0,0,0,0.5)';
+            ctx.fillRect(sx + 4, slotY + 4, slotSize - 8, (slotSize - 8) * ratio);
+          }
+          // 冲刺中闪烁
+          if (aId === 'dash_boots' && acc.isDashing) {
+            ctx.fillStyle = 'rgba(232, 197, 71, 0.5)';
+            ctx.fillRect(sx, slotY, slotSize, slotSize);
+          }
+        }
+      } else {
+        // 空格子虚线
+        ctx.strokeStyle = 'rgba(90, 56, 40, 0.6)';
+        ctx.setLineDash([2, 2]);
+        ctx.lineWidth = 1;
+        ctx.strokeRect(sx + 0.5, slotY + 0.5, slotSize - 1, slotSize - 1);
+        ctx.setLineDash([]);
+      }
+
+      // 槽序号
+      ctx.fillStyle = '#5a4838';
+      ctx.font = '9px monospace';
+      ctx.textAlign = 'left';
+      ctx.fillText(`Q${i + 1}`, sx + 2, slotY + slotSize + 10);
+    }
+
+    // 右下文字提示
+    ctx.textAlign = 'left';
+    ctx.fillStyle = '#8a6858';
+    ctx.font = '10px monospace';
+    ctx.fillText('[Q] 切槽  [Ctrl] 冲刺  [G] 装备/卸下', slotX + maxSlots * (slotSize + slotGap) + 6, slotY + slotSize - 4);
   }
 
   /** Boss HP 条（屏幕下方居中）*/

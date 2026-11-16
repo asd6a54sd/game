@@ -199,6 +199,44 @@ export const BLOCKS: Record<string, BlockDef> = {
     emitsLight: 14,
     drops: [{ blockId: 'purify_torch', chance: 1.0 }],
   },
+
+  // === 饰品（不可放置，仅合成产物/装备）===
+  dash_boots: {
+    id: 'dash_boots', name: '疾行靴', category: 'special',
+    hardness: 0, toolLevel: 0,
+    paletteId: 'ember03', variants: [],
+    drops: [],
+  },
+  regen_ring: {
+    id: 'regen_ring', name: '再生之戒', category: 'special',
+    hardness: 0, toolLevel: 0,
+    paletteId: 'cold02', variants: [],
+    drops: [],
+  },
+  defense_charm: {
+    id: 'defense_charm', name: '守护护符', category: 'special',
+    hardness: 0, toolLevel: 0,
+    paletteId: 'iron03', variants: [],
+    drops: [],
+  },
+  magnet_crystal: {
+    id: 'magnet_crystal', name: '拾荒水晶', category: 'special',
+    hardness: 0, toolLevel: 0,
+    paletteId: 'void01', variants: [],
+    drops: [],
+  },
+  speed_glove: {
+    id: 'speed_glove', name: '疾风手套', category: 'special',
+    hardness: 0, toolLevel: 0,
+    paletteId: 'rust02', variants: [],
+    drops: [],
+  },
+  wing_charm: {
+    id: 'wing_charm', name: '幽光翅符', category: 'special',
+    hardness: 0, toolLevel: 0,
+    paletteId: 'cold01', variants: [],
+    drops: [],
+  },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);

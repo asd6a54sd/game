@@ -32,6 +32,14 @@ export const RECIPES: Recipe[] = [
   // === 建筑材料 ===
   { resultBlockId: 'rebel_brick', resultCount: 4, ingredients: [{ blockId: 'wind_rock', count: 2 }, { blockId: 'ore_copper', count: 1 }], requiresWorkbench: true },
   { resultBlockId: 'wreck_hull', resultCount: 1, ingredients: [{ blockId: 'wreck_scrap', count: 4 }], requiresWorkbench: true },
+
+  // === 饰品（M11）===
+  { resultBlockId: 'dash_boots', resultCount: 1, ingredients: [{ blockId: 'ore_gold', count: 3 }, { blockId: 'ore_iron', count: 5 }, { blockId: 'wreck_scrap', count: 4 }], requiresWorkbench: true },
+  { resultBlockId: 'regen_ring', resultCount: 1, ingredients: [{ blockId: 'crystal_glow', count: 2 }, { blockId: 'ore_copper', count: 3 }, { blockId: 'ore_gold', count: 1 }], requiresWorkbench: true },
+  { resultBlockId: 'defense_charm', resultCount: 1, ingredients: [{ blockId: 'ore_iron', count: 6 }, { blockId: 'wreck_hull', count: 2 }, { blockId: 'ore_copper', count: 2 }], requiresWorkbench: true },
+  { resultBlockId: 'magnet_crystal', resultCount: 1, ingredients: [{ blockId: 'void_crystal', count: 2 }, { blockId: 'crystal_glow', count: 3 }], requiresWorkbench: true },
+  { resultBlockId: 'speed_glove', resultCount: 1, ingredients: [{ blockId: 'ore_copper', count: 4 }, { blockId: 'wind_rock', count: 3 }, { blockId: 'wreck_scrap', count: 3 }], requiresWorkbench: true },
+  { resultBlockId: 'wing_charm', resultCount: 1, ingredients: [{ blockId: 'crystal_glow', count: 4 }, { blockId: 'bio_glow', count: 2 }, { blockId: 'ore_gold', count: 2 }], requiresWorkbench: true },
 ];
 
 export function canCraft(recipe: Recipe, inv: Inventory, nearWorkbench: boolean): boolean {

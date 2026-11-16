@@ -19,6 +19,7 @@ import { VoidEngine } from './core/voiding.js';
 import { createBoss, updateBoss, updateProjectiles, hitBoss, findNearestVoidBarrier, Boss, BossProjectile, bossHalfW, bossHalfH } from './core/bosses.js';
 import { Companion, createCivilian, recruitCompanion, updateCompanion } from './core/companions.js';
 import { sfx } from './core/sfx.js';
+import { AccessoryManager, ACCESSORY_DEFS } from './core/accessories.js';
 
 // ========== DOM ==========
 const loading = document.getElementById('loading')!;
@@ -76,14 +77,20 @@ interface CompProj { x: number; y: number; vx: number; vy: number; damage: numbe
 const compProjs: CompProj[] = [];
 let companionsInitialized = false;
 
+// M11: 饰品系统
+const acc = new AccessoryManager();
+let dashKeyHeld = false;
+
 // M9a: 伤害弹出数字
 interface DmgText { x: number; y: number; vy: number; text: string; color: string; life: number; maxLife: number; crit: boolean; }
 const dmgTexts: DmgText[] = [];
 
 // M9b: 掉落物理（吸引玩家）
 function updateDropPhysics(dt: number) {
-  const pickupRange = 36 * 36;
-  const magnetRange = 60 * 60;
+  const buff = acc.getAggregatedBuff();
+  const magnetMult = buff.magnetBonus ?? 1;
+  const pickupRange = (36 * magnetMult) * (36 * magnetMult);
+  const magnetRange = (60 * magnetMult) * (60 * magnetMult);
   for (let i = breakState.drops.length - 1; i >= 0; i--) {
     const d = breakState.drops[i];
     d.life -= dt;
@@ -157,6 +164,12 @@ inv.add('copper_sword', 1);
 inv.selectHotbar(0);
 inv.hotbar[1] = { blockId: 'copper_pickaxe', count: 1 };
 inv.hotbar[2] = { blockId: 'copper_sword', count: 1 };
+
+// M11: 初始饰品 — 给 2 个试玩
+inv.add('dash_boots', 1);
+inv.add('speed_glove', 1);
+acc.equip('dash_boots');
+acc.equip('speed_glove');
 
 // ========== 躯壳 → 玩家属性 ==========
 function applyShellToPlayer(applyHUD = true) {
@@ -247,6 +260,37 @@ function bindInput() {
         sfx.toggle();
         console.log(`[音效] ${sfx.isEnabled() ? '开启' : '关闭'}`);
         break;
+      // M11: 饰品系统
+      case 'KeyQ':
+        acc.nextSlot();
+        sfx.shellSwitch();
+        break;
+      case 'KeyG': {
+        const selG = inv.getSelected();
+        if (selG.count > 0 && ACCESSORY_DEFS[selG.blockId]) {
+          if (acc.equip(selG.blockId)) {
+            // 消耗选中物品
+            inv.consumeSelected(1);
+            sfx.pickup();
+            console.log(`[饰品] ✅ 已装备 ${ACCESSORY_DEFS[selG.blockId].name}`);
+          } else {
+            console.warn('[饰品] 槽已满或已装备同类');
+          }
+        } else {
+          // 卸下当前饰品放回背包
+          const removed = acc.unequip();
+          if (removed) {
+            inv.add(removed, 1);
+            sfx.pickup();
+            console.log(`[饰品] 已卸下 ${ACCESSORY_DEFS[removed].name}`);
+          }
+        }
+        break;
+      }
+      case 'ControlLeft':
+      case 'ControlRight':
+        dashKeyHeld = true;
+        break;
     }
   });
   window.addEventListener('keyup', e => {
@@ -260,6 +304,7 @@ function bindInput() {
         if (player.onGround) px.usedSecondJump = false;
         break;
       case 'ShiftLeft': case 'ShiftRight': input.brake = false; break;
+      case 'ControlLeft': case 'ControlRight': dashKeyHeld = false; break;
     }
   });
 
@@ -328,21 +373,57 @@ function update(dt: number) {
 
   if (inputBlocked) { updateHUD(); return; }
 
+  // M11: 饰品系统更新
+  acc.update(dt);
+
   // 日夜循环
   renderer.timeOfDay = (renderer.timeOfDay + dt / 240) % 1;
 
-  // 玩家（躯壳属性覆盖）
+  // 玩家（躯壳属性 + 饰品 Buff）
   player.maxHp = shellMgr.current.baseHp;
-  // 速度 & 跳跃：通过临时覆盖 player 后调用 updatePlayer
+  const buff = acc.getAggregatedBuff();
+
+  // 速度：躯壳速度 × 饰品速度倍率
+  const baseSpeed = shellMgr.current.speed * (buff.moveSpeedBonus ?? 1);
   const savedSpeed = player.moveSpeed ?? 180;
   const savedJump = player.jumpSpeed ?? 380;
-  player.moveSpeed = shellMgr.current.speed;
+  player.moveSpeed = baseSpeed;
   player.jumpSpeed = shellMgr.current.jumpSpeed;
+
+  // 冲刺触发：按住 Ctrl 且有冲刺靴
+  if (dashKeyHeld && !acc.isDashing) {
+    const dashSpeed = acc.tryDash(player.facing as 1 | -1);
+    if (dashSpeed > 0) {
+      player.vx = dashSpeed * player.facing;
+      player.vy = 0;
+      sfx.swing(); // 复用 swing 音效
+    }
+  }
+  // 冲刺中：强制水平速度
+  if (acc.isDashing) {
+    const b2 = acc.getAggregatedBuff();
+    const ds = b2.dashSpeed ?? 520;
+    player.vx = ds * acc.dashDir;
+    player.vy = 0;
+  }
+
   updatePlayer(player, dt, input, getTileSolid);
   player.moveSpeed = savedSpeed;
   player.jumpSpeed = savedJump;
+
+  // 滑翔：空中按住跳跃键时限制下落速度
+  if (!player.onGround && input.jump && buff.glideFallSpeed && player.vy > buff.glideFallSpeed) {
+    player.vy = buff.glideFallSpeed;
+  }
   // 落地重置二段跳
   if (player.onGround) px.usedSecondJump = false;
+
+  // M11: 再生
+  const regenGain = acc.updateRegen(dt);
+  if (regenGain > 0) {
+    player.hp = Math.min(player.maxHp, player.hp + regenGain);
+    spawnDmgText(player.x, player.y - player.height / 2 - 10, regenGain, '#60e8a0', 0);
+  }
 
   // 同步躯壳 state 的 HP
   shellMgr.currentState.hp = player.hp;
@@ -440,7 +521,8 @@ function updateEnemiesSystem(dt: number, _effectivePower: number) {
           px.hurtEnemies.add(enemyId);
           hitEnemy(e, 3, 80, -dir as 1 | -1);
         }
-        player.hp = Math.max(0, player.hp - damage);
+        const dmg = reduceDamage(damage);
+        player.hp = Math.max(0, player.hp - dmg);
         shellMgr.currentState.hp = player.hp;
         playerInvulnerable = 0.6;
         playerKnockback.vx = dir * 180;
@@ -561,6 +643,13 @@ function respawnPlayer() {
   playerInvulnerable = 2;
 }
 
+/** M11: 饰品减伤（defense_charm 等） */
+function reduceDamage(damage: number): number {
+  const buff = acc.getAggregatedBuff();
+  const reduction = buff.damageReduction ?? 0;
+  return Math.max(1, Math.round(damage * (1 - reduction)));
+}
+
 function render() {
   renderer.clear();
   renderer.drawBackground(cam);
@@ -597,7 +686,7 @@ function render() {
   renderer.drawCompanionProjs(compProjs, cam);
   renderer.drawPlayer(player, cam, shellMgr.current, shellMgr.alpha);
   renderer.drawDamageTexts(dmgTexts, cam);
-  renderer.drawPlayerHUD(player.hp, player.maxHp, shellMgr.current.name, shellMgr.switchCooldown, playerInvulnerable > 0);
+  renderer.drawPlayerHUD(player.hp, player.maxHp, shellMgr.current.name, shellMgr.switchCooldown, playerInvulnerable > 0, acc);
   renderer.drawBossHUD(bosses.filter(b => !b.isDead));
   renderer.drawHotbar(inv);
   if (showMinimap) renderer.drawMinimap(cam, terrain.tiles, player.x, player.y);
@@ -725,7 +814,8 @@ function updateBossesSystem(dt: number) {
       spawnEnemy: (type, x, y) => { enemies.push(createEnemy(type, x, y)); },
       onHitPlayer: (damage) => {
         if (playerInvulnerable > 0) return;
-        player.hp = Math.max(0, player.hp - damage);
+        const dmg = reduceDamage(damage);
+        player.hp = Math.max(0, player.hp - dmg);
         shellMgr.currentState.hp = player.hp;
         playerInvulnerable = 0.6;
         if (player.hp <= 0) respawnPlayer();
@@ -771,7 +861,8 @@ function updateBossesSystem(dt: number) {
   // 弹幕更新
   bossProjectiles.splice(0, bossProjectiles.length, ...updateProjectiles(bossProjectiles, dt, player, (dmg) => {
     if (playerInvulnerable > 0) return;
-    player.hp = Math.max(0, player.hp - dmg);
+    const finalDmg = reduceDamage(dmg);
+    player.hp = Math.max(0, player.hp - finalDmg);
     shellMgr.currentState.hp = player.hp;
     playerInvulnerable = 0.4;
     if (player.hp <= 0) respawnPlayer();
