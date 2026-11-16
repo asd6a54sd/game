@@ -563,6 +563,10 @@ function applyShellToPlayer(applyHUD = true) {
 }
 
 // ========== 启动 ==========
+// Boss 位置缓存（必须在 init() 前声明，避免暂时性死区）
+let _altarCenter: { x: number; y: number } | null = null;
+let _barrierCenter: { x: number; y: number } | null = null;
+let _rockAltarCenter: { x: number; y: number } | null = null;
 init();
 
 async function init() {
@@ -1291,11 +1295,6 @@ const REGION_GUIDANCE: Record<string, { subtitle: string; goal: string; hint: st
   'beast_hive': { subtitle: '异兽巢穴', goal: '甲壳蜂巢与幽蓝荧光囊', hint: 'chitin_hive 可招募骸兵队友' },
   'underground_valley': { subtitle: '地底幽谷', goal: '暗能量结界 + 叛军据点', hint: '⚠ 靠近紫色暗能量区可召唤 Boss（按 R）' },
 };
-
-// Boss 位置（缓存）
-let _altarCenter: { x: number; y: number } | null = null;
-let _barrierCenter: { x: number; y: number } | null = null;
-let _rockAltarCenter: { x: number; y: number } | null = null;
 
 function initStoryGuides() {
   // 计算晶体祭坛中心
