@@ -281,6 +281,13 @@ export const BLOCKS: Record<string, BlockDef> = {
   wreck_trial_altar: { id: 'wreck_trial_altar', name: '残骸试炼坛', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'rust03', variants: [], drops: [] },
   void_trial_altar: { id: 'void_trial_altar', name: '虚空试炼坛', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void01', variants: [], drops: [] },
   beast_trial_altar: { id: 'beast_trial_altar', name: '野兽试炼坛', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'bio02', variants: [], drops: [] },
+
+  // === M22: 药水 ===
+  health_potion: { id: 'health_potion', name: '生命药水', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'red01', variants: [], drops: [] },
+  iron_potion: { id: 'iron_potion', name: '铁皮药水', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'iron01', variants: [], drops: [] },
+  swift_potion: { id: 'swift_potion', name: '敏捷药水', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'water01', variants: [], drops: [] },
+  strength_potion: { id: 'strength_potion', name: '力量药水', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'orange01', variants: [], drops: [] },
+  night_vision_potion: { id: 'night_vision_potion', name: '夜视药水', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'glow01', variants: [], drops: [] },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);

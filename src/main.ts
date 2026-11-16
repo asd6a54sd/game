@@ -25,6 +25,7 @@ import { QuestManager, QuestState } from './core/tasks.js';
 import { AchievementManager, AchievementState } from './core/achievements.js';
 import { NPC_DEFS, SELL_PRICES, ShopItem } from './core/npcs.js';
 import { TrialManager, TRIAL_DEFS } from './core/trial.js';
+import { POTION_DEFS, aggregateBuffs } from './core/potions.js';
 
 // ========== DOM ==========
 const loading = document.getElementById('loading')!;
@@ -281,6 +282,34 @@ function spawnTrialWave() {
   trial.setWaveCounts(enemyCount, bossCount);
 }
 
+// M22: 使用选中快捷栏的药水
+function usePotion() {
+  const sel = inv.getSelected();
+  if (!sel.blockId || sel.count <= 0) return;
+  const potion = POTION_DEFS[sel.blockId];
+  if (!potion) return;
+  inv.consume(sel.blockId, 1);
+  sfx.pickup();
+  // 立即生效类
+  if (potion.buffType === 'heal') {
+    player.hp = Math.min(player.maxHp, player.hp + potion.value);
+    spawnDmgText(player.x, player.y - player.height, potion.value, '#60ff60', 0, 1);
+    return;
+  }
+  // 持续 buff 类
+  // 同类型 buff 取最大值/刷新
+  const existing = player.activeBuffs.find(b => b.type === potion.buffType);
+  if (existing) {
+    existing.value = Math.max(existing.value, potion.value);
+    existing.remaining = Math.max(existing.remaining, potion.duration);
+  } else {
+    player.activeBuffs.push({ type: potion.buffType, value: potion.value, remaining: potion.duration });
+  }
+}
+
+// M22: 药水系统
+let currentPotionBuff = aggregateBuffs([]);
+
 // M9a: 伤害弹出数字
 interface DmgText { x: number; y: number; vy: number; text: string; color: string; life: number; maxLife: number; crit: boolean; }
 const dmgTexts: DmgText[] = [];
@@ -453,6 +482,10 @@ function bindInput() {
       // M20: 商店 — 出售选中快捷栏物品
       case 'KeyT':
         if (shopOpenLocal) sellSelected();
+        break;
+      // M22: 使用药水
+      case 'KeyH':
+        usePotion();
         break;
       case 'Tab':
         e.preventDefault();
@@ -639,6 +672,8 @@ function update(dt: number) {
   player.moveSpeed = baseSpeed;
   // M19: 探险家成就 — 移速 buff
   player.moveSpeed *= ach.getAggregatedBuff().moveSpeedMult ?? 1;
+  // M22: 敏捷药水 — 移速 buff
+  player.moveSpeed *= currentPotionBuff.speedMult;
   // M13: jumpBonus（rock_titan_crown）
   player.jumpSpeed = shellMgr.current.jumpSpeed * (buff.jumpBonus ?? 1);
   // M13: gravityReduction（rock_titan_crown）
@@ -728,6 +763,13 @@ function update(dt: number) {
   if (shopMsgTimer > 0) { shopMsgTimer -= dt; if (shopMsgTimer <= 0) shopMsg = ''; }
   // M21: 试炼消息倒计时
   if (trialMsgTimer > 0) { trialMsgTimer -= dt; if (trialMsgTimer <= 0) trialMsg = ''; }
+
+  // M22: 药水 buff 倒计时
+  for (let i = player.activeBuffs.length - 1; i >= 0; i--) {
+    player.activeBuffs[i].remaining -= dt;
+    if (player.activeBuffs[i].remaining <= 0) player.activeBuffs.splice(i, 1);
+  }
+  currentPotionBuff = aggregateBuffs(player.activeBuffs);
 
   // M21: 试炼更新
   const trialResult = trial.update(dt);
@@ -874,7 +916,8 @@ function updateEnemiesSystem(dt: number, _effectivePower: number) {
         const achBuff = ach.getAggregatedBuff();
         const isNight = renderer.timeOfDay > 0.55 || renderer.timeOfDay < 0.1;
         const meleeDmg = (sword.damage + shellMgr.current.damage * 0.5)
-          * (achBuff.damageMult ?? 1) * (isNight ? (achBuff.nightDamageMult ?? 1) : 1);
+          * (achBuff.damageMult ?? 1) * (isNight ? (achBuff.nightDamageMult ?? 1) : 1)
+          * currentPotionBuff.damageMult;
         const baseCrit = 0.10 + (buffLocal.critBonus ?? 0) + (achBuff.critBonus ?? 0);
         const died = hitEnemy(e, meleeDmg, 160, player.facing as 1 | -1);
         spawnDmgText(e.x, e.y - e.def.height / 2, meleeDmg, '#ff8040', baseCrit, 1.5 * (buffLocal.critDamageMult ?? 1));
@@ -934,7 +977,8 @@ function isPlayerSwingingWeapon(): boolean {
       const achBuffR = ach.getAggregatedBuff();
       const rangedDmg = (tool.damage + shellMgr.current.damage * 0.5)
         * (achBuffR.damageMult ?? 1) * (achBuffR.rangedDamageMult ?? 1)
-        * (isNight ? (achBuffR.nightDamageMult ?? 1) : 1);
+        * (isNight ? (achBuffR.nightDamageMult ?? 1) : 1)
+        * currentPotionBuff.damageMult;
       playerProjectiles.push({
         x: player.x, y: player.y - 8,
         vx: (dx / dist) * spd, vy: (dy / dist) * spd,
@@ -1126,7 +1170,7 @@ function reduceDamage(damage: number): number {
     spawnDmgText(player.x, player.y - player.height / 2, 0, '#a080e0', 0, 1);
     return 0; // 完全闪避
   }
-  const reduction = buff.damageReduction ?? 0;
+  const reduction = (buff.damageReduction ?? 0) + currentPotionBuff.defenseReduction;
   return Math.max(1, Math.round(damage * (1 - reduction)));
 }
 
@@ -1203,6 +1247,8 @@ function render() {
   if (shopOpenLocal) renderer.drawShop(merchantShop, inv.count('gold_coin'), shopMsg);
   // M21: 试炼 HUD + 消息
   if (trial.active || trialMsg) renderer.drawTrialHUD(trial, trialMsg);
+  // M22: 药水 buff HUD
+  renderer.drawPotionBuffs(player.activeBuffs);
   renderer.drawHotbar(inv);
   if (showMinimap) renderer.drawMinimap(cam, terrain.tiles, player.x, player.y);
 }
@@ -1448,7 +1494,8 @@ function updateBossesSystem(dt: number) {
         const achBuffB = ach.getAggregatedBuff();
         const isNightB = renderer.timeOfDay > 0.55 || renderer.timeOfDay < 0.1;
         const bossDmg = (TOOLS[px.toolName].damage + shellMgr.current.damage * 0.5)
-          * (achBuffB.damageMult ?? 1) * (isNightB ? (achBuffB.nightDamageMult ?? 1) : 1);
+          * (achBuffB.damageMult ?? 1) * (isNightB ? (achBuffB.nightDamageMult ?? 1) : 1)
+          * currentPotionBuff.damageMult;
         const baseCrit = 0.12 + (buffLocal.critBonus ?? 0) + (achBuffB.critBonus ?? 0);
         const died = hitBoss(boss, bossDmg, 80, player.facing as 1 | -1);
         spawnDmgText(boss.x, boss.y - bossHalfH(boss), bossDmg, '#c040e8', baseCrit, 1.5 * (buffLocal.critDamageMult ?? 1));

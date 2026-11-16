@@ -5,6 +5,7 @@
 import { TILE_SIZE } from './terrain.js';
 import { isSolid } from './blocks.js';
 import { biToBlock, MAP_WIDTH, MAP_HEIGHT } from './terrain.js';
+import { ActiveBuff } from './potions.js';
 
 export interface Player {
   x: number;          // pixel center
@@ -23,6 +24,7 @@ export interface Player {
   breakProgress: number;     // 当前破坏进度 0-1
   breakingTile: { x: number; y: number } | null;
   breakCooldown: number;    // 破坏间隔
+  activeBuffs: ActiveBuff[]; // M22: 临时药水 buff
 }
 
 export function createPlayer(): Player {
@@ -42,6 +44,7 @@ export function createPlayer(): Player {
     breakProgress: 0,
     breakingTile: null,
     breakCooldown: 0,
+    activeBuffs: [],
   };
 }
 

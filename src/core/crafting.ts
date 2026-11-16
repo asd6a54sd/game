@@ -47,6 +47,13 @@ export const RECIPES: Recipe[] = [
   { resultBlockId: 'copper_bow', resultCount: 1, ingredients: [{ blockId: 'ore_copper', count: 6 }, { blockId: 'wreck_scrap', count: 2 }], requiresWorkbench: true },
   { resultBlockId: 'void_crossbow', resultCount: 1, ingredients: [{ blockId: 'dark_filament', count: 4 }, { blockId: 'ore_iron', count: 4 }, { blockId: 'crystal_glow', count: 2 }], requiresWorkbench: true },
   { resultBlockId: 'void_staff', resultCount: 1, ingredients: [{ blockId: 'void_crystal', count: 2 }, { blockId: 'dark_seed', count: 3 }, { blockId: 'ore_gold', count: 2 }], requiresWorkbench: true },
+
+  // === M22: 药水 ===
+  { resultBlockId: 'health_potion', resultCount: 1, ingredients: [{ blockId: 'crystal_glow', count: 2 }, { blockId: 'bio_glow', count: 1 }], requiresWorkbench: true },
+  { resultBlockId: 'iron_potion', resultCount: 1, ingredients: [{ blockId: 'ore_iron', count: 2 }, { blockId: 'crystal_glow', count: 1 }], requiresWorkbench: true },
+  { resultBlockId: 'swift_potion', resultCount: 1, ingredients: [{ blockId: 'wind_stone', count: 2 }, { blockId: 'bio_glow', count: 1 }], requiresWorkbench: true },
+  { resultBlockId: 'strength_potion', resultCount: 1, ingredients: [{ blockId: 'ore_gold', count: 1 }, { blockId: 'dark_seed', count: 1 }], requiresWorkbench: true },
+  { resultBlockId: 'night_vision_potion', resultCount: 1, ingredients: [{ blockId: 'bio_glow', count: 2 }, { blockId: 'crystal_glow', count: 1 }], requiresWorkbench: true },
 ];
 
 export function canCraft(recipe: Recipe, inv: Inventory, nearWorkbench: boolean): boolean {

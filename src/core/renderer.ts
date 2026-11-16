@@ -24,6 +24,7 @@ import { QuestState } from './tasks.js';
 import { AchievementState } from './achievements.js';
 import { ShopItem } from './npcs.js';
 import { TrialManager } from './trial.js';
+import { ActiveBuff } from './potions.js';
 
 
 export class Renderer {
@@ -1200,5 +1201,43 @@ export class Renderer {
       ctx.fillText(msg, w / 2, y + 20);
       ctx.textAlign = 'left';
     }
+  }
+
+  /** M22: 药水 buff 图标 — 左上 HP 条下方，显示激活的 buff + 剩余时间 */
+  drawPotionBuffs(buffs: ActiveBuff[]) {
+    if (buffs.length === 0) return;
+    const ctx = this.ctx;
+    const iconSize = 16;
+    const spacing = 4;
+    const startX = 8;
+    const startY = 52; // HP 条下方
+    // buff 类型 → 颜色 + emoji
+    const info: Record<string, { color: string; emoji: string }> = {
+      defense: { color: '#8080ff', emoji: '🛡' },
+      speed: { color: '#80ffff', emoji: '💨' },
+      damage: { color: '#ff8040', emoji: '💪' },
+      night_vision: { color: '#ffff80', emoji: '👁' },
+    };
+    buffs.forEach((b, i) => {
+      const x = startX + i * (iconSize + spacing);
+      const y = startY;
+      const inf = info[b.type] ?? { color: '#fff', emoji: '?' };
+      // 背景
+      ctx.fillStyle = inf.color + '40';
+      ctx.fillRect(x, y, iconSize, iconSize);
+      ctx.strokeStyle = inf.color; ctx.lineWidth = 1;
+      ctx.strokeRect(x, y, iconSize, iconSize);
+      // emoji
+      ctx.font = '10px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(inf.emoji, x + iconSize / 2, y + 12);
+      ctx.textAlign = 'left';
+      // 剩余时间
+      ctx.fillStyle = '#fff';
+      ctx.font = '8px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(`${Math.ceil(b.remaining)}s`, x + iconSize / 2, y + iconSize + 9);
+      ctx.textAlign = 'left';
+    });
   }
 }
