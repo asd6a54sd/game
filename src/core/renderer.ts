@@ -12,6 +12,8 @@ import { Player } from './player.js';
 import { BreakState } from './break.js';
 import { Inventory } from './inventory.js';
 import { TOOLS } from './tools.js';
+import { ShellDef, SHELL_COLORS } from './shells.js';
+import { Enemy, enemySpriteColors, enemyHalfW, enemyHalfH } from './enemies.js';
 
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
@@ -205,18 +207,27 @@ export class Renderer {
     }
   }
 
-  drawPlayer(p: Player, cam: Camera) {
+  drawPlayer(p: Player, cam: Camera, shell?: ShellDef, alpha = 1) {
     const ctx = this.ctx;
+    ctx.globalAlpha = alpha;
     const px = Math.floor(p.x - cam.x - p.width / 2);
     const py = Math.floor(p.y - cam.y - p.height / 2);
-    ctx.fillStyle = PALETTE_MAP.get('iron02') ?? '#888';
+
+    // 躯壳配色
+    const shellColors = shell ? SHELL_COLORS[shell.palette] : { head: '#e8dcc0', body: '#8a9096', eye: '#ffc85a' };
+
+    // 身体
+    ctx.fillStyle = shellColors.body;
     ctx.fillRect(px, py + TILE_SIZE, p.width, p.height - TILE_SIZE);
-    ctx.fillStyle = PALETTE_MAP.get('bone02') ?? '#e8dcc0';
+    // 头部
+    ctx.fillStyle = shellColors.head;
     ctx.fillRect(px + 2, py + 2, p.width - 4, TILE_SIZE - 4);
-    ctx.fillStyle = PALETTE_MAP.get('ember02') ?? '#ffc85a';
+    // 眼睛
+    ctx.fillStyle = shellColors.eye;
     const eyeX = p.facing === 1 ? px + p.width - 6 : px + 4;
     ctx.fillRect(eyeX, py + 6, 2, 2);
-    ctx.fillStyle = PALETTE_MAP.get('iron04') ?? '#333';
+    // 手脚暗边
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
     ctx.fillRect(px - 1, py + TILE_SIZE + 4, 2, TILE_SIZE * 0.5);
     ctx.fillRect(px + p.width - 1, py + TILE_SIZE + 4, 2, TILE_SIZE * 0.5);
 
@@ -227,7 +238,7 @@ export class Renderer {
     const handY = py + TILE_SIZE + 2;
     ctx.fillStyle = PALETTE_MAP.get(tool.paletteId) ?? '#888';
     ctx.fillRect(handX, handY, 10, 3);
-    ctx.fillStyle = PALETTE_MAP.get('iron04') ?? '#333';
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
     ctx.fillRect(p.facing === 1 ? handX - 2 : handX + 9, handY + 1, 2, 2);
 
     // HP bar
@@ -238,6 +249,97 @@ export class Renderer {
     const hpFrac = p.hp / p.maxHp;
     ctx.fillStyle = hpFrac > 0.5 ? '#7ad4e8' : hpFrac > 0.25 ? '#e89430' : '#ff4a3a';
     ctx.fillRect(barX, barY, barW * hpFrac, barH);
+
+    // 躯壳名（头顶）
+    if (shell) {
+      ctx.fillStyle = shellColors.head;
+      ctx.font = 'bold 9px monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(shell.name, px + p.width / 2, py - 9);
+    }
+
+    ctx.globalAlpha = 1;
+  }
+
+  drawGlowAura(p: Player, cam: Camera) {
+    const ctx = this.ctx;
+    const px = Math.floor(p.x - cam.x);
+    const py = Math.floor(p.y - cam.y);
+    const grad = ctx.createRadialGradient(px, py, 4, px, py, TILE_SIZE * 15);
+    grad.addColorStop(0, 'rgba(255, 200, 90, 0.25)');
+    grad.addColorStop(0.5, 'rgba(255, 150, 48, 0.10)');
+    grad.addColorStop(1, 'rgba(255, 150, 48, 0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.arc(px, py, TILE_SIZE * 15, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  drawEnemies(enemies: Enemy[], cam: Camera) {
+    const ctx = this.ctx;
+    for (const e of enemies) {
+      if (e.state === 'dead' && e.deathProgress >= 1) continue;
+      const epx = Math.floor(e.x - cam.x - enemyHalfW(e));
+      const epy = Math.floor(e.y - cam.y - enemyHalfH(e));
+      const { main, dark, eye } = enemySpriteColors(e);
+      if (e.hurtCooldown > 0 && Math.floor(e.hurtCooldown * 20) % 2 === 0) ctx.globalAlpha = 0.6;
+      if (e.state === 'dead') ctx.globalAlpha = Math.max(0, 1 - e.deathProgress);
+      const w = e.def.width, h = e.def.height;
+      if (e.def.behavior === 'hopper') {
+        ctx.fillStyle = main;
+        this.roundRect(ctx, epx, epy + 2, w, h - 2, 4); ctx.fill();
+        ctx.fillStyle = dark;
+        this.roundRect(ctx, epx + 2, epy + h - 5, w - 4, 3, 2); ctx.fill();
+        ctx.fillStyle = eye;
+        ctx.fillRect(epx + w / 2 - 4 + e.facing, epy + 5, 2, 2);
+        ctx.fillRect(epx + w / 2 + 2 + e.facing, epy + 5, 2, 2);
+      } else if (e.def.behavior === 'chaser') {
+        ctx.fillStyle = main;
+        ctx.fillRect(epx + 2, epy + 8, w - 4, h - 8);
+        ctx.fillStyle = dark;
+        ctx.fillRect(epx + 3, epy + 3, w - 6, 8);
+        ctx.fillStyle = eye;
+        ctx.fillRect(epx + w / 2 - 3 + e.facing, epy + 5, 2, 2);
+        ctx.fillRect(epx + w / 2 + 1 + e.facing, epy + 5, 2, 2);
+        ctx.fillStyle = dark;
+        ctx.fillRect(epx + 1, epy + 10, 2, h - 12);
+        ctx.fillRect(epx + w - 3, epy + 10, 2, h - 12);
+      } else if (e.def.behavior === 'flyer') {
+        const wingFlap = Math.sin(Date.now() * 0.03) > 0 ? 1 : -1;
+        ctx.fillStyle = dark;
+        ctx.fillRect(epx - 2, epy + h / 2 - 3 + wingFlap, 4, 3);
+        ctx.fillRect(epx + w - 2, epy + h / 2 - 3 + wingFlap, 4, 3);
+        ctx.fillStyle = main;
+        ctx.fillRect(epx, epy + 3, w, h - 6);
+        ctx.fillStyle = eye;
+        ctx.fillRect(epx + w / 2 - 1 + e.facing, epy + h / 2 - 1, 2, 2);
+        ctx.fillStyle = 'rgba(248, 212, 255, 0.15)';
+        ctx.fillRect(epx - 4, epy - 2, w + 8, h + 4);
+      }
+      ctx.globalAlpha = 1;
+      if (e.hp < e.def.hp && e.state !== 'dead') {
+        const barW = w, barH = 2;
+        ctx.fillStyle = '#1a1a1a';
+        ctx.fillRect(epx, epy - 5, barW, barH);
+        ctx.fillStyle = '#ff4a3a';
+        ctx.fillRect(epx, epy - 5, barW * (e.hp / e.def.hp), barH);
+      }
+    }
+  }
+
+  private roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
   }
 
   drawPlacementGhost(blockId: string, tx: number, ty: number, cam: Camera, isSolid: boolean) {

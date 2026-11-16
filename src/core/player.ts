@@ -17,6 +17,8 @@ export interface Player {
   facing: 1 | -1;
   hp: number;
   maxHp: number;
+  moveSpeed: number;
+  jumpSpeed: number;
   breakProgress: number;     // 当前破坏进度 0-1
   breakingTile: { x: number; y: number } | null;
   breakCooldown: number;    // 破坏间隔
@@ -33,6 +35,8 @@ export function createPlayer(): Player {
     onGround: false,
     facing: 1,
     hp: 100, maxHp: 100,
+    moveSpeed: PHYSICS.moveSpeed,
+    jumpSpeed: PHYSICS.jumpSpeed,
     breakProgress: 0,
     breakingTile: null,
     breakCooldown: 0,
@@ -59,15 +63,15 @@ export function updatePlayer(
 ) {
   // 水平
   const control = p.onGround ? 1 : PHYSICS.airControl;
-  if (input.left) { p.vx -= PHYSICS.moveSpeed * 8 * dt * control; p.facing = -1; }
-  if (input.right) { p.vx += PHYSICS.moveSpeed * 8 * dt * control; p.facing = 1; }
+  if (input.left) { p.vx -= p.moveSpeed * 8 * dt * control; p.facing = -1; }
+  if (input.right) { p.vx += p.moveSpeed * 8 * dt * control; p.facing = 1; }
   if (input.brake && p.onGround) p.vx *= PHYSICS.friction;
 
-  p.vx = Math.max(-PHYSICS.moveSpeed, Math.min(PHYSICS.moveSpeed, p.vx));
+  p.vx = Math.max(-p.moveSpeed, Math.min(p.moveSpeed, p.vx));
 
   // 跳跃
   if (input.jump && p.onGround) {
-    p.vy = -PHYSICS.jumpSpeed;
+    p.vy = -p.jumpSpeed;
     p.onGround = false;
   }
 
