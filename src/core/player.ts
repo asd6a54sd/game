@@ -72,27 +72,42 @@ export const PHYSICS = {
 
 export function updatePlayer(
   p: Player, dt: number, input: { left: boolean; right: boolean; jump: boolean; sprint: boolean },
-  getTileSolid: (x: number, y: number) => boolean
+  getTileSolid: (x: number, y: number) => boolean,
+  getTileLiquid?: (x: number, y: number) => boolean
 ) {
   // 卡进方块时先脱困 —— 避免被碰撞推挤到错误方向（按左反而向右弹飞）
   unstickPlayer(p, getTileSolid);
 
-  // 水平
-  const control = p.onGround ? 1 : PHYSICS.airControl;
-  if (input.left) { p.vx -= p.moveSpeed * 8 * dt * control; p.facing = -1; }
-  if (input.right) { p.vx += p.moveSpeed * 8 * dt * control; p.facing = 1; }
+  // 游泳判定：脚部或身体中心处于液体中（脚在水中即可上浮，方便游上岸）
+  const cxT = Math.floor(p.x / TILE_SIZE);
+  const feetT = Math.floor((p.y + p.height / 2 - 1) / TILE_SIZE);
+  const inLiquid = !!getTileLiquid
+    && (getTileLiquid(cxT, feetT) || getTileLiquid(cxT, Math.floor(p.y / TILE_SIZE)));
+
+  // 水平（水中阻力更大，速度约为陆地一半）
+  const control = inLiquid ? 0.8 : (p.onGround ? 1 : PHYSICS.airControl);
+  const speedMult = inLiquid ? 0.55 : 1;
+  if (input.left) { p.vx -= p.moveSpeed * speedMult * 8 * dt * control; p.facing = -1; }
+  if (input.right) { p.vx += p.moveSpeed * speedMult * 8 * dt * control; p.facing = 1; }
 
   p.vx = Math.max(-p.moveSpeed, Math.min(p.moveSpeed, p.vx));
 
-  // 跳跃
-  if (input.jump && p.onGround) {
-    p.vy = -p.jumpSpeed;
+  if (inLiquid) {
+    // 游泳：按住跳跃上浮，重力减弱、下沉速度受限，不会沉底
     p.onGround = false;
+    if (input.jump) p.vy = Math.max(p.vy - 1200 * dt, -240);
+    p.vy += PHYSICS.gravity * (p.gravityMult ?? 1) * 0.18 * dt;
+    p.vy = Math.min(p.vy, 120);
+  } else {
+    // 跳跃
+    if (input.jump && p.onGround) {
+      p.vy = -p.jumpSpeed;
+      p.onGround = false;
+    }
+    // 重力（M13: 支持 gravityMult，rock_titan_crown 减轻 40%）
+    p.vy += PHYSICS.gravity * (p.gravityMult ?? 1) * dt;
+    p.vy = Math.min(p.vy, 900);
   }
-
-  // 重力（M13: 支持 gravityMult，rock_titan_crown 减轻 40%）
-  p.vy += PHYSICS.gravity * (p.gravityMult ?? 1) * dt;
-  p.vy = Math.min(p.vy, 900);
 
   // 碰撞检测（分轴 + 分段推进）
   // 低帧率下高速移动可能一帧跨过 1 格薄墙，这里按半格步长拆分，杜绝穿墙/卡墙

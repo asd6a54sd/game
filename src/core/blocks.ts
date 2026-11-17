@@ -427,6 +427,11 @@ export function isSolid(id: string): boolean {
   return b && !b.liquid && b.hardness > 0;
 }
 
+/** 是否为液体（游泳判定） */
+export function isLiquid(id: string): boolean {
+  return BLOCKS[id]?.liquid === true;
+}
+
 export function getBlock(id: string): BlockDef {
   return BLOCKS[id] ?? BLOCKS.empty;
 }

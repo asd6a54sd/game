@@ -254,7 +254,7 @@ function surfaceBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: Val
       if (n1.noise2D(x * 0.2, y * 0.2) > 0.7) return bi('wind_rock');
       return bi('cracked_ground');
     case 'gobi_mine': return bi('desert_ground');
-    case 'silent_sea': return bi('metal_float'); // 固态金属壳，保证可以行走（液态金属仍在浅层）
+    case 'silent_sea': return bi('liquid_metal'); // 液态金属海面，可游泳
     case 'beast_hive':
       if (n1.noise2D(x * 0.18, y * 0.18) > 0.7) return bi('chitin_hive');
       return bi('cracked_ground');
@@ -636,8 +636,8 @@ export function patchSealedMap(data: TerrainData): number {
     for (let y = Math.max(0, sy - 8); y < sy; y++) {
       if (at(x, y) === 'liquid_metal') set(x, y, 'empty');
     }
-    // 旧版海面是液态金属（非固体），玩家会沉下去；补一层可站立的金属壳
-    if (at(x, sy) === 'liquid_metal') set(x, sy, 'metal_float');
+    // 旧版把海面盖成了金属壳，这里还原为液态金属（可游泳）
+    if (at(x, sy) === 'metal_float') set(x, sy, 'liquid_metal');
   }
   for (let x = 250; x < 295; x++) {
     const sy = data.heightMap[x];

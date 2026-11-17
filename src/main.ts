@@ -4,7 +4,7 @@
  */
 import './style.css';
 import { generateTerrain, patchSealedMap, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, biToBlock, regionNameAt, regionIdAt } from './core/terrain.js';
-import { BLOCKS, isSolid } from './core/blocks.js';
+import { BLOCKS, isSolid, isLiquid } from './core/blocks.js';
 import { createCamera, follow, shake, updateShake, getShakeOffset } from './core/camera.js';
 import { createPlayer, updatePlayer, placePlayerOnGround, playerOverlapsTile, isPlayerEmbedded, Player } from './core/player.js';
 import { Renderer } from './core/renderer.js';
@@ -763,7 +763,7 @@ function collectSaveData(): SaveData {
     settlement: settlementMgr.serialize(), // M32
     progression: prog.serialize(), // 大框架: 阶段进度
     storySeen: story.serialize(), // 剧情已看记录
-    mapPatch: 3, // 地图已修补到最新版
+    mapPatch: 4, // 地图已修补到最新版
   };
 }
 
@@ -782,7 +782,7 @@ function applySaveData(save: SaveData) {
   terrain.tiles = b64ToU8(save.tiles);
   terrain.heightMap = b64ToU8(save.heightMap);
   // 旧存档地图修补：拆除封闭小屋、加宽地牢竖井（只执行一次，避免误删玩家自建墙）
-  if ((save.mapPatch ?? 0) < 3) {
+  if ((save.mapPatch ?? 0) < 4) {
     const fixed = patchSealedMap(terrain);
     if (fixed > 0) console.log(`[地图] 🧹 已修补封闭区域（${fixed} 格），不会再被关在墙里`);
   }
@@ -1312,6 +1312,11 @@ function getTileSolid(tx: number, ty: number) {
   if (ty < 0) return false; // 天空可正常跳跃
   return isSolid(getBlock(tx, ty));
 }
+// 液体判定（游泳）
+function getTileLiquid(tx: number, ty: number): boolean {
+  if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) return false;
+  return isLiquid(getBlock(tx, ty));
+}
 
 // ========== 主循环 ==========
 let lastT = performance.now();
@@ -1419,7 +1424,7 @@ function update(dt: number) {
     player.vy = 0;
   }
 
-  updatePlayer(player, dt, input, getTileSolid);
+  updatePlayer(player, dt, input, getTileSolid, getTileLiquid);
   player.moveSpeed = savedSpeed;
   player.jumpSpeed = savedJump;
   player.gravityMult = savedGravityMult;
