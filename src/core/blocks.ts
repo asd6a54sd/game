@@ -400,6 +400,23 @@ export const BLOCKS: Record<string, BlockDef> = {
     emitsLight: 6,
     drops: [],
   },
+
+  // === 大框架: 地下晶簇（可开采，掉落生命 / 魔力水晶）===
+  // 追加在末尾，保持已有方块索引不变（旧存档兼容）
+  life_crystal_node: {
+    id: 'life_crystal_node', name: '生命晶簇', category: 'deep',
+    hardness: 30, toolLevel: 1,
+    paletteId: 'red01', variants: ['red01', 'red02', 'ember01'],
+    emitsLight: 9,
+    drops: [{ blockId: 'life_crystal', chance: 1.0 }],
+  },
+  mana_crystal_node: {
+    id: 'mana_crystal_node', name: '魔力晶簇', category: 'deep',
+    hardness: 34, toolLevel: 2,
+    paletteId: 'cold01', variants: ['cold01', 'cold02', 'cold03'],
+    emitsLight: 9,
+    drops: [{ blockId: 'mana_crystal', chance: 1.0 }],
+  },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);

@@ -405,9 +405,16 @@ const fishing: FishingState = {
 let fishingMsg = '';
 let fishingMsgTimer = 0;
 
-// 大框架: 阶段推进提示
+// 大框架: 阶段推进提示 + 阶段奖励（发放物品 + 回满状态）
 prog.onStageChange = (stage, idx) => {
-  fishingMsg = `🚩 阶段 ${idx + 1}/${prog.total} 推进：${stage.name} — ${stage.goal}`;
+  const got: string[] = [];
+  for (const r of stage.reward) {
+    inv.add(r.blockId, r.count);
+    got.push(`${BLOCKS[r.blockId]?.name ?? r.blockId}×${r.count}`);
+  }
+  player.hp = player.maxHp;
+  player.mana = player.maxMana;
+  fishingMsg = `🚩 阶段 ${idx + 1}/${prog.total} · ${stage.name}｜奖励：${got.join('、')}`;
   fishingMsgTimer = 5;
   sfx.pickup();
   shake(cam, 3);
@@ -785,8 +792,11 @@ function applySaveData(save: SaveData) {
   cropMgr.restore(save.crops);
   // M32: 定居点
   settlementMgr.restore(save.settlement);
-  // 大框架: 阶段进度
+  // 大框架: 阶段进度（载入存档时不重复发放阶段奖励）
+  const stageCb = prog.onStageChange;
+  prog.onStageChange = undefined;
   prog.restore(save.progression);
+  prog.onStageChange = stageCb;
   // 时间
   if (typeof save.timeOfDay === 'number') renderer.timeOfDay = save.timeOfDay;
   fishingMsg = `已载入存档（${formatSaveTime(save.timestamp)}）`;
@@ -1420,7 +1430,7 @@ function update(dt: number) {
   if (settlementMgr.hasFlag && getBlock(settlementMgr.flagTx, settlementMgr.flagTy) !== 'settlement_flag') {
     settlementMgr.removeFlag();
   }
-  const newSettler = settlementMgr.update(dt, getBlock, setBlock);
+  const newSettler = settlementMgr.update(dt, getBlock, setBlock, prog.stageIndex);
   if (newSettler) {
     const def = SETTLER_DEFS.find(d => d.id === newSettler);
     fishingMsg = `🏠 ${def?.name ?? newSettler} 已入驻定居点！（按 B 交易）`;

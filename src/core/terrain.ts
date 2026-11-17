@@ -339,6 +339,20 @@ function carveStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
         tiles[y * MAP_WIDTH + x] = bi('empty');
       }
     }
+
+    // 大框架: 洞穴底部埋 1~2 簇晶簇 —— 浅层生命晶簇、深层魔力晶簇
+    // 开采后掉落对应水晶，配合 U 键永久提升上限，形成「探索 → 成长」闭环
+    const nodeId = ry < 108 ? 'life_crystal_node' : 'mana_crystal_node';
+    const clusters = 1 + Math.floor(rng() * 2);
+    for (let c = 0; c < clusters; c++) {
+      const ang = Math.PI * (0.2 + rng() * 0.6); // 偏下半圈，贴近洞底
+      const dist = rad * (0.45 + rng() * 0.35);
+      const nx = Math.round(rx + Math.cos(ang) * dist);
+      const ny = Math.round(ry + Math.sin(ang) * dist);
+      if (nx < 1 || nx >= MAP_WIDTH - 1 || ny < 1 || ny >= MAP_HEIGHT - 1) continue;
+      if (tiles[ny * MAP_WIDTH + nx] !== bi('empty')) continue;
+      tiles[ny * MAP_WIDTH + nx] = bi(nodeId);
+    }
   }
 
   // 2. 地底幽谷：暗能量紫柱
@@ -575,6 +589,9 @@ function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
       const gy = DY + 2 + Math.floor(rng() * 3);
       tiles[gy * MAP_WIDTH + gx] = bi('ore_gold');
     }
+    // 大框架: 地牢深处固定 2 簇水晶，作为深入探索的保底成长奖励
+    tiles[(DY + 3) * MAP_WIDTH + (DX + 3)] = bi('life_crystal_node');
+    tiles[(DY + DH - 4) * MAP_WIDTH + (DX + DW - 4)] = bi('mana_crystal_node');
     // 竖井：地表 → 地牢顶部，2 格宽，两侧砖壁
     const s0 = DX + Math.floor(DW / 2) - 1;
     const s1 = s0 + 1;

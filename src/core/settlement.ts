@@ -1,15 +1,15 @@
 /**
  * 烬海纪元 · NPC 城镇入驻系统
  * ====================
- * 泰拉瑞亚式城镇：放置「定居旗」后，定居者会陆续搬迁到旗子附近
+ * 泰拉瑞亚式城镇：放置「定居旗」后，随阶段推进定居者陆续搬迁到旗子附近
  * 每 30 秒入驻 1 位（医师 → 工程师），靠近后按 B 打开其专属商店
  * 定居者以不可破坏的特殊方块形式存在于世界中
  */
 
 export const SETTLE_INTERVAL = 30;   // 入驻间隔（秒）
 export const SETTLER_DEFS = [
-  { id: 'medic', name: '医师', blockId: 'settler_medic' },
-  { id: 'engineer', name: '工程师', blockId: 'settler_engineer' },
+  { id: 'medic', name: '医师', blockId: 'settler_medic', requiredStage: 1 },
+  { id: 'engineer', name: '工程师', blockId: 'settler_engineer', requiredStage: 3 },
 ] as const;
 
 export const MAX_SETTLERS = SETTLER_DEFS.length;
@@ -59,19 +59,22 @@ export class SettlementManager {
 
   /**
    * 推进入驻流程
+   * @param stageIndex 当前阶段索引，用于按进度解锁定居者（医师需阶段 2，工程师需阶段 4）
    * @returns 新入驻的定居者类型 id（没有则 null）
    */
   update(
     dt: number,
     getBlock: (x: number, y: number) => string,
     setBlock: (x: number, y: number, id: string) => void,
+    stageIndex = 99,
   ): string | null {
     if (!this.hasFlag) return null;
-    if (this.settlers.length >= MAX_SETTLERS) return null;
+    const unlocked = SETTLER_DEFS.filter(d => stageIndex >= d.requiredStage);
+    if (this.settlers.length >= unlocked.length) return null;
     this.timer += dt;
     if (this.timer < SETTLE_INTERVAL) return null;
     this.timer = 0;
-    const def = SETTLER_DEFS[this.settlers.length];
+    const def = unlocked[this.settlers.length];
     if (!def) return null;
     const spot = this.findSpot(getBlock);
     if (!spot) return null;

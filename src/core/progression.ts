@@ -5,19 +5,26 @@
  * 阶段推进顺序与地牢解锁条件串联整条玩法链路
  */
 
+export interface StageReward {
+  blockId: string;
+  count: number;
+}
+
 export interface StageDef {
   id: string;
   name: string;
   goal: string;
+  /** 阶段推进奖励（发放到背包 + 回满生命/魔力） */
+  reward: StageReward[];
 }
 
 export const STAGES: StageDef[] = [
-  { id: 'awaken', name: '苏醒', goal: '挖掘 10 个方块' },
-  { id: 'foothold', name: '立足', goal: '合成 3 次物品' },
-  { id: 'long_night', name: '长夜', goal: '击败 5 个敌人' },
-  { id: 'overlord', name: '霸主', goal: '击败任意 Boss' },
-  { id: 'curse', name: '诅咒', goal: '击败骷髅王，解开地牢之门' },
-  { id: 'dungeon', name: '地牢', goal: '深入深渊，挑战更深处' },
+  { id: 'awaken', name: '苏醒', goal: '挖掘 10 个方块', reward: [{ blockId: 'gold_coin', count: 5 }] },
+  { id: 'foothold', name: '立足', goal: '合成 3 次物品', reward: [{ blockId: 'gold_coin', count: 8 }, { blockId: 'purify_torch', count: 3 }] },
+  { id: 'long_night', name: '长夜', goal: '击败 5 个敌人', reward: [{ blockId: 'gold_coin', count: 12 }, { blockId: 'health_potion', count: 2 }] },
+  { id: 'overlord', name: '霸主', goal: '击败任意 Boss', reward: [{ blockId: 'gold_coin', count: 20 }, { blockId: 'life_crystal', count: 1 }] },
+  { id: 'curse', name: '诅咒', goal: '击败骷髅王，解开地牢之门', reward: [{ blockId: 'gold_coin', count: 30 }, { blockId: 'mana_crystal', count: 1 }] },
+  { id: 'dungeon', name: '地牢', goal: '深入深渊，挑战更深处', reward: [{ blockId: 'gold_coin', count: 50 }, { blockId: 'life_crystal', count: 1 }, { blockId: 'mana_crystal', count: 1 }] },
 ];
 
 export interface ProgressionSave {
