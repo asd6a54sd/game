@@ -7,6 +7,7 @@
  */
 import { ItemStack } from './inventory.js';
 import { ChestData } from './chest.js';
+import { CropSave } from './farming.js';
 
 const SAVE_KEY = 'ember_sea_save_v1';
 export const SAVE_VERSION = 1;
@@ -35,6 +36,8 @@ export interface SaveData {
   timeOfDay: number;
   // M30: 永久成长（生命/魔力水晶使用次数）
   growth?: { hpUses: number; mpUses: number };
+  // M31: 作物
+  crops?: CropSave[];
 }
 
 /** Uint8Array → base64（分块避免参数过多爆栈） */

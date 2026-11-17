@@ -56,6 +56,8 @@ export const SELL_PRICES: Record<string, number> = {
   copper_bar: 8, iron_bar: 14, gold_bar: 32, void_bar: 70,
   // M30: 水晶
   life_crystal: 60, mana_crystal: 55,
+  // M31: 种植
+  wheat_seed: 1, ember_wheat: 6,
 };
 
 /** 商人商品列表（玩家可购买）*/
@@ -72,6 +74,8 @@ export const MERCHANT_SHOP: ShopItem[] = [
   { blockId: 'ore_gold', buyPrice: 30, sellPrice: 12, stock: 3 },
   { blockId: 'crystal_glow', buyPrice: 15, sellPrice: 6, stock: 5 },
   { blockId: 'dark_seed', buyPrice: 20, sellPrice: 8, stock: 3 },
+  // M31: 种子（无限库存）
+  { blockId: 'wheat_seed', buyPrice: 3, sellPrice: 1, stock: -1 },
   // 饰品（偶尔刷新）
   { blockId: 'regen_ring', buyPrice: 80, sellPrice: 35, stock: 1 },
   { blockId: 'magnet_crystal', buyPrice: 100, sellPrice: 50, stock: 1 },

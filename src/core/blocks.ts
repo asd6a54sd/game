@@ -349,6 +349,27 @@ export const BLOCKS: Record<string, BlockDef> = {
   // === M30: 生命 / 魔力水晶 ===
   life_crystal: { id: 'life_crystal', name: '生命水晶', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'red01', variants: [], drops: [] },
   mana_crystal: { id: 'mana_crystal', name: '魔力水晶', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'cold01', variants: [], drops: [] },
+
+  // === M31: 种植 ===
+  wheat_stage0: {
+    id: 'wheat_stage0', name: '余烬小麦幼苗', category: 'special',
+    hardness: 1, toolLevel: 0, paletteId: 'bio01', variants: [], drops: [],
+  },
+  wheat_stage1: {
+    id: 'wheat_stage1', name: '余烬小麦（生长中）', category: 'special',
+    hardness: 1, toolLevel: 0, paletteId: 'bio02', variants: [], drops: [],
+  },
+  wheat_stage2: {
+    id: 'wheat_stage2', name: '余烬小麦（成熟）', category: 'special',
+    hardness: 2, toolLevel: 0, paletteId: 'gold01', variants: [],
+    drops: [
+      { blockId: 'ember_wheat', chance: 1.0 },
+      { blockId: 'ember_wheat', chance: 0.6 },
+      { blockId: 'wheat_seed', chance: 1.0 },
+    ],
+  },
+  wheat_seed: { id: 'wheat_seed', name: '余烬小麦种子', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'bio01', variants: [], drops: [] },
+  ember_wheat: { id: 'ember_wheat', name: '余烬小麦', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'gold01', variants: [], drops: [] },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);

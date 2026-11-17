@@ -106,6 +106,10 @@ export const RECIPES: Recipe[] = [
   // === M30: 生命 / 魔力水晶 ===
   { resultBlockId: 'life_crystal', resultCount: 1, ingredients: [{ blockId: 'crystal_glow', count: 3 }, { blockId: 'bio_glow', count: 2 }, { blockId: 'ore_gold', count: 2 }], requiresWorkbench: true },
   { resultBlockId: 'mana_crystal', resultCount: 1, ingredients: [{ blockId: 'crystal_glow', count: 3 }, { blockId: 'bio_glow', count: 2 }, { blockId: 'void_crystal', count: 1 }], requiresWorkbench: true },
+
+  // === M31: 种植 ===
+  { resultBlockId: 'wheat_seed', resultCount: 3, ingredients: [{ blockId: 'ember_ash', count: 2 }, { blockId: 'bio_glow', count: 1 }], requiresWorkbench: true },
+  { resultBlockId: 'health_potion', resultCount: 1, ingredients: [{ blockId: 'ember_wheat', count: 2 }, { blockId: 'crystal_glow', count: 1 }], requiresWorkbench: true },
 ];
 
 export function canCraft(recipe: Recipe, inv: Inventory, nearWorkbench: boolean): boolean {

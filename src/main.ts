@@ -34,6 +34,7 @@ import { ChestManager, ChestData, addToSlots } from './core/chest.js';
 import { SmeltManager, SMELT_RECIPES, canSmelt } from './core/smelting.js';
 import { SaveData, writeSave, readSave, formatSaveTime, u8ToB64, b64ToU8, SAVE_VERSION, AUTOSAVE_INTERVAL } from './core/save.js';
 import { GrowthManager, LIFE_CRYSTAL_MAX_USES, MANA_CRYSTAL_MAX_USES, LIFE_CRYSTAL_GAIN, MANA_CRYSTAL_GAIN } from './core/growth.js';
+import { CropManager } from './core/farming.js';
 
 // ========== DOM ==========
 const loading = document.getElementById('loading')!;
@@ -130,6 +131,9 @@ let autosaveTimer = 0;
 
 // M30: 永久成长
 const growth = new GrowthManager();
+
+// M31: 种植
+const cropMgr = new CropManager();
 
 // M15: 世界事件系统
 const ev = new WorldEventManager();
@@ -693,6 +697,7 @@ function collectSaveData(): SaveData {
     chests: chestMgr.serialize(),
     timeOfDay: renderer.timeOfDay,
     growth: growth.serialize(), // M30
+    crops: cropMgr.serialize(), // M31
   };
 }
 
@@ -736,6 +741,8 @@ function applySaveData(save: SaveData) {
   chestMgr.restore(save.chests ?? []);
   // M30: 永久成长
   growth.restore(save.growth);
+  // M31: 作物
+  cropMgr.restore(save.crops);
   // 时间
   if (typeof save.timeOfDay === 'number') renderer.timeOfDay = save.timeOfDay;
   fishingMsg = `已载入存档（${formatSaveTime(save.timestamp)}）`;
@@ -1320,6 +1327,9 @@ function update(dt: number) {
   }
   refreshFurnaceProgress();
 
+  // M31: 作物生长推进
+  cropMgr.update(dt, getBlock, setBlock);
+
   // M29: 自动保存（每 90 秒，静默）
   autosaveTimer += dt;
   if (autosaveTimer >= AUTOSAVE_INTERVAL) {
@@ -1474,11 +1484,22 @@ function update(dt: number) {
       const existing = getBlock(mouseTile.x, mouseTile.y);
       if (existing === 'empty') {
         const placeId = selected.blockId;
-        setBlock(mouseTile.x, mouseTile.y, placeId);
-        inv.consumeSelected(1);
-        // M27: 放置宝箱 → 建立储物数据
-        if (placeId === 'chest') chestMgr.create(mouseTile.x, mouseTile.y);
-        sfx.place();
+        // M31: 种子 → 种植作物
+        const cropDef = cropMgr.cropBySeed(placeId);
+        if (cropDef) {
+          setBlock(mouseTile.x, mouseTile.y, cropDef.stages[0]);
+          cropMgr.plant(mouseTile.x, mouseTile.y, cropDef.id);
+          inv.consumeSelected(1);
+          sfx.place();
+          fishingMsg = `🌱 已种下 ${cropDef.name}（约 ${cropDef.stageDuration * (cropDef.stages.length - 1)} 秒成熟）`;
+          fishingMsgTimer = 2.5;
+        } else {
+          setBlock(mouseTile.x, mouseTile.y, placeId);
+          inv.consumeSelected(1);
+          // M27: 放置宝箱 → 建立储物数据
+          if (placeId === 'chest') chestMgr.create(mouseTile.x, mouseTile.y);
+          sfx.place();
+        }
       }
     }
   }
