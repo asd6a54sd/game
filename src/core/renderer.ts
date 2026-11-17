@@ -491,23 +491,22 @@ export class Renderer {
     const py = Math.floor(p.y - cam.y - p.height / 2);
     const color = PALETTE_MAP.get(m.paletteId) ?? '#888';
 
-    // 坐骑身体（玩家脚下，略宽）
-    ctx.fillStyle = color;
-    ctx.fillRect(px - 3, py + p.height - 2, p.width + 6, 8);
-    // 坐骑头部（朝向）
-    const headX = p.facing === 1 ? px + p.width - 2 : px - 8;
-    ctx.fillRect(headX, py + p.height - 6, 8, 6);
-    // 坐骑眼睛
-    ctx.fillStyle = '#fff';
-    const eyeX = p.facing === 1 ? headX + 5 : headX + 1;
-    ctx.fillRect(eyeX, py + p.height - 4, 2, 2);
-    // 飞行坐骑 — 翅膀
-    if (m.canFly) {
-      ctx.fillStyle = 'rgba(255,255,255,0.7)';
-      const wingY = py + p.height - 4;
-      ctx.fillRect(px - 8, wingY, 6, 2);
-      ctx.fillRect(px + p.width + 2, wingY, 6, 2);
-    }
+    // 坐骑像素模型：史莱姆→blob，其余→四足兽形（飞龙带翼与角）
+    const mw = p.width + 12;
+    const mh = 20;
+    drawCharacter(
+      ctx,
+      makeModel(color, '#ffffff', {
+        kind: p.mountId === 'slime_mount' ? 'blob' : 'beast',
+        wings: m.canFly,
+        horns: m.canFly,
+      }),
+      px + p.width / 2 - mw / 2,
+      py + p.height - mh + 5,
+      mw, mh,
+      p.facing,
+      performance.now() / 1000,
+    );
   }
 
   // M24: 钓鱼渲染 — 鱼线 + 浮标
@@ -555,20 +554,17 @@ export class Renderer {
       ctx.fill();
     }
 
-    // 宠物身体（圆角方块）
+    // 宠物像素模型：光源精灵→飞行体，战斗召唤物→幼龙兽形
     const color = PALETTE_MAP.get(def.paletteId) ?? '#888';
-    ctx.fillStyle = color;
-    ctx.fillRect(px - s / 2, py - s / 2, s, s);
-    // 眼睛
-    ctx.fillStyle = '#fff';
-    ctx.fillRect(px - s / 2 + 1, py - s / 2 + 2, 2, 2);
-    ctx.fillRect(px + s / 2 - 3, py - s / 2 + 2, 2, 2);
-    // 战斗召唤物 — 小翅膀
-    if (def.type === 'combat') {
-      ctx.fillStyle = 'rgba(180,100,255,0.8)';
-      ctx.fillRect(px - s / 2 - 3, py - 2, 3, 4);
-      ctx.fillRect(px + s / 2, py - 2, 3, 4);
-    }
+    drawCharacter(
+      ctx,
+      makeModel(color, def.type === 'combat' ? '#ff6ad5' : '#ffffff', {
+        kind: def.type === 'combat' ? 'beast' : 'flyer',
+        wings: def.type === 'combat',
+        horns: def.type === 'combat',
+      }),
+      px - s / 2, py - s / 2, s, s * 1.1, 1, performance.now() / 1000,
+    );
   }
 
   drawPlayer(p: Player, cam: Camera, shell?: ShellDef, alpha = 1) {
@@ -914,21 +910,18 @@ export class Renderer {
       const cpx = Math.floor(c.x - cam.x - compHalfW(c));
       const cpy = Math.floor(c.y - cam.y - compHalfH(c));
       const sc = companionSpriteColors(c);
-      // 身体
-      ctx.fillStyle = sc.body;
-      ctx.fillRect(cpx, cpy + TILE_SIZE, TILE_SIZE * 0.75, TILE_SIZE * 0.75);
-      // 头
-      ctx.fillStyle = sc.head;
-      ctx.fillRect(cpx + 2, cpy + 2, TILE_SIZE * 0.75 - 4, TILE_SIZE - 4);
-      // 眼
-      ctx.fillStyle = sc.eye;
-      const eyeX = c.facing === 1 ? cpx + TILE_SIZE * 0.75 - 6 : cpx + 4;
-      ctx.fillRect(eyeX, cpy + 6, 2, 2);
-      // 武器指示
+      // 队友像素模型（与玩家同一套人形结构）
       const wColor = c.def.weapon === 'melee' ? '#e8c547' : '#ff8040';
-      ctx.fillStyle = wColor;
-      const handX = c.facing === 1 ? cpx + TILE_SIZE * 0.75 : cpx - 6;
-      ctx.fillRect(handX, cpy + TILE_SIZE + 2, 6, 2);
+      drawCharacter(
+        ctx,
+        makeModel(sc.body, sc.eye, {
+          kind: 'humanoid',
+          light: sc.head,
+          accent: sc.head,
+          weapon: wColor,
+        }),
+        cpx, cpy, TILE_SIZE * 0.75, TILE_SIZE * 1.75, c.facing, performance.now() / 1000,
+      );
       // HP bar
       ctx.fillStyle = '#1a1a1a';
       ctx.fillRect(cpx - 1, cpy - 5, TILE_SIZE * 0.75 + 2, 2);
