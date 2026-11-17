@@ -3,10 +3,10 @@
  * M0-M3: 工程骨架 + 破坏 + 背包 + 放置 + 工具 + 合成 + 敌人 AI + 躯壳切换
  */
 import './style.css';
-import { generateTerrain, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, biToBlock, regionNameAt, regionIdAt } from './core/terrain.js';
+import { generateTerrain, patchSealedMap, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, biToBlock, regionNameAt, regionIdAt } from './core/terrain.js';
 import { BLOCKS, isSolid } from './core/blocks.js';
 import { createCamera, follow, shake, updateShake, getShakeOffset } from './core/camera.js';
-import { createPlayer, updatePlayer, placePlayerOnGround, playerOverlapsTile, Player } from './core/player.js';
+import { createPlayer, updatePlayer, placePlayerOnGround, playerOverlapsTile, isPlayerEmbedded, Player } from './core/player.js';
 import { Renderer } from './core/renderer.js';
 import { createBreakState, startBreaking, stopBreaking, updateBreaking, updateParticles, BreakState } from './core/break.js';
 import { Inventory } from './core/inventory.js';
@@ -106,6 +106,7 @@ let rangedAnim = 0;           // 远程射击/拉弓动作剩余时间
 const RANGED_ANIM_DUR = 0.22;
 let wasOnGround = false; // M16: 上一帧是否在地面（检测落地瞬间）
 let lastRegion = '';     // M17: 玩家上一帧所在区块（检测区块变化）
+let embeddedTimer = 0;   // 卡死救援计时
 let achCheckTimer = 0;   // M19: 收藏家成就检查间隔
 
 // Boss 系统
@@ -759,6 +760,7 @@ function collectSaveData(): SaveData {
     settlement: settlementMgr.serialize(), // M32
     progression: prog.serialize(), // 大框架: 阶段进度
     storySeen: story.serialize(), // 剧情已看记录
+    mapPatch: 1, // 地图已修补到最新版
   };
 }
 
@@ -776,6 +778,11 @@ function applySaveData(save: SaveData) {
   // 世界
   terrain.tiles = b64ToU8(save.tiles);
   terrain.heightMap = b64ToU8(save.heightMap);
+  // 旧存档地图修补：拆除封闭小屋、加宽地牢竖井（只执行一次，避免误删玩家自建墙）
+  if ((save.mapPatch ?? 0) < 1) {
+    const fixed = patchSealedMap(terrain);
+    if (fixed > 0) console.log(`[地图] 🧹 已修补封闭区域（${fixed} 格），不会再被关在墙里`);
+  }
   // 玩家
   player.x = save.player.x;
   player.y = save.player.y;
@@ -1417,6 +1424,24 @@ function update(dt: number) {
   if (swingCd > 0) swingCd -= dt;
   if (meleeAnim > 0) meleeAnim -= dt;
   if (rangedAnim > 0) rangedAnim -= dt;
+
+  // 卡死救援：连续 1.2 秒仍嵌在实体方块里 → 送回出生点地表
+  if (isPlayerEmbedded(player, getTileSolid)) {
+    embeddedTimer += dt;
+    if (embeddedTimer > 1.2) {
+      embeddedTimer = 0;
+      player.x = 16 * TILE_SIZE;
+      player.y = 40 * TILE_SIZE;
+      player.vx = 0;
+      player.vy = 0;
+      placePlayerOnGround(player, terrain.heightMap);
+      fishingMsg = '⚠ 检测到卡死，已送回出生点';
+      fishingMsgTimer = 3;
+      shake(cam, 4);
+    }
+  } else {
+    embeddedTimer = 0;
+  }
 
   // M24: 钓鱼计时
   if (fishing.active) {

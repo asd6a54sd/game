@@ -430,28 +430,8 @@ function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
         tiles[ty * MAP_WIDTH + tx] = bi('empty');
       }
     }
-    // 墙（四周）
-    for (let dx = 0; dx < hutW; dx++) {
-      // 顶
-      if (hutY - 1 >= 0) tiles[(hutY - 1) * MAP_WIDTH + (hutX + dx)] = wallId;
-      // 两侧墙
-      for (let dy = 0; dy < hutH; dy++) {
-        if (hutX - 1 >= 0) tiles[(hutY + dy) * MAP_WIDTH + (hutX - 1)] = wallId;
-        if (hutX + hutW < MAP_WIDTH) tiles[(hutY + dy) * MAP_WIDTH + (hutX + hutW)] = wallId;
-      }
-    }
-    // 门：在左墙开出通道（玩家 2.6 格高、1.25 格宽，2 格高/1 格宽的旧门会卡住身体）
-    // 顶部向下覆盖内外地面高差，保证任何地形都能走进小屋
-    const doorCol = hutX - 1;
-    if (doorCol >= 0) {
-      const outerY = heightMap[Math.max(0, hutX - 2)];
-      const top = Math.min(groundY, outerY) - 3;
-      const bottom = Math.max(groundY, outerY) - 1;
-      for (let ty = Math.max(0, top); ty <= Math.min(MAP_HEIGHT - 1, bottom); ty++) {
-        tiles[ty * MAP_WIDTH + doorCol] = bi('empty');
-      }
-    }
-    // 地板（确保是 rebel_brick）
+    // 营地遗迹：不建封闭小屋 —— 只保留地板与两根 1 格高残柱
+    // （旧版四面墙 + 屋顶会把玩家关在里面，按 A 还会被碰撞推向右边）
     for (let dx = 0; dx < hutW; dx++) {
       const tx = hutX + dx;
       const ty = groundY;
@@ -459,6 +439,14 @@ function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
         if (tiles[ty * MAP_WIDTH + tx] !== bi('void_barrier')) {
           tiles[ty * MAP_WIDTH + tx] = wallId;
         }
+      }
+    }
+    // 残柱（1 格高，不封闭）
+    if (hutY + hutH - 1 >= 0) {
+      const postY = groundY - 1;
+      if (hutX >= 0 && hutX < MAP_WIDTH) tiles[postY * MAP_WIDTH + hutX] = wallId;
+      if (hutX + hutW - 1 >= 0 && hutX + hutW - 1 < MAP_WIDTH) {
+        tiles[postY * MAP_WIDTH + (hutX + hutW - 1)] = wallId;
       }
     }
 
@@ -595,26 +583,35 @@ function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
     // 大框架: 地牢深处固定 2 簇水晶，作为深入探索的保底成长奖励
     tiles[(DY + 3) * MAP_WIDTH + (DX + 3)] = bi('life_crystal_node');
     tiles[(DY + DH - 4) * MAP_WIDTH + (DX + DW - 4)] = bi('mana_crystal_node');
-    // 竖井：地表 → 地牢顶部，2 格宽，两侧砖壁
+    // 竖井：地表 → 地牢顶部，3 格宽（玩家 1.25 格宽，留出通行余量）
     const s0 = DX + Math.floor(DW / 2) - 1;
     const s1 = s0 + 1;
+    const s2 = s0 + 2;
     const surfY = heightMap[s0];
     for (let y = Math.max(0, surfY); y <= DY + 1; y++) {
       tiles[y * MAP_WIDTH + (s0 - 1)] = brick;
-      tiles[y * MAP_WIDTH + (s1 + 1)] = brick;
+      tiles[y * MAP_WIDTH + (s2 + 1)] = brick;
       tiles[y * MAP_WIDTH + s0] = bi('empty');
       tiles[y * MAP_WIDTH + s1] = bi('empty');
+      tiles[y * MAP_WIDTH + s2] = bi('empty');
     }
     // 井口立柱（地表上方标记入口）
     for (let y = Math.max(0, surfY - 3); y < surfY; y++) {
       tiles[y * MAP_WIDTH + (s0 - 1)] = brick;
-      tiles[y * MAP_WIDTH + (s1 + 1)] = brick;
+      tiles[y * MAP_WIDTH + (s2 + 1)] = brick;
     }
     // 井底锁门：未击败骷髅王时不可破坏
-    for (const x of [s0, s1]) {
+    for (const x of [s0, s1, s2]) {
       for (let y = DY; y <= DY + 1; y++) {
         tiles[y * MAP_WIDTH + x] = door;
       }
+    }
+    // 井壁交错砖台：每 3 格一块，玩家可踩着跳回地表，不会被困在井底
+    let ledgeSide = 0;
+    for (let y = DY + 4; y >= surfY - 3; y -= 3) {
+      const lx = ledgeSide % 2 === 0 ? s0 : s2;
+      tiles[y * MAP_WIDTH + lx] = brick;
+      ledgeSide++;
     }
     structures.push({
       kind: 'dungeon',
@@ -634,4 +631,64 @@ function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
   }
 
   return structures;
+}
+
+/**
+ * 旧存档地图修补：拆除封闭小屋、加宽地牢竖井并加可攀爬砖台
+ * 只应在旧存档首次载入时执行一次（save.mapPatch < 1），否则会误删玩家自建墙体
+ */
+export function patchSealedMap(data: TerrainData): number {
+  const { width, height, tiles } = data;
+  let changed = 0;
+  const set = (tx: number, ty: number, id: string) => {
+    if (tx < 0 || tx >= width || ty < 0 || ty >= height) return;
+    const idx = ty * width + tx;
+    const v = bi(id);
+    if (tiles[idx] !== v) {
+      tiles[idx] = v;
+      changed++;
+    }
+  };
+
+  for (const s of data.structures) {
+    if (s.kind === 'hut' || s.kind === 'camp') {
+      // 拆屋顶与两侧墙，只保留地板（与新版生成一致）
+      for (let dx = -1; dx <= s.width + 1; dx++) set(s.x + dx, s.y - 1, 'empty');
+      for (let dy = 0; dy < s.height; dy++) {
+        set(s.x - 1, s.y + dy, 'empty');
+        set(s.x + s.width, s.y + dy, 'empty');
+      }
+      for (let dx = 0; dx < s.width; dx++) set(s.x + dx, s.y + s.height, 'rebel_brick');
+    }
+
+    if (s.kind === 'dungeon') {
+      const DX = s.x, DY = s.y, DW = s.width;
+      const s0 = DX + Math.floor(DW / 2) - 1;
+      const s1 = s0 + 1, s2 = s0 + 2;
+      const surfY = data.heightMap[s0];
+      // 加宽为 3 格并重建两侧砖壁
+      for (let y = Math.max(0, surfY); y <= DY + 1; y++) {
+        set(s0 - 1, y, 'dungeon_brick');
+        set(s2 + 1, y, 'dungeon_brick');
+        set(s0, y, 'empty');
+        set(s1, y, 'empty');
+        set(s2, y, 'empty');
+      }
+      for (let y = Math.max(0, surfY - 3); y < surfY; y++) {
+        set(s0 - 1, y, 'dungeon_brick');
+        set(s2 + 1, y, 'dungeon_brick');
+      }
+      // 井底锁门
+      for (const x of [s0, s1, s2]) {
+        for (let y = DY; y <= DY + 1; y++) set(x, y, 'dungeon_door');
+      }
+      // 交错砖台：每 3 格一块，保证能跳回地表
+      let side = 0;
+      for (let y = DY + 4; y >= surfY - 3; y -= 3) {
+        set(side % 2 === 0 ? s0 : s2, y, 'dungeon_brick');
+        side++;
+      }
+    }
+  }
+  return changed;
 }

@@ -182,6 +182,13 @@ export function playerOverlapsTile(p: Player, tx: number, ty: number): boolean {
     && p.y - halfH + eps < (ty + 1) * TILE_SIZE;
 }
 
+/** 判断玩家当前是否仍卡在实体方块里（供主循环做救援判定） */
+export function isPlayerEmbedded(
+  p: Player, isSolid: (x: number, y: number) => boolean,
+): boolean {
+  return overlapsSolid(p, isSolid);
+}
+
 /** 判断玩家当前位置是否卡在实体方块里 */
 function overlapsSolid(
   p: Player, isSolid: (x: number, y: number) => boolean,

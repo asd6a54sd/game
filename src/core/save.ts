@@ -47,6 +47,8 @@ export interface SaveData {
   progression?: ProgressionSave;
   // 剧情：已看过的剧情 id
   storySeen?: StorySave;
+  // 地图修补版本（1 = 已拆除封闭小屋 / 加宽地牢竖井）
+  mapPatch?: number;
 }
 
 /** Uint8Array → base64（分块避免参数过多爆栈） */
