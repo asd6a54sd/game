@@ -1020,6 +1020,9 @@ export class Renderer {
         light: shellColors.head,
         accent: shellColors.head,
         weapon: PALETTE_MAP.get(tool.paletteId) ?? '#888',
+        skin: '#d8a273',
+        headgear: 'helmet',
+        visualScale: 1.22,
       }),
       px, py, p.width, p.height, p.facing, performance.now() / 1000, 1, mergedAnim,
     );
@@ -1334,6 +1337,9 @@ export class Renderer {
           light: sc.head,
           accent: sc.head,
           weapon: wColor,
+          skin: '#d8a273',
+          headgear: 'helmet',
+          visualScale: 1.15,
         }),
         cpx, cpy, TILE_SIZE * 0.75, TILE_SIZE * 1.75, c.facing, performance.now() / 1000,
       );
