@@ -2,7 +2,7 @@
  * 烬海纪元 · 地形生成器
  * 第一幕《特恩无人区》横向剖面 — 6 区块 × 3 地层
  */
-import { BLOCKS } from './blocks.js';
+import { BLOCKS, isSolid, isLiquid } from './blocks.js';
 
 export type RegionId =
   | 'wreck_zone'
@@ -221,6 +221,10 @@ export function generateTerrain(seed = 20261116): TerrainData {
 
       if (y === sy) {
         tiles[idx] = surfaceBlock(r.id, x, y, n1, n2, rng);
+        // 残骸带：地表上方点缀断口火焰（非固体装饰，不影响行走）
+        if (r.id === 'wreck_zone' && y - 1 >= 0 && n1.noise2D(x * 0.15, y * 0.15) > 0.82) {
+          tiles[(sy - 1) * width + x] = bi('fire_crack');
+        }
       } else if (y < sy + 20) {
         tiles[idx] = shallowBlock(r.id, x, y, n1, n2, n3, rng);
       } else if (y < sy + 55) {
@@ -233,6 +237,16 @@ export function generateTerrain(seed = 20261116): TerrainData {
 
   carveStructures(tiles, heightMap, rng);
   const structures = buildStructures(tiles, heightMap, rng);
+
+  // 最终保险：地表必须是实心方块或液体，杜绝任何结构/装饰留下让玩家掉下去的破洞
+  for (let x = 0; x < width; x++) {
+    const sy = heightMap[x];
+    if (sy <= 0 || sy >= height) continue;
+    const id = biToBlock(tiles[sy * width + x]);
+    if (id === 'empty' || (!isSolid(id) && !isLiquid(id))) {
+      tiles[sy * width + x] = bi('cracked_ground');
+    }
+  }
 
   return { width, height, tiles, regionMap, heightMap, structures };
 }
@@ -247,7 +261,8 @@ function regionIdxAt(x: number): number {
 function surfaceBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: ValueNoise, _rng: () => number): number {
   switch (r) {
     case 'wreck_zone':
-      if (n1.noise2D(x * 0.15, y * 0.15) > 0.75) return bi('fire_crack');
+      // 断口火焰改为「地表上方」的装饰（见填充循环），地表本身必须是实心方块，
+      // 否则会出现 1 格破洞让玩家掉进地下
       if (n2.noise2D(x * 0.1, y * 0.1) > 0.6) return bi('wreck_hull');
       return bi('wreck_scrap');
     case 'crack_waste':
@@ -440,12 +455,12 @@ function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
       }
       // M21: 残骸试炼坛（小屋右侧）
       const wx = hutX + hutW + 3;
-      if (wx >= 0 && wx < MAP_WIDTH) tiles[groundY * MAP_WIDTH + wx] = bi('wreck_trial_altar');
+      if (wx >= 0 && wx < MAP_WIDTH && groundY - 1 >= 0) tiles[(groundY - 1) * MAP_WIDTH + wx] = bi('wreck_trial_altar');
     }
     // M21: 野兽试炼坛
     if (hp.name === 'beast_hive') {
       const bx = hutX + hutW + 3;
-      if (bx >= 0 && bx < MAP_WIDTH) tiles[groundY * MAP_WIDTH + bx] = bi('beast_trial_altar');
+      if (bx >= 0 && bx < MAP_WIDTH && groundY - 1 >= 0) tiles[(groundY - 1) * MAP_WIDTH + bx] = bi('beast_trial_altar');
     }
     // M21: 虚空试炼坛（地底幽谷深层）
     if (hp.name === 'underground_valley') {
@@ -643,6 +658,16 @@ export function patchSealedMap(data: TerrainData): number {
     const sy = data.heightMap[x];
     for (let y = Math.max(0, sy - 8); y < sy - 1; y++) {
       if (at(x, y) === 'chitin_hive') set(x, y, 'empty');
+    }
+  }
+
+  // 封住地表破洞：旧版断口火焰等非固体方块会在地表留下 1 格洞，玩家会掉进地下
+  for (let x = 0; x < width; x++) {
+    const sy = data.heightMap[x];
+    if (sy <= 0 || sy >= height) continue;
+    const b = at(x, sy);
+    if (b === 'empty' || (!isSolid(b) && !isLiquid(b))) {
+      set(x, sy, 'cracked_ground');
     }
   }
 
