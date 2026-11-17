@@ -49,8 +49,8 @@ const storyEl = document.getElementById('story')!;
 const storyTitleEl = document.getElementById('story-title')!;
 const storyLinesEl = document.getElementById('story-lines')!;
 
-// 像素缩放：以 2 倍逻辑分辨率渲染再拉伸到全屏（泰拉瑞亚式视野，人物更清晰）
-const PIXEL_ZOOM = 2;
+// 像素缩放：1 = 原始大小（之前 2 倍放大已被撤销）
+const PIXEL_ZOOM = 1;
 
 // ========== 状态 ==========
 let terrain = generateTerrain(20261116);
@@ -1306,7 +1306,12 @@ function setBlock(tx: number, ty: number, id: string) {
   const idx = ids.indexOf(id);
   if (idx >= 0) terrain.tiles[ty * MAP_WIDTH + tx] = idx;
 }
-function getTileSolid(tx: number, ty: number) { return isSolid(getBlock(tx, ty)); }
+function getTileSolid(tx: number, ty: number) {
+  // 世界左右边界与底部视为实心：人物不会从地图边缘掉出去
+  if (tx < 0 || tx >= MAP_WIDTH || ty >= MAP_HEIGHT) return true;
+  if (ty < 0) return false; // 天空可正常跳跃
+  return isSolid(getBlock(tx, ty));
+}
 
 // ========== 主循环 ==========
 let lastT = performance.now();
