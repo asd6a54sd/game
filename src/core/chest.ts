@@ -80,6 +80,25 @@ export class ChestManager {
     return this.chests.size;
   }
 
+  /** M29: 序列化为存档结构 */
+  serialize(): ChestData[] {
+    return [...this.chests.values()].map(c => ({
+      tx: c.tx, ty: c.ty,
+      slots: c.slots.map(s => ({ blockId: s.blockId, count: s.count })),
+    }));
+  }
+
+  /** M29: 从存档恢复 */
+  restore(list: ChestData[]) {
+    this.chests.clear();
+    for (const c of list) {
+      this.chests.set(this.key(c.tx, c.ty), {
+        tx: c.tx, ty: c.ty,
+        slots: c.slots.map(s => ({ blockId: s.blockId, count: s.count })),
+      });
+    }
+  }
+
   /** 查找玩家附近最近的宝箱（世界坐标） */
   findNear(worldX: number, worldY: number, rangeTiles = 3): ChestData | null {
     const ptx = Math.floor(worldX / TILE_SIZE);

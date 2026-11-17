@@ -32,6 +32,7 @@ import { PET_DEFS, Pet, createPet, updatePet } from './core/pets.js';
 import { ArmorManager, ARMOR_DEFS, ARMOR_SETS, ArmorSlot } from './core/armor.js';
 import { ChestManager, ChestData, addToSlots } from './core/chest.js';
 import { SmeltManager, SMELT_RECIPES, canSmelt } from './core/smelting.js';
+import { SaveData, writeSave, readSave, formatSaveTime, u8ToB64, b64ToU8, SAVE_VERSION, AUTOSAVE_INTERVAL } from './core/save.js';
 
 // ========== DOM ==========
 const loading = document.getElementById('loading')!;
@@ -122,6 +123,9 @@ const smeltMgr = new SmeltManager();
 let furnacePanel: HTMLDivElement | null = null;
 let furnaceProgressEl: HTMLDivElement | null = null;
 let furnaceStatusEl: HTMLDivElement | null = null;
+
+// M29: 自动保存计时
+let autosaveTimer = 0;
 
 // M15: 世界事件系统
 const ev = new WorldEventManager();
@@ -627,6 +631,72 @@ function refreshFurnaceProgress() {
   }
 }
 
+// ========== M29: localStorage 存档 ==========
+function collectSaveData(): SaveData {
+  return {
+    version: SAVE_VERSION,
+    timestamp: Date.now(),
+    tiles: u8ToB64(terrain.tiles),
+    heightMap: u8ToB64(terrain.heightMap),
+    player: { x: player.x, y: player.y, hp: player.hp },
+    inv: {
+      hotbar: inv.hotbar.map(s => ({ blockId: s.blockId, count: s.count })),
+      slots: inv.slots.map(s => ({ blockId: s.blockId, count: s.count })),
+      selectedHotbar: inv.selectedHotbar,
+    },
+    shellIdx: shellMgr.currentIdx,
+    shellHp: shellMgr.shells.map(s => s.hp),
+    accessory: { ids: acc.slots.map(s => s.accessoryId), slotIndex: acc.slotIndex },
+    armor: { head: armorMgr.head, chest: armorMgr.chest, legs: armorMgr.legs },
+    chests: chestMgr.serialize(),
+    timeOfDay: renderer.timeOfDay,
+  };
+}
+
+function doSave(silent = false): boolean {
+  const ok = writeSave(collectSaveData());
+  if (!silent) {
+    fishingMsg = ok ? '💾 已保存存档' : '存档失败（存储空间不足？）';
+    fishingMsgTimer = 2.5;
+    if (ok) sfx.pickup();
+  }
+  return ok;
+}
+
+function applySaveData(save: SaveData) {
+  // 世界
+  terrain.tiles = b64ToU8(save.tiles);
+  terrain.heightMap = b64ToU8(save.heightMap);
+  // 玩家
+  player.x = save.player.x;
+  player.y = save.player.y;
+  player.hp = save.player.hp;
+  // 背包
+  save.inv.hotbar.forEach((s, i) => {
+    if (inv.hotbar[i]) { inv.hotbar[i].blockId = s.blockId; inv.hotbar[i].count = s.count; }
+  });
+  save.inv.slots.forEach((s, i) => {
+    if (inv.slots[i]) { inv.slots[i].blockId = s.blockId; inv.slots[i].count = s.count; }
+  });
+  inv.selectedHotbar = Math.max(0, Math.min(8, save.inv.selectedHotbar));
+  // 躯壳
+  shellMgr.currentIdx = Math.max(0, Math.min(shellMgr.shells.length - 1, save.shellIdx));
+  save.shellHp.forEach((hp, i) => { if (shellMgr.shells[i]) shellMgr.shells[i].hp = hp; });
+  // 饰品
+  acc.slots = save.accessory.ids.filter(id => ACCESSORY_DEFS[id]).map(id => ({ accessoryId: id }));
+  acc.slotIndex = Math.max(0, Math.min(save.accessory.slotIndex, Math.max(0, acc.slots.length - 1)));
+  // 护甲
+  armorMgr.head = save.armor.head && ARMOR_DEFS[save.armor.head] ? save.armor.head : null;
+  armorMgr.chest = save.armor.chest && ARMOR_DEFS[save.armor.chest] ? save.armor.chest : null;
+  armorMgr.legs = save.armor.legs && ARMOR_DEFS[save.armor.legs] ? save.armor.legs : null;
+  // 宝箱
+  chestMgr.restore(save.chests ?? []);
+  // 时间
+  if (typeof save.timeOfDay === 'number') renderer.timeOfDay = save.timeOfDay;
+  fishingMsg = `已载入存档（${formatSaveTime(save.timestamp)}）`;
+  fishingMsgTimer = 4;
+}
+
 // M24: 钓鱼 — 检测玩家附近是否有液态方块
 function findNearbyLiquid(): { tx: number; ty: number } | null {
   const ptx = Math.floor(player.x / TILE_SIZE);
@@ -822,7 +892,13 @@ let _rockAltarCenter: { x: number; y: number } | null = null;
 init();
 
 async function init() {
-  placePlayerOnGround(player, terrain.heightMap);
+  // M29: 启动时自动加载存档
+  const save = readSave();
+  if (save) {
+    applySaveData(save);
+  } else {
+    placePlayerOnGround(player, terrain.heightMap);
+  }
   voidEngine.initFromTerrain(terrain.tiles);
   initCompanions();
   initStoryGuides();
@@ -842,6 +918,19 @@ function resize() {
 
 function bindInput() {
   window.addEventListener('keydown', e => {
+    // M29: Ctrl+S 存档 / Ctrl+L 重新载入存档页面
+    if ((e.ctrlKey || e.metaKey) && e.code === 'KeyS') {
+      e.preventDefault();
+      doSave();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && e.code === 'KeyL') {
+      e.preventDefault();
+      fishingMsg = '正在重新载入存档…';
+      fishingMsgTimer = 1;
+      location.reload();
+      return;
+    }
     if (inputBlocked) {
       if (e.code === 'Escape') { if (openChest) closeChestUI(); if (furnacePanel) closeFurnaceUI(); wb.close(); }
       else if (e.code === 'KeyK' && openChest) closeChestUI();
@@ -1177,6 +1266,13 @@ function update(dt: number) {
     if (furnacePanel) buildFurnaceUI();
   }
   refreshFurnaceProgress();
+
+  // M29: 自动保存（每 90 秒，静默）
+  autosaveTimer += dt;
+  if (autosaveTimer >= AUTOSAVE_INTERVAL) {
+    autosaveTimer = 0;
+    doSave(true);
+  }
 
   // M25: 宠物 AI 更新
   if (activePet) {
