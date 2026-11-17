@@ -2009,6 +2009,8 @@ function render() {
   renderer.drawFishing(fishing.active, fishing.hasBite, fishing.floatX, fishing.floatY, player.x, player.y, cam);
   if (activePet) renderer.drawPet(activePet, cam);
   renderer.drawPlayer(player, cam, shellMgr.current, shellMgr.alpha);
+  // 光照层：地下黑暗 + 光源挖洞（泰拉瑞亚式观感）
+  renderer.drawLighting(cam, terrain.tiles, terrain.heightMap, player.x, player.y);
   renderer.drawDamageTexts(dmgTexts, cam);
 
   // 恢复 — HUD 层不受震屏

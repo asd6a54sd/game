@@ -41,12 +41,18 @@ export class Renderer {
   private clouds: { x: number; y: number; w: number; h: number; layer: number }[] = [];
   // 日夜循环 0..1 (0 = 黎明, 0.5 = 正午, 0.9 = 深夜)
   timeOfDay = 0.3;
+  // 光照遮罩（离屏画布）：地下黑暗 + 光源挖洞
+  private maskCanvas = document.createElement('canvas');
+  private maskCtx: CanvasRenderingContext2D;
 
   constructor(public canvas: HTMLCanvasElement) {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Cannot get 2D context');
     this.ctx = ctx;
     ctx.imageSmoothingEnabled = false;
+    const mctx = this.maskCanvas.getContext('2d');
+    if (!mctx) throw new Error('Cannot get 2D context');
+    this.maskCtx = mctx;
     this.generateStars();
     this.generateClouds();
   }
@@ -373,13 +379,96 @@ export class Renderer {
       ctx.globalAlpha = 1;
     }
 
-    // 夜晚全局暗光
-    const t = this.timeOfDay;
-    if (t > 0.55 || t < 0.1) {
-      const darkness = t > 0.55 ? Math.min(0.5, (t - 0.55) * 1.5) : Math.min(0.3, (0.1 - t) * 2);
-      ctx.fillStyle = `rgba(0, 0, 30, ${darkness})`;
-      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    // 夜晚与地下黑暗统一由 drawLighting 处理
+  }
+
+  /**
+   * 光照层 —— 泰拉瑞亚观感的核心：地表明亮，地下漆黑，靠玩家/光源挖出可见区域
+   * 做法：离屏画布铺黑 → 用 destination-out 在每个光源处挖出径向渐变
+   */
+  drawLighting(cam: Camera, tiles: Uint8Array, heightMap: Uint8Array, playerX: number, playerY: number) {
+    const W = this.canvas.width, H = this.canvas.height;
+    if (this.maskCanvas.width !== W || this.maskCanvas.height !== H) {
+      this.maskCanvas.width = W;
+      this.maskCanvas.height = H;
     }
+    const m = this.maskCtx;
+    m.setTransform(1, 0, 0, 1, 0, 0);
+    m.globalCompositeOperation = 'source-over';
+    m.clearRect(0, 0, W, H);
+
+    // 视野内列范围
+    const v0 = Math.max(0, Math.floor(cam.x / TILE_SIZE));
+    const v1 = Math.min(MAP_WIDTH - 1, Math.ceil((cam.x + W) / TILE_SIZE));
+
+    // 夜晚压暗整屏
+    const t = this.timeOfDay;
+    const night = (t > 0.55 || t < 0.1)
+      ? (t > 0.55 ? Math.min(0.66, (t - 0.55) * 2.0) : Math.min(0.5, (0.1 - t) * 3))
+      : 0;
+    if (night > 0) {
+      m.fillStyle = `rgba(0,0,0,${night})`;
+      m.fillRect(0, 0, W, H);
+    }
+
+    // 地下：按列带铺竖直渐变 —— 暗区边界贴合地形轮廓，约 9 格后接近全黑
+    // 分带（6 格）减少每帧渐变对象数量，避免掉帧
+    const DARK = 0.88;
+    const BAND = 6;
+    for (let x = v0; x <= v1; x += BAND) {
+      let hSum = 0, cnt = 0;
+      for (let i = 0; i < BAND && x + i <= v1; i++) { hSum += heightMap[x + i]; cnt++; }
+      const top = Math.round((hSum / cnt) * TILE_SIZE - cam.y) + 4;
+      if (top >= H) continue;
+      const sx = Math.round(x * TILE_SIZE - cam.x);
+      const g = m.createLinearGradient(0, top, 0, top + 150);
+      g.addColorStop(0, 'rgba(0,0,0,0)');
+      g.addColorStop(0.22, `rgba(0,0,0,${DARK * 0.34})`);
+      g.addColorStop(0.6, `rgba(0,0,0,${DARK * 0.78})`);
+      g.addColorStop(1, `rgba(0,0,0,${DARK})`);
+      m.fillStyle = g;
+      m.fillRect(sx, top, TILE_SIZE * BAND + 1, H - top);
+    }
+
+    // 挖光
+    m.globalCompositeOperation = 'destination-out';
+    const punch = (x: number, y: number, r: number, strength: number) => {
+      if (x + r < 0 || x - r > W || y + r < 0 || y - r > H) return;
+      const rg = m.createRadialGradient(x, y, 0, x, y, r);
+      rg.addColorStop(0, `rgba(0,0,0,${strength})`);
+      rg.addColorStop(0.55, `rgba(0,0,0,${strength * 0.6})`);
+      rg.addColorStop(1, 'rgba(0,0,0,0)');
+      m.fillStyle = rg;
+      m.beginPath();
+      m.arc(x, y, r, 0, Math.PI * 2);
+      m.fill();
+    };
+
+    // 玩家自带照明
+    punch(Math.round(playerX - cam.x), Math.round(playerY - cam.y), 130, 0.95);
+
+    // 发光方块（火焰 / 晶体 / 液金 / 火炬 / 金矿）
+    const sx0 = Math.max(0, Math.floor(cam.x / TILE_SIZE));
+    const sx1 = Math.min(MAP_WIDTH - 1, Math.ceil((cam.x + W) / TILE_SIZE));
+    const sy0 = Math.max(0, Math.floor(cam.y / TILE_SIZE));
+    const sy1 = Math.min(MAP_HEIGHT - 1, Math.ceil((cam.y + H) / TILE_SIZE));
+    for (let ty = sy0; ty <= sy1; ty++) {
+      for (let tx = sx0; tx <= sx1; tx++) {
+        const id = biToBlock(tiles[ty * MAP_WIDTH + tx]);
+        if (id === 'empty') continue;
+        const light = BLOCKS[id]?.emitsLight ?? 0;
+        if (light <= 0) continue;
+        punch(
+          Math.round(tx * TILE_SIZE + TILE_SIZE / 2 - cam.x),
+          Math.round(ty * TILE_SIZE + TILE_SIZE / 2 - cam.y),
+          light * 5 + 14,
+          0.85,
+        );
+      }
+    }
+
+    m.globalCompositeOperation = 'source-over';
+    this.ctx.drawImage(this.maskCanvas, 0, 0);
   }
 
   /** M1: 洞穴背景墙 — 地下空腔的暗色岩壁 + 四面 AO 阴影，增加纵深 */
