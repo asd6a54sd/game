@@ -28,6 +28,7 @@ import { ActiveBuff } from './potions.js';
 import { MOUNT_DEFS } from './mounts.js';
 import { PET_DEFS, Pet } from './pets.js';
 import { drawCharacter, makeModel, NPC_MODELS, CharKind } from './sprites.js';
+import type { CharAnim } from './sprites.js';
 
 /** 不生长地表植被的方块（液态金属 / 废墟结构 / 结界） */
 const saltSurfaces = new Set(['liquid_metal', 'metal_float', 'rebel_brick', 'void_barrier']);
@@ -956,7 +957,7 @@ export class Renderer {
     );
   }
 
-  drawPlayer(p: Player, cam: Camera, shell?: ShellDef, alpha = 1) {
+  drawPlayer(p: Player, cam: Camera, shell?: ShellDef, alpha = 1, anim?: CharAnim) {
     const ctx = this.ctx;
     ctx.globalAlpha = alpha;
     const px = Math.floor(p.x - cam.x - p.width / 2);
@@ -984,6 +985,34 @@ export class Renderer {
     // 像素模型（头 / 躯干 / 四肢 / 武器）
     const toolName = (p as Player & { toolName?: string }).toolName ?? 'hand_pickaxe';
     const tool = TOOLS[toolName] ?? TOOLS.hand_pickaxe;
+    // 武器形态：远程按弹药区分弓 / 法杖，钓鱼竿单独绘制
+    const weaponKind = tool.category === 'ranged'
+      ? (tool.ammoType === 'dark_bolt' ? 'staff' : 'bow')
+      : tool.category === 'fishing' ? 'rod' : tool.category;
+    const mergedAnim: CharAnim = {
+      moving: anim?.moving ?? Math.abs(p.vx) > 25,
+      onGround: anim?.onGround ?? p.onGround,
+      sprint: anim?.sprint ?? false,
+      attack: anim?.attack ?? 0,
+      aim: anim?.aim,
+      weaponKind,
+    };
+
+    // 近战挥砍弧光（跟随攻击进度扫过）
+    if (mergedAnim.attack && mergedAnim.attack > 0 && weaponKind === 'sword') {
+      const prog = Math.min(1, (1 - mergedAnim.attack) * 1.6);
+      ctx.save();
+      ctx.translate(px + p.width / 2, py + p.height * 0.55);
+      ctx.scale(p.facing, 1);
+      ctx.globalAlpha = (1 - prog) * 0.6 + 0.15;
+      ctx.strokeStyle = 'rgba(255,244,200,0.9)';
+      ctx.lineWidth = Math.max(2, p.width * 0.12);
+      ctx.beginPath();
+      ctx.arc(0, 0, p.width, -1.15, -1.15 + 2.1 * prog);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     drawCharacter(
       ctx,
       makeModel(shellColors.body, shellColors.eye, {
@@ -992,7 +1021,7 @@ export class Renderer {
         accent: shellColors.head,
         weapon: PALETTE_MAP.get(tool.paletteId) ?? '#888',
       }),
-      px, py, p.width, p.height, p.facing, performance.now() / 1000,
+      px, py, p.width, p.height, p.facing, performance.now() / 1000, 1, mergedAnim,
     );
 
     // HP bar

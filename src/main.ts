@@ -92,6 +92,10 @@ let spawnTimer = 0;
 let playerInvulnerable = 0;
 let playerKnockback = { vx: 0, vy: 0 };
 let swingCd = 0; // M16: 玩家攻击冷却
+let meleeAnim = 0;            // 近战挥砍动作剩余时间
+const MELEE_ANIM_DUR = 0.32;
+let rangedAnim = 0;           // 远程射击/拉弓动作剩余时间
+const RANGED_ANIM_DUR = 0.22;
 let wasOnGround = false; // M16: 上一帧是否在地面（检测落地瞬间）
 let lastRegion = '';     // M17: 玩家上一帧所在区块（检测区块变化）
 let achCheckTimer = 0;   // M19: 收藏家成就检查间隔
@@ -1385,8 +1389,16 @@ function update(dt: number) {
   player.jumpSpeed = savedJump;
   player.gravityMult = savedGravityMult;
 
+  // 持远程武器时自动面向鼠标，瞄准方向与朝向一致
+  const heldTool = TOOLS[px.toolName];
+  if (heldTool.category === 'ranged' && !input.left && !input.right) {
+    player.facing = mouseWorldX >= player.x ? 1 : -1;
+  }
+
   // M16: 攻击冷却 tick
   if (swingCd > 0) swingCd -= dt;
+  if (meleeAnim > 0) meleeAnim -= dt;
+  if (rangedAnim > 0) rangedAnim -= dt;
 
   // M24: 钓鱼计时
   if (fishing.active) {
@@ -1480,6 +1492,22 @@ function update(dt: number) {
     if (hitAny) {
       shake(cam, 2);
       sfx.hitEnemy();
+    }
+  }
+  // 落地烟尘：强化落地与跳跃手感
+  if (wasOnGround === false && player.onGround) {
+    for (let i = 0; i < 6; i++) {
+      breakState.particles.push({
+        x: player.x + (Math.random() - 0.5) * player.width,
+        y: player.y + player.height / 2 - 2,
+        vx: (Math.random() - 0.5) * 140,
+        vy: -Math.random() * 50,
+        life: 0.35,
+        maxLife: 0.35,
+        color: 'bone02',
+        size: 2 + Math.random() * 2,
+        gravity: 220,
+      });
     }
   }
   wasOnGround = player.onGround;
@@ -1803,6 +1831,7 @@ function isPlayerSwingingWeapon(): boolean {
       });
       sfx.swing();
       swingCd = (tool.shootCooldown ?? 0.5) / (acc.getAggregatedBuff().attackSpeedBonus ?? 1);
+      rangedAnim = RANGED_ANIM_DUR;
       return true;
     }
     return false;
@@ -1814,6 +1843,7 @@ function isPlayerSwingingWeapon(): boolean {
     }
     const buffLocal = acc.getAggregatedBuff();
     swingCd = 0.35 / (buffLocal.attackSpeedBonus ?? 1);
+    meleeAnim = MELEE_ANIM_DUR;
     return true;
   }
   (window as any).__swingSfxPlayed = false;
@@ -2044,7 +2074,26 @@ function render() {
   renderer.drawMount(player, cam);
   renderer.drawFishing(fishing.active, fishing.hasBite, fishing.floatX, fishing.floatY, player.x, player.y, cam);
   if (activePet) renderer.drawPet(activePet, cam);
-  renderer.drawPlayer(player, cam, shellMgr.current, shellMgr.alpha);
+  // 角色动作状态：走跑 / 跳跃 / 挥砍 / 采矿摆动 / 远程瞄准
+  const renderTool = TOOLS[px.toolName];
+  const mining = breakState.targetTile !== null;
+  const attackAnim = meleeAnim > 0
+    ? meleeAnim / MELEE_ANIM_DUR
+    : mining
+      ? 0.5 + 0.5 * Math.sin(performance.now() / 110)
+      : rangedAnim > 0
+        ? (rangedAnim / RANGED_ANIM_DUR) * 0.45
+        : 0;
+  const aimAngle = renderTool.category === 'ranged'
+    ? Math.atan2(mouseWorldY - player.y, mouseWorldX - player.x)
+    : undefined;
+  renderer.drawPlayer(player, cam, shellMgr.current, shellMgr.alpha, {
+    moving: Math.abs(player.vx) > 25,
+    onGround: player.onGround,
+    sprint: input.sprint && Math.abs(player.vx) > 120,
+    attack: attackAnim,
+    aim: aimAngle,
+  });
   // 光照层：地下黑暗 + 光源挖洞（泰拉瑞亚式观感）
   renderer.drawLighting(cam, terrain.tiles, terrain.heightMap, player.x, player.y);
   renderer.drawDamageTexts(dmgTexts, cam);

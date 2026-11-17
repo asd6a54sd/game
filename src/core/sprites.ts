@@ -20,6 +20,22 @@ export interface CharModel {
   multiEye?: boolean;
 }
 
+/**
+ * 角色动作状态（仅人形使用）
+ * — 让模型知道「在走 / 在跳 / 在挥砍 / 在瞄准」，而不是永远原地摆腿
+ */
+export interface CharAnim {
+  moving?: boolean;
+  onGround?: boolean;
+  sprint?: boolean;
+  /** 攻击动作剩余进度 0..1（1 = 刚出手，0 = 结束） */
+  attack?: number;
+  /** 远程武器瞄准角（世界弧度） */
+  aim?: number;
+  /** 武器形态：pickaxe / axe / hammer / sword / bow / staff / rod */
+  weaponKind?: string;
+}
+
 /** 颜色明暗调整，支持 #rgb / #rrggbb；解析失败时原样返回 */
 export function shade(color: string, amt: number): string {
   const hex = color.trim();
@@ -128,15 +144,16 @@ export function drawCharacter(
   facing: number,
   time: number,
   alpha = 1,
+  anim?: CharAnim,
 ) {
   ctx.save();
   ctx.globalAlpha *= alpha;
   const u = Math.max(1, Math.round(w / 10));
-  const breathe = Math.sin(time * 3) > 0.6 ? 1 : 0;
+  const breathe = !anim && Math.sin(time * 3) > 0.6 ? 1 : 0;
   const cx = x + w / 2;
 
   switch (m.kind) {
-    case 'humanoid': drawHumanoid(ctx, m, y + breathe, w, h, facing, time, u, cx); break;
+    case 'humanoid': drawHumanoid(ctx, m, y + breathe, w, h, facing, time, u, cx, anim); break;
     case 'beast': drawBeast(ctx, m, x, y, w, h, facing, time, u); break;
     case 'flyer': drawFlyer(ctx, m, x, y, w, h, facing, time, u); break;
     case 'blob': drawBlob(ctx, m, x, y, w, h, facing, time, u); break;
@@ -149,6 +166,7 @@ function drawHumanoid(
   ctx: CanvasRenderingContext2D, m: CharModel,
   y: number, w: number, h: number,
   facing: number, time: number, u: number, cx: number,
+  anim?: CharAnim,
 ) {
   // 比例：头 24% / 躯干 36% / 腿 40% —— 人形轮廓清晰，不再是竖条
   const headW = Math.max(6, Math.round(w * 0.62));
@@ -160,16 +178,27 @@ function drawHumanoid(
   const gap = Math.max(1, Math.round(w * 0.06));
   const legY = bodyY + bodyH;
   const legH = Math.max(4, y + h - legY);
-  const swing = Math.sin(time * 13);
-  const lift = swing > 0 ? u : 0;
+  const moving = anim?.moving ?? true;
+  const onGround = anim?.onGround ?? true;
+  const pace = anim?.sprint ? 19 : 13;
+  const swing = Math.sin(time * (moving ? pace : 3));
   const bootH = Math.max(2, Math.round(u * 1.5));
 
-  // ---- 腿（双脚错步 + 靴子）----
-  rect(ctx, cx - gap / 2 - legW, legY, legW, Math.max(1, legH - lift), m.dark);
-  rect(ctx, cx + gap / 2, legY, legW, Math.max(1, legH - (u - lift)), m.dark);
+  // ---- 腿（走路错步 / 跳跃收腿 / 站立轻晃）----
+  let liftA = 0, liftB = 0;
+  if (!onGround) {
+    liftA = Math.round(u * 1.6);  // 跳跃：前腿收起
+  } else if (moving) {
+    liftA = swing > 0 ? u : 0;
+    liftB = swing > 0 ? 0 : u;
+  }
+  const legLenA = Math.max(1, legH - liftA);
+  const legLenB = Math.max(1, legH - liftB);
+  rect(ctx, cx - gap / 2 - legW, legY, legW, legLenA, m.dark);
+  rect(ctx, cx + gap / 2, legY, legW, legLenB, m.dark);
   ctx.fillStyle = shade(m.dark, -0.2);
-  ctx.fillRect(Math.round(cx - gap / 2 - legW), Math.round(legY + legH - bootH - lift), legW, bootH);
-  ctx.fillRect(Math.round(cx + gap / 2), Math.round(legY + legH - bootH - (u - lift)), legW, bootH);
+  ctx.fillRect(Math.round(cx - gap / 2 - legW), Math.round(legY + legLenA - bootH), legW, bootH);
+  ctx.fillRect(Math.round(cx + gap / 2), Math.round(legY + legLenB - bootH), legW, bootH);
 
   // ---- 躯干（左缘受光 / 右缘阴影 / 腰带）----
   rect(ctx, cx - bodyW / 2, bodyY, bodyW, bodyH, m.main);
@@ -183,12 +212,12 @@ function drawHumanoid(
     rect(ctx, cx - bodyW * 0.24, bodyY + u * 1.5, bodyW * 0.48, bodyH * 0.52, m.accent);
   }
 
-  // ---- 双臂（前后摆动；前臂用主色提高辨识度）----
+  // ---- 双臂（后臂摆动；前臂在头部之后绘制，挥砍时能盖过身体）----
   const armW = Math.max(2, Math.round(w * 0.15));
   const armH = Math.max(4, Math.round(bodyH * 0.86));
-  const armSwing = Math.round(swing * u);
-  rect(ctx, cx - bodyW / 2 - armW, bodyY + u + armSwing, armW, armH, m.dark);
-  rect(ctx, cx + bodyW / 2, bodyY + u - armSwing, armW, armH, m.main);
+  const armSwing = moving && onGround ? Math.round(swing * u) : 0;
+  const backArmY = onGround ? bodyY + u + armSwing : bodyY + u - Math.round(u * 1.2);
+  rect(ctx, cx - bodyW / 2 - armW, backArmY, armW, armH, m.dark);
 
   // ---- 头（浅色皮肤 + 头发/头盔 + 双眼）----
   const hx = Math.round(cx - headW / 2 + facing * u * 0.5);
@@ -209,13 +238,37 @@ function drawHumanoid(
   rect(ctx, ex, eyeY, eyeSize, eyeSize, m.eye);
   rect(ctx, ex + (facing >= 0 ? eyeSize * 2 : -eyeSize * 2), eyeY, eyeSize, eyeSize, m.eye);
 
-  // ---- 武器（镐 / 工具，握在前手）----
+  // ---- 前臂 + 武器（按动作状态旋转）----
+  const weaponKind = anim?.weaponKind ?? 'pickaxe';
+  let armAngle: number;
+  if ((weaponKind === 'bow' || weaponKind === 'staff') && anim?.aim !== undefined) {
+    // 远程：武器指向鼠标（翻转坐标系下需要换算角度）
+    armAngle = facing >= 0 ? anim.aim : Math.PI - anim.aim;
+  } else if ((anim?.attack ?? 0) > 0) {
+    // 近战：从举起到下劈的挥砍轨迹
+    const p = 1 - (anim?.attack ?? 0);
+    armAngle = -1.2 + 2.05 * Math.min(1, p * 1.6);
+  } else if (!onGround) {
+    armAngle = -0.5; // 空中举着武器
+  } else {
+    armAngle = weaponKind === 'sword' ? 0.35 : weaponKind === 'rod' ? 0.6 : 0.75;
+    if (moving) armAngle += Math.max(0, swing) * 0.12;
+  }
+
   if (m.weapon) {
-    const handY = bodyY + u + armH * 0.6;
-    const len = Math.max(4, Math.round(w * 0.42));
-    const hxx = facing >= 0 ? cx + bodyW / 2 + armW - u : cx - bodyW / 2 - armW - len + u;
-    rect(ctx, hxx, handY, len, Math.max(2, u), m.weapon);
-    rect(ctx, hxx + (facing >= 0 ? len - u * 2 : 0), handY - u * 2.5, Math.max(2, u * 2), u * 3, m.weapon);
+    const shX = cx + facing * bodyW * 0.32;
+    const shY = bodyY + u * 1.25;
+    const armLen = Math.max(4, Math.round(bodyH * 0.62));
+    ctx.save();
+    ctx.translate(Math.round(shX), Math.round(shY));
+    ctx.scale(facing, 1);
+    ctx.rotate(armAngle);
+    rect(ctx, 0, -Math.round(armW / 2), armLen, armW, m.main);
+    rect(ctx, armLen - u, -Math.round(armW / 2) - 1, u + 1, armW + 2, m.light);
+    drawWeaponShape(ctx, weaponKind, m.weapon, armLen + u * 0.4, u);
+    ctx.restore();
+  } else {
+    rect(ctx, cx + bodyW / 2, bodyY + u - armSwing, armW, armH, m.main);
   }
 
   // 王冠（精英）
@@ -231,6 +284,82 @@ function drawHumanoid(
   if (m.horns) {
     rect(ctx, cx - headW * 0.5, y - u * 2, Math.max(1, u), u * 2, m.dark);
     rect(ctx, cx + headW * 0.5 - u, y - u * 2, Math.max(1, u), u * 2, m.dark);
+  }
+}
+
+/**
+ * 武器外形 —— 不同类别有不同剪影，不再所有武器都画成镐
+ * 局部坐标系：原点在手上，+x 为武器朝向
+ */
+function drawWeaponShape(
+  ctx: CanvasRenderingContext2D, kind: string, color: string, x0: number, u: number,
+) {
+  const dark = shade(color, -0.4);
+  const light = shade(color, 0.35);
+
+  switch (kind) {
+    case 'sword': {
+      const len = Math.max(10, Math.round(u * 8));
+      ctx.fillStyle = dark;
+      ctx.fillRect(Math.round(x0 - u * 0.8), Math.round(-u * 1.5), Math.max(2, Math.round(u * 1.2)), Math.round(u * 3));
+      ctx.fillStyle = color;
+      ctx.fillRect(Math.round(x0), Math.round(-u * 0.6), len, Math.max(2, Math.round(u * 1.2)));
+      ctx.fillStyle = light;
+      ctx.fillRect(Math.round(x0), Math.round(-u * 0.6), len, Math.max(1, Math.round(u * 0.4)));
+      // 剑尖
+      ctx.fillStyle = color;
+      ctx.fillRect(Math.round(x0 + len), Math.round(-u * 0.25), Math.max(1, Math.round(u)), Math.max(1, Math.round(u * 0.5)));
+      break;
+    }
+    case 'bow': {
+      const r = Math.max(6, Math.round(u * 3.4));
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(1.5, u * 0.85);
+      ctx.beginPath();
+      ctx.arc(x0 + u, 0, r, -Math.PI * 0.62, Math.PI * 0.62);
+      ctx.stroke();
+      // 弦
+      const ex = x0 + u + Math.cos(Math.PI * 0.62) * r;
+      const ey = Math.sin(Math.PI * 0.62) * r;
+      ctx.strokeStyle = 'rgba(240,232,208,0.9)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(ex, -ey);
+      ctx.lineTo(ex, ey);
+      ctx.stroke();
+      break;
+    }
+    case 'staff': {
+      const len = Math.max(10, Math.round(u * 7));
+      ctx.fillStyle = '#7a5a34';
+      ctx.fillRect(Math.round(x0), Math.round(-u * 0.4), len, Math.max(2, Math.round(u * 0.8)));
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(Math.round(x0 + len), 0, Math.max(2, u * 1.3), 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = light;
+      ctx.beginPath();
+      ctx.arc(Math.round(x0 + len - u * 0.4), -u * 0.4, Math.max(1, u * 0.45), 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case 'rod': {
+      ctx.fillStyle = color;
+      ctx.fillRect(Math.round(x0), Math.round(-u * 0.3), Math.round(u * 8), Math.max(1, Math.round(u * 0.6)));
+      break;
+    }
+    default: {
+      // 镐 / 斧 / 锤：木柄 + 金属头
+      const len = Math.max(8, Math.round(u * 5.5));
+      ctx.fillStyle = '#8a6038';
+      ctx.fillRect(Math.round(x0 - u), Math.round(-u * 0.4), len, Math.max(2, Math.round(u * 0.8)));
+      ctx.fillStyle = color;
+      ctx.fillRect(Math.round(x0 + len - u * 2), Math.round(-u * 2.0), Math.max(2, Math.round(u * 2.2)), Math.max(1, Math.round(u)));
+      ctx.fillRect(Math.round(x0 + len - u * 0.6), Math.round(-u * 1.3), Math.max(1, Math.round(u * 1.2)), Math.max(2, Math.round(u * 2.4)));
+      ctx.fillStyle = light;
+      ctx.fillRect(Math.round(x0 + len - u * 2), Math.round(-u * 2.0), Math.max(1, Math.round(u * 2.2)), Math.max(1, Math.round(u * 0.5)));
+      break;
+    }
   }
 }
 
