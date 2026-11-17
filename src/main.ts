@@ -1948,7 +1948,7 @@ function render() {
   ctx.save();
   ctx.translate(ox, oy);
   renderer.drawBackground(cam);
-  renderer.drawWorld(terrain.tiles, cam, breakState);
+  renderer.drawWorld(terrain.tiles, cam, breakState, terrain.heightMap);
 
   // M15: 世界事件滤镜层（在震屏偏移内）
   renderer.drawEventOverlay(ev.current);

@@ -154,7 +154,7 @@ export class Renderer {
     }
   }
 
-  drawWorld(tiles: Uint8Array, cam: Camera, breaking: BreakState | null) {
+  drawWorld(tiles: Uint8Array, cam: Camera, breaking: BreakState | null, heightMap?: Uint8Array) {
     const ctx = this.ctx;
     const startX = Math.max(0, Math.floor(cam.x / TILE_SIZE) - 1);
     const endX = Math.min(MAP_WIDTH, Math.ceil((cam.x + cam.width) / TILE_SIZE) + 1);
@@ -165,7 +165,18 @@ export class Renderer {
       for (let tx = startX; tx < endX; tx++) {
         const idx = ty * MAP_WIDTH + tx;
         const id = biToBlock(tiles[idx]);
-        if (id === 'empty') continue;
+        if (id === 'empty') {
+          // M1: 地下空腔绘制洞穴背景墙（纵深），地表以上的空保持天空
+          if (heightMap && ty > heightMap[tx]) {
+            this.drawCaveWall(
+              ctx,
+              Math.floor(tx * TILE_SIZE - cam.x),
+              Math.floor(ty * TILE_SIZE - cam.y),
+              tx, ty,
+            );
+          }
+          continue;
+        }
         const def = BLOCKS[id];
         if (!def) continue;
         const px = Math.floor(tx * TILE_SIZE - cam.x);
@@ -237,6 +248,24 @@ export class Renderer {
       const darkness = t > 0.55 ? Math.min(0.5, (t - 0.55) * 1.5) : Math.min(0.3, (0.1 - t) * 2);
       ctx.fillStyle = `rgba(0, 0, 30, ${darkness})`;
       ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    }
+  }
+
+  /** M1: 洞穴背景墙 — 地下空腔的暗色岩壁，增加纵深 */
+  private drawCaveWall(ctx: CanvasRenderingContext2D, px: number, py: number, tx: number, ty: number) {
+    const seed = (tx * 2246822519 + ty * 3266489917) >>> 0;
+    const depth = Math.max(0, Math.min(1, (ty - 70) / 130));
+    const r = Math.round(34 - depth * 14);
+    const g = Math.round(27 - depth * 12);
+    const b = Math.round(26 + depth * 10);
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+    for (let i = 0; i < 8; i++) {
+      const s = (seed + i * 2654435761) >>> 0;
+      const vx = (s & 0xf) % (TILE_SIZE - 2);
+      const vy = ((s >> 4) & 0xf) % (TILE_SIZE - 2);
+      ctx.fillStyle = ((s >> 8) & 1) ? 'rgba(255,255,255,0.035)' : 'rgba(0,0,0,0.22)';
+      ctx.fillRect(px + vx, py + vy, 2, 2);
     }
   }
 
