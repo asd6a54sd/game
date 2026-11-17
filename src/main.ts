@@ -917,7 +917,7 @@ function updateDmgTexts(dt: number) {
 let showMinimap = true;
 
 // 输入
-const input = { left: false, right: false, jump: false, brake: false };
+const input = { left: false, right: false, jump: false, sprint: false };
 let mouseTile: { x: number; y: number } | null = null;
 let mouseLeft = false;
 let mouseWorldX = 0; // M18: 鼠标世界坐标（远程瞄准）
@@ -1056,7 +1056,7 @@ function bindInput() {
           }
         }
         break;
-      case 'ShiftLeft': case 'ShiftRight': input.brake = true; break;
+      case 'ShiftLeft': case 'ShiftRight': input.sprint = true; break;
       // M20: 商店打开时，数字键购买商品
       case 'Digit1': case 'Numpad1': if (shopOpenLocal) buyItem(0); else inv.selectHotbar(0); break;
       case 'Digit2': case 'Numpad2': if (shopOpenLocal) buyItem(1); else inv.selectHotbar(1); break;
@@ -1200,7 +1200,7 @@ function bindInput() {
         // 松开跳跃键重置二段跳标记（允许下次落地再跳）
         if (player.onGround) px.usedSecondJump = false;
         break;
-      case 'ShiftLeft': case 'ShiftRight': input.brake = false; break;
+      case 'ShiftLeft': case 'ShiftRight': input.sprint = false; break;
       case 'ControlLeft': case 'ControlRight': dashKeyHeld = false; break;
     }
   });
@@ -1320,6 +1320,8 @@ function update(dt: number) {
   if (player.mounted && player.mountId) player.moveSpeed *= MOUNT_DEFS[player.mountId].speedMult;
   // M26: 护甲移速
   player.moveSpeed *= armorBuff.moveSpeedBonus ?? 1;
+  // 疾跑：按住 Shift 额外提速 50%
+  if (input.sprint) player.moveSpeed *= 1.5;
   // M13: jumpBonus（rock_titan_crown）
   player.jumpSpeed = shellMgr.current.jumpSpeed * (buff.jumpBonus ?? 1);
   // M13: gravityReduction（rock_titan_crown）

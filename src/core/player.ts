@@ -71,14 +71,13 @@ export const PHYSICS = {
 };
 
 export function updatePlayer(
-  p: Player, dt: number, input: { left: boolean; right: boolean; jump: boolean; brake: boolean },
+  p: Player, dt: number, input: { left: boolean; right: boolean; jump: boolean; sprint: boolean },
   getTileSolid: (x: number, y: number) => boolean
 ) {
   // 水平
   const control = p.onGround ? 1 : PHYSICS.airControl;
   if (input.left) { p.vx -= p.moveSpeed * 8 * dt * control; p.facing = -1; }
   if (input.right) { p.vx += p.moveSpeed * 8 * dt * control; p.facing = 1; }
-  if (input.brake && p.onGround) p.vx *= PHYSICS.friction;
 
   p.vx = Math.max(-p.moveSpeed, Math.min(p.moveSpeed, p.vx));
 
