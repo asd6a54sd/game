@@ -127,22 +127,48 @@ export function generateTerrain(seed = 20261116): TerrainData {
     let base = 60, v = 0;
 
     if (r.id === 'wreck_zone') {
-      v = Math.floor(n1.fbm(x * 0.08, 0, 3) * 20) + (n2.noise2D(x * 0.12, 0) > 0.6 ? 8 : -4);
+      // M1: 平缓丘陵 — 低频大起伏 + 少量细节，去掉二元跳变（原来会产生锯齿坑洼）
+      v = Math.floor((n1.fbm(x * 0.018, 0, 2) - 0.5) * 16 + (n2.noise2D(x * 0.045, 0) - 0.5) * 5);
     } else if (r.id === 'crack_waste') {
-      v = Math.floor(n1.noise2D(x * 0.04, 0) * 12);
+      v = Math.floor((n1.noise2D(x * 0.03, 0) - 0.5) * 14);
     } else if (r.id === 'gobi_mine') {
       base = 52;
-      v = Math.floor(n1.fbm(x * 0.05, 0, 3) * 25);
+      v = Math.floor((n1.fbm(x * 0.02, 0, 2) - 0.5) * 22);
     } else if (r.id === 'silent_sea') {
       base = 75;
-      v = Math.floor(n1.noise2D(x * 0.06, 0) * 6) - 3;
+      v = Math.floor((n1.noise2D(x * 0.04, 0) - 0.5) * 4);
     } else if (r.id === 'beast_hive') {
-      v = Math.floor(n1.fbm(x * 0.1, 0, 3) * 15);
+      v = Math.floor((n1.fbm(x * 0.03, 0, 2) - 0.5) * 14);
     } else if (r.id === 'underground_valley') {
-      v = Math.floor(n1.noise2D(x * 0.05, 0) * 8);
+      v = Math.floor((n1.noise2D(x * 0.03, 0) - 0.5) * 8);
     }
 
     heightMap[x] = Math.max(45, Math.min(95, base + v));
+  }
+
+  // M1: 出生点平台 — 前 26 列压平，让玩家有稳定的起步区
+  const SPAWN_H = 62;
+  for (let x = 0; x < 26; x++) heightMap[x] = SPAWN_H;
+  for (let x = 26; x < 44; x++) {
+    const t = (x - 26) / 18;
+    heightMap[x] = Math.max(45, Math.min(95, Math.round(heightMap[x] * t + SPAWN_H * (1 - t))));
+  }
+
+  // M1: 相邻列高差限幅 + 均值平滑，消除锯齿坑洼（模拟游戏里连续起伏的地表）
+  for (let pass = 0; pass < 4; pass++) {
+    for (let x = 1; x < width; x++) {
+      const d = heightMap[x] - heightMap[x - 1];
+      if (d > 2) heightMap[x] = heightMap[x - 1] + 2;
+      else if (d < -2) heightMap[x] = heightMap[x - 1] - 2;
+    }
+    for (let x = width - 2; x >= 0; x--) {
+      const d = heightMap[x] - heightMap[x + 1];
+      if (d > 2) heightMap[x] = heightMap[x + 1] + 2;
+      else if (d < -2) heightMap[x] = heightMap[x + 1] - 2;
+    }
+    for (let x = 1; x < width - 1; x++) {
+      heightMap[x] = Math.round((heightMap[x - 1] + heightMap[x] * 2 + heightMap[x + 1]) / 4);
+    }
   }
 
   // --- 填充 ---

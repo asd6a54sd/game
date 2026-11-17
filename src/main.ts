@@ -32,7 +32,7 @@ import { PET_DEFS, Pet, createPet, updatePet } from './core/pets.js';
 import { ArmorManager, ARMOR_DEFS, ARMOR_SETS, ArmorSlot } from './core/armor.js';
 import { ChestManager, ChestData, addToSlots } from './core/chest.js';
 import { SmeltManager, SMELT_RECIPES, canSmelt } from './core/smelting.js';
-import { SaveData, writeSave, readSave, formatSaveTime, u8ToB64, b64ToU8, SAVE_VERSION, AUTOSAVE_INTERVAL } from './core/save.js';
+import { SaveData, writeSave, readSave, clearSave, formatSaveTime, u8ToB64, b64ToU8, SAVE_VERSION, AUTOSAVE_INTERVAL } from './core/save.js';
 import { GrowthManager, LIFE_CRYSTAL_MAX_USES, MANA_CRYSTAL_MAX_USES, LIFE_CRYSTAL_GAIN, MANA_CRYSTAL_GAIN } from './core/growth.js';
 import { CropManager } from './core/farming.js';
 import { SettlementManager, SETTLER_DEFS, SETTLE_INTERVAL } from './core/settlement.js';
@@ -970,12 +970,17 @@ let _rockAltarCenter: { x: number; y: number } | null = null;
 init();
 
 async function init() {
-  // M29: 启动时自动加载存档
-  const save = readSave();
+  // M29: 启动时自动加载存档（?fresh=1 强制生成新地图，忽略存档）
+  const forceFresh = new URLSearchParams(location.search).has('fresh');
+  const save = forceFresh ? null : readSave();
   if (save) {
     applySaveData(save);
   } else {
     placePlayerOnGround(player, terrain.heightMap);
+  }
+  if (forceFresh) {
+    fishingMsg = '已生成新地图（?fresh=1）· Ctrl+Shift+S 清除存档';
+    fishingMsgTimer = 6;
   }
   voidEngine.initFromTerrain(terrain.tiles);
   initCompanions();
@@ -996,10 +1001,17 @@ function resize() {
 
 function bindInput() {
   window.addEventListener('keydown', e => {
-    // M29: Ctrl+S 存档 / Ctrl+L 重新载入存档页面
+    // M29: Ctrl+S 存档 / Ctrl+Shift+S 新游戏（清档重开）/ Ctrl+L 重新载入
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyS') {
       e.preventDefault();
-      doSave();
+      if (e.shiftKey) {
+        if (confirm('清除存档并生成新地图？此操作不可撤销。')) {
+          clearSave();
+          location.href = location.pathname + '?fresh=1';
+        }
+      } else {
+        doSave();
+      }
       return;
     }
     if ((e.ctrlKey || e.metaKey) && e.code === 'KeyL') {
