@@ -66,13 +66,13 @@ export class Renderer {
     const t = this.timeOfDay;
     let topC: string, midC: string, botC: string;
     if (t < 0.25) { // 黎明
-      topC = '#0a0608'; midC = '#2a0e14'; botC = '#4a1a1a';
+      topC = '#2a1830'; midC = '#5a2428'; botC = '#8a3a20';
     } else if (t < 0.55) { // 白天
-      topC = '#1a1820'; midC = '#2a1418'; botC = '#3a1a14';
+      topC = '#2c2840'; midC = '#4a2a30'; botC = '#6e3c26';
     } else if (t < 0.75) { // 黄昏
-      topC = '#0a0a18'; midC = '#1a0818'; botC = '#3a1008';
+      topC = '#241a34'; midC = '#471832'; botC = '#6a2408';
     } else { // 深夜
-      topC = '#030308'; midC = '#08060e'; botC = '#10080a';
+      topC = '#06060e'; midC = '#0c0a16'; botC = '#181014';
     }
     const grad = ctx.createLinearGradient(0, 0, 0, this.canvas.height);
     grad.addColorStop(0, topC);
@@ -95,16 +95,54 @@ export class Renderer {
         ctx.fillRect(Math.floor(sx), Math.floor(sy), 2, 2);
       }
     }
-    // 远处山脉剪影
-    ctx.fillStyle = '#1a0a08';
+    // 远处山脉剪影（双层，提升层次）
     const mountainBaseY = 55 * TILE_SIZE - cam.y * 0.4;
-    for (let x = -50; x < this.canvas.width + 50; x += 40) {
-      const h = 20 + ((Math.sin(x * 0.03) + 1) * 15);
-      ctx.beginPath();
-      ctx.moveTo(x, mountainBaseY);
-      ctx.lineTo(x + 20, mountainBaseY - h);
-      ctx.lineTo(x + 40, mountainBaseY);
-      ctx.fill();
+    if (mountainBaseY > -80) {
+      // 远层
+      ctx.fillStyle = '#2a1210';
+      for (let x = -50; x < this.canvas.width + 50; x += 56) {
+        const h = 30 + ((Math.sin(x * 0.02 + 1.4) + 1) * 22);
+        ctx.beginPath();
+        ctx.moveTo(x, mountainBaseY);
+        ctx.lineTo(x + 28, mountainBaseY - h);
+        ctx.lineTo(x + 56, mountainBaseY);
+        ctx.fill();
+      }
+      // 近层
+      ctx.fillStyle = '#3e1c14';
+      for (let x = -50; x < this.canvas.width + 50; x += 40) {
+        const h = 20 + ((Math.sin(x * 0.03) + 1) * 15);
+        ctx.beginPath();
+        ctx.moveTo(x, mountainBaseY);
+        ctx.lineTo(x + 20, mountainBaseY - h);
+        ctx.lineTo(x + 40, mountainBaseY);
+        ctx.fill();
+      }
+    }
+
+    // 日月天体（仅地表视野内）
+    if (mountainBaseY > -200) {
+      if (t >= 0.06 && t < 0.6) {
+        // 太阳
+        const sx = this.canvas.width * (0.2 + t * 1.0);
+        const sy = mountainBaseY - 130;
+        const sunGrad = ctx.createRadialGradient(sx, sy, 4, sx, sy, 44);
+        sunGrad.addColorStop(0, 'rgba(255, 190, 100, 0.85)');
+        sunGrad.addColorStop(0.35, 'rgba(230, 120, 60, 0.25)');
+        sunGrad.addColorStop(1, 'rgba(230, 120, 60, 0)');
+        ctx.fillStyle = sunGrad;
+        ctx.beginPath(); ctx.arc(sx, sy, 44, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#f2a862';
+        ctx.beginPath(); ctx.arc(sx, sy, 11, 0, Math.PI * 2); ctx.fill();
+      } else if (t >= 0.75 || t < 0.06) {
+        // 月亮
+        const sx = this.canvas.width * 0.72;
+        const sy = mountainBaseY - 150;
+        ctx.fillStyle = 'rgba(230,230,240,0.12)';
+        ctx.beginPath(); ctx.arc(sx, sy, 28, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = 'rgba(236,236,246,0.92)';
+        ctx.beginPath(); ctx.arc(sx, sy, 11, 0, Math.PI * 2); ctx.fill();
+      }
     }
   }
 
@@ -124,7 +162,14 @@ export class Renderer {
         if (!def) continue;
         const px = Math.floor(tx * TILE_SIZE - cam.x);
         const py = Math.floor(ty * TILE_SIZE - cam.y);
-        this.drawTile(ctx, px, py, def, tx, ty);
+        const exposedTop = ty === 0 || biToBlock(tiles[idx - MAP_WIDTH]) === 'empty';
+        this.drawTile(ctx, px, py, def, tx, ty, exposedTop);
+        // 深层冷色偏移，区分浅层/深层
+        if (ty > 100) {
+          const a = Math.min(0.12, (ty - 100) * 0.0025);
+          ctx.fillStyle = `rgba(40, 70, 110, ${a})`;
+          ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+        }
       }
     }
 
@@ -177,11 +222,30 @@ export class Renderer {
     }
   }
 
-  private drawTile(ctx: CanvasRenderingContext2D, px: number, py: number, def: typeof BLOCKS[string], tx: number, ty: number) {
+  private drawTile(
+    ctx: CanvasRenderingContext2D,
+    px: number,
+    py: number,
+    def: typeof BLOCKS[string],
+    tx: number,
+    ty: number,
+    exposedTop = false,
+  ) {
     const baseColor = PALETTE_MAP.get(def.paletteId) ?? '#888';
     ctx.fillStyle = baseColor;
     ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+
+    // === 内部纹理：明暗噪点块，打破纯色 ===
     const seed = (tx * 374761393 + ty * 668265263) >>> 0;
+    for (let i = 0; i < 12; i++) {
+      const s = (seed + i * 2654435761) >>> 0;
+      const vx = (s & 0xf) % (TILE_SIZE - 2);
+      const vy = ((s >> 4) & 0xf) % (TILE_SIZE - 2);
+      const light = ((s >> 8) & 1) === 1;
+      ctx.fillStyle = light ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.10)';
+      ctx.fillRect(px + vx, py + vy, 2, 2);
+    }
+    // 旧变体点缀（保留）
     for (let i = 0; i < 8; i++) {
       const s = (seed + i * 12345) >>> 0;
       const v = s & 0xff;
@@ -193,9 +257,36 @@ export class Renderer {
         if (vc) { ctx.fillStyle = vc; ctx.fillRect(px + vx, py + vy, 1, 1); }
       }
     }
-    ctx.fillStyle = 'rgba(0,0,0,0.25)';
-    ctx.fillRect(px, py, TILE_SIZE, 1);
+
+    // === 立体明暗：顶部高光 / 底部阴影 / 左右侧光 ===
+    ctx.fillStyle = 'rgba(255,255,255,0.16)';
+    ctx.fillRect(px, py, TILE_SIZE, 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.30)';
+    ctx.fillRect(px, py + TILE_SIZE - 3, TILE_SIZE, 3);
+    ctx.fillStyle = 'rgba(255,255,255,0.07)';
     ctx.fillRect(px, py, 1, TILE_SIZE);
+    ctx.fillStyle = 'rgba(0,0,0,0.18)';
+    ctx.fillRect(px + TILE_SIZE - 1, py, 1, TILE_SIZE);
+
+    // === 露天方块：暖色顶部亮边，勾出地表轮廓 ===
+    if (exposedTop) {
+      ctx.fillStyle = 'rgba(255, 226, 160, 0.40)';
+      ctx.fillRect(px, py, TILE_SIZE, 2);
+      ctx.fillStyle = 'rgba(255, 210, 140, 0.14)';
+      ctx.fillRect(px, py + 2, TILE_SIZE, 3);
+    }
+
+    // === 矿石：中心亮斑 + 十字星光，便于辨认 ===
+    if (def.id.includes('ore') || def.id === 'crystal_glow' || def.id === 'void_crystal' || def.id === 'bio_glow') {
+      ctx.fillStyle = 'rgba(255,255,255,0.80)';
+      ctx.fillRect(px + 6, py + 6, 4, 4);
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.fillRect(px + 4, py + 7, 2, 2);
+      ctx.fillRect(px + 10, py + 7, 2, 2);
+      ctx.fillRect(px + 7, py + 4, 2, 2);
+      ctx.fillRect(px + 7, py + 10, 2, 2);
+    }
+
     if (def.emitsLight && def.emitsLight > 0) {
       const intensity = def.emitsLight / 15;
       ctx.fillStyle = `rgba(${intensity * 200 + 55}, ${intensity * 150 + 50}, ${intensity * 100 + 55}, ${intensity * 0.25})`;
@@ -321,6 +412,25 @@ export class Renderer {
     // 躯壳配色
     const shellColors = shell ? SHELL_COLORS[shell.palette] : { head: '#e8dcc0', body: '#8a9096', eye: '#ffc85a' };
 
+    // M1: 角色柔光 — 提升在复杂地形中的可见度
+    const glow = ctx.createRadialGradient(
+      px + p.width / 2, py + p.height / 2, 2,
+      px + p.width / 2, py + p.height / 2, 26,
+    );
+    glow.addColorStop(0, 'rgba(255, 210, 130, 0.16)');
+    glow.addColorStop(1, 'rgba(255, 210, 130, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(px - 18, py - 18, p.width + 36, p.height + 36);
+
+    // M1: 角色描边 — 深色底 + 暖色轮廓，确保从地形背景中分离
+    ctx.fillStyle = 'rgba(0,0,0,0.60)';
+    ctx.fillRect(px - 2, py - 1, p.width + 4, p.height + 2);
+    ctx.fillStyle = 'rgba(255, 226, 160, 0.55)';
+    ctx.fillRect(px - 1, py, 1, p.height);
+    ctx.fillRect(px + p.width, py, 1, p.height);
+    ctx.fillStyle = 'rgba(255, 236, 180, 0.75)';
+    ctx.fillRect(px + 2, py + 1, p.width - 4, 1);
+
     // 身体
     ctx.fillStyle = shellColors.body;
     ctx.fillRect(px, py + TILE_SIZE, p.width, p.height - TILE_SIZE);
@@ -355,12 +465,15 @@ export class Renderer {
     ctx.fillStyle = hpFrac > 0.5 ? '#7ad4e8' : hpFrac > 0.25 ? '#e89430' : '#ff4a3a';
     ctx.fillRect(barX, barY, barW * hpFrac, barH);
 
-    // 躯壳名（头顶）
+    // 躯壳名（头顶，带描边确保任意背景可读）
     if (shell) {
-      ctx.fillStyle = shellColors.head;
       ctx.font = 'bold 9px monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
+      ctx.strokeStyle = 'rgba(0,0,0,0.9)';
+      ctx.lineWidth = 3;
+      ctx.strokeText(shell.name, px + p.width / 2, py - 9);
+      ctx.fillStyle = shellColors.head;
       ctx.fillText(shell.name, px + p.width / 2, py - 9);
     }
 
