@@ -173,6 +173,7 @@ export class Renderer {
               Math.floor(tx * TILE_SIZE - cam.x),
               Math.floor(ty * TILE_SIZE - cam.y),
               tx, ty,
+              tiles,
             );
           }
           continue;
@@ -251,8 +252,15 @@ export class Renderer {
     }
   }
 
-  /** M1: 洞穴背景墙 — 地下空腔的暗色岩壁，增加纵深 */
-  private drawCaveWall(ctx: CanvasRenderingContext2D, px: number, py: number, tx: number, ty: number) {
+  /** M1: 洞穴背景墙 — 地下空腔的暗色岩壁 + 四面 AO 阴影，增加纵深 */
+  private drawCaveWall(
+    ctx: CanvasRenderingContext2D,
+    px: number,
+    py: number,
+    tx: number,
+    ty: number,
+    tiles: Uint8Array,
+  ) {
     const seed = (tx * 2246822519 + ty * 3266489917) >>> 0;
     const depth = Math.max(0, Math.min(1, (ty - 70) / 130));
     const r = Math.round(34 - depth * 14);
@@ -266,6 +274,34 @@ export class Renderer {
       const vy = ((s >> 4) & 0xf) % (TILE_SIZE - 2);
       ctx.fillStyle = ((s >> 8) & 1) ? 'rgba(255,255,255,0.035)' : 'rgba(0,0,0,0.22)';
       ctx.fillRect(px + vx, py + vy, 2, 2);
+    }
+
+    // AO：与实心方块相邻的边加深，形成洞穴阴影
+    const solid = (nx: number, ny: number): boolean => {
+      if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) return false;
+      return biToBlock(tiles[ny * MAP_WIDTH + nx]) !== 'empty';
+    };
+    if (solid(tx, ty - 1)) {
+      ctx.fillStyle = 'rgba(0,0,0,0.50)';
+      ctx.fillRect(px, py, TILE_SIZE, 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.26)';
+      ctx.fillRect(px, py + 2, TILE_SIZE, 3);
+    }
+    if (solid(tx, ty + 1)) {
+      ctx.fillStyle = 'rgba(0,0,0,0.34)';
+      ctx.fillRect(px, py + TILE_SIZE - 2, TILE_SIZE, 2);
+      ctx.fillStyle = 'rgba(0,0,0,0.16)';
+      ctx.fillRect(px, py + TILE_SIZE - 5, TILE_SIZE, 3);
+    }
+    if (solid(tx - 1, ty)) {
+      ctx.fillStyle = 'rgba(0,0,0,0.30)';
+      ctx.fillRect(px, py, 2, TILE_SIZE);
+      ctx.fillStyle = 'rgba(0,0,0,0.14)';
+      ctx.fillRect(px + 2, py, 3, TILE_SIZE);
+    }
+    if (solid(tx + 1, ty)) {
+      ctx.fillStyle = 'rgba(0,0,0,0.22)';
+      ctx.fillRect(px + TILE_SIZE - 2, py, 2, TILE_SIZE);
     }
   }
 
