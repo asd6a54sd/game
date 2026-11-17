@@ -30,6 +30,7 @@ import { MOUNT_DEFS } from './core/mounts.js';
 import { rollCatch, rollChestLoot, FISH_DEFS } from './core/fishing.js';
 import { PET_DEFS, Pet, createPet, updatePet } from './core/pets.js';
 import { ArmorManager, ARMOR_DEFS, ARMOR_SETS, ArmorSlot } from './core/armor.js';
+import { ChestManager, ChestData, addToSlots } from './core/chest.js';
 
 // ========== DOM ==========
 const loading = document.getElementById('loading')!;
@@ -109,6 +110,11 @@ let dashKeyHeld = false;
 
 // M26: 护甲系统
 const armorMgr = new ArmorManager();
+
+// M27: 宝箱储物
+const chestMgr = new ChestManager();
+let openChest: ChestData | null = null;
+let chestPanel: HTMLDivElement | null = null;
 
 // M15: 世界事件系统
 const ev = new WorldEventManager();
@@ -410,6 +416,99 @@ function equipArmorKey() {
   fishingMsgTimer = 2;
 }
 
+// M27: 宝箱 UI — 打开 / 关闭 / 重绘
+function openChestUI() {
+  const c = chestMgr.findNear(player.x, player.y, 3);
+  if (!c) { fishingMsg = '附近没有宝箱（3 格内）'; fishingMsgTimer = 2; return; }
+  openChest = c;
+  inputBlocked = true;
+  buildChestUI();
+}
+
+function closeChestUI() {
+  openChest = null;
+  inputBlocked = false;
+  chestPanel?.remove();
+  chestPanel = null;
+}
+
+function chestCellHTML(item: { blockId: string; count: number }): string {
+  if (!item.blockId || item.count <= 0) return '<div class="chest-cell"></div>';
+  const name = BLOCKS[item.blockId]?.name ?? item.blockId;
+  return `<div class="chest-cell" title="${name}">${name.slice(0, 3)}<br><span style="color:#ffd060">${item.count}</span></div>`;
+}
+
+function buildChestUI() {
+  if (!openChest) return;
+  chestPanel?.remove();
+  const panel = document.createElement('div');
+  panel.id = 'chest-panel';
+  panel.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.65);display:flex;'
+    + 'align-items:center;justify-content:center;gap:28px;z-index:1000;font:12px monospace;color:#ddd;';
+  const styleEl = document.createElement('style');
+  styleEl.textContent = '.chest-cell{width:40px;height:40px;background:#1e1e24;border:1px solid #4a4a55;'
+    + 'border-radius:3px;display:flex;flex-direction:column;align-items:center;justify-content:center;'
+    + 'font-size:9px;line-height:1.1;cursor:pointer;user-select:none;overflow:hidden;white-space:nowrap;}'
+    + '.chest-cell:hover{background:#2e2e38;border-color:#999;}';
+  panel.appendChild(styleEl);
+
+  // 左侧：背包
+  const left = document.createElement('div');
+  left.innerHTML = '<div style="margin-bottom:6px;color:#ffd060">背包（点击存入）</div>';
+  const bagGrid = document.createElement('div');
+  bagGrid.style.cssText = 'display:grid;grid-template-columns:repeat(7,40px);gap:3px;';
+  const bagAll = [...inv.hotbar, ...inv.slots];
+  bagAll.forEach(slot => {
+    const cell = document.createElement('div');
+    cell.innerHTML = chestCellHTML(slot);
+    cell.firstElementChild?.addEventListener('click', () => {
+      if (!openChest || !slot.blockId || slot.count <= 0) return;
+      const leftover = addToSlots(openChest.slots, slot.blockId, slot.count);
+      const moved = slot.count - leftover;
+      if (moved > 0) {
+        slot.count = leftover;
+        if (slot.count <= 0) { slot.blockId = ''; slot.count = 0; }
+        sfx.pickup();
+        buildChestUI();
+      }
+    });
+    bagGrid.appendChild(cell);
+  });
+  left.appendChild(bagGrid);
+
+  // 右侧：宝箱
+  const right = document.createElement('div');
+  right.innerHTML = '<div style="margin-bottom:6px;color:#ffd060">储物箱（点击取出）</div>';
+  const chestGrid = document.createElement('div');
+  chestGrid.style.cssText = 'display:grid;grid-template-columns:repeat(5,40px);gap:3px;';
+  openChest.slots.forEach(slot => {
+    const cell = document.createElement('div');
+    cell.innerHTML = chestCellHTML(slot);
+    cell.firstElementChild?.addEventListener('click', () => {
+      if (!openChest || !slot.blockId || slot.count <= 0) return;
+      const added = inv.add(slot.blockId, slot.count);
+      if (added > 0) {
+        slot.count -= added;
+        if (slot.count <= 0) { slot.blockId = ''; slot.count = 0; }
+        sfx.pickup();
+        buildChestUI();
+      }
+    });
+    chestGrid.appendChild(cell);
+  });
+  right.appendChild(chestGrid);
+
+  const tip = document.createElement('div');
+  tip.style.cssText = 'position:absolute;bottom:24px;left:50%;transform:translateX(-50%);color:#aaa;';
+  tip.textContent = '[K / ESC] 关闭';
+
+  panel.appendChild(left);
+  panel.appendChild(right);
+  panel.appendChild(tip);
+  document.body.appendChild(panel);
+  chestPanel = panel;
+}
+
 // M24: 钓鱼 — 检测玩家附近是否有液态方块
 function findNearbyLiquid(): { tx: number; ty: number } | null {
   const ptx = Math.floor(player.x / TILE_SIZE);
@@ -626,7 +725,8 @@ function resize() {
 function bindInput() {
   window.addEventListener('keydown', e => {
     if (inputBlocked) {
-      if (e.code === 'Escape') wb.close();
+      if (e.code === 'Escape') { if (openChest) closeChestUI(); wb.close(); }
+      else if (e.code === 'KeyK' && openChest) closeChestUI();
       else if (e.code === 'KeyC') wb.craftSelected(e.shiftKey);
       return;
     }
@@ -701,6 +801,11 @@ function bindInput() {
       // M26: 装备/卸下护甲
       case 'KeyO':
         equipArmorKey();
+        break;
+      // M27: 打开/关闭宝箱
+      case 'KeyK':
+        if (openChest) closeChestUI();
+        else openChestUI();
         break;
       case 'KeyV':
         sfx.toggle();
@@ -1058,6 +1163,24 @@ function update(dt: number) {
   // M17: 任务 — 挖方块触发
   for (const bid of breakState.removedBlocks) tasks.onMine(bid);
   breakState.removedBlocks.length = 0;
+  // M27: 被挖掉的宝箱 → 内容物掉落到地面
+  for (const rc of breakState.removedChests) {
+    const c = chestMgr.remove(rc.tx, rc.ty);
+    if (c) {
+      if (openChest === c) closeChestUI();
+      for (const s of c.slots) {
+        if (!s.blockId || s.count <= 0) continue;
+        breakState.drops.push({
+          x: rc.tx * TILE_SIZE + TILE_SIZE / 2,
+          y: rc.ty * TILE_SIZE + TILE_SIZE / 2,
+          vx: (Math.random() - 0.5) * 100,
+          vy: -80 - Math.random() * 80,
+          blockId: s.blockId, life: 60,
+        });
+      }
+    }
+  }
+  breakState.removedChests.length = 0;
   breakState.removedThisFrame = 0;
 
   // 放置
@@ -1066,8 +1189,11 @@ function update(dt: number) {
     if (selected.count > 0 && selected.blockId) {
       const existing = getBlock(mouseTile.x, mouseTile.y);
       if (existing === 'empty') {
-        setBlock(mouseTile.x, mouseTile.y, selected.blockId);
+        const placeId = selected.blockId;
+        setBlock(mouseTile.x, mouseTile.y, placeId);
         inv.consumeSelected(1);
+        // M27: 放置宝箱 → 建立储物数据
+        if (placeId === 'chest') chestMgr.create(mouseTile.x, mouseTile.y);
         sfx.place();
       }
     }

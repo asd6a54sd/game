@@ -324,6 +324,14 @@ export const BLOCKS: Record<string, BlockDef> = {
   void_helm: { id: 'void_helm', name: '虚空头盔', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void01', variants: [], drops: [] },
   void_chest: { id: 'void_chest', name: '虚空胸甲', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void01', variants: [], drops: [] },
   void_greaves: { id: 'void_greaves', name: '虚空腿甲', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void01', variants: [], drops: [] },
+
+  // === M27: 宝箱 ===
+  chest: {
+    id: 'chest', name: '储物箱', category: 'special',
+    hardness: 12, toolLevel: 1,
+    paletteId: 'rust03', variants: [],
+    drops: [{ blockId: 'chest', chance: 1.0 }],
+  },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);

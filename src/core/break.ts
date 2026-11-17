@@ -18,6 +18,7 @@ export interface BreakState {
   drops: DropItem[];
   removedThisFrame: number;
   removedBlocks: string[]; // M17: 本帧被破坏的方块 id 列表（任务系统用）
+  removedChests: { tx: number; ty: number }[]; // M27: 本帧被破坏的宝箱坐标
   miningSpeedMult: number; // M19: 挖矿速度倍率（成就 buff）
 }
 
@@ -47,6 +48,7 @@ export function createBreakState(): BreakState {
     drops: [],
     removedThisFrame: 0,
     removedBlocks: [],
+    removedChests: [],
     miningSpeedMult: 1,
   };
 }
@@ -113,6 +115,8 @@ export function updateBreaking(
 
 function breakBlock(state: BreakState, tx: number, ty: number, id: string, setBlock: (x: number, y: number, id: string) => void) {
   const def = BLOCKS[id];
+  // M27: 记录宝箱破坏坐标（main 中负责掉落内容物）
+  if (id === 'chest') state.removedChests.push({ tx, ty });
   for (let i = 0; i < 14; i++) {
     state.particles.push(makeBreakParticle(tx, ty, def.paletteId, true));
   }

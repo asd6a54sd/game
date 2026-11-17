@@ -93,6 +93,9 @@ export const RECIPES: Recipe[] = [
   { resultBlockId: 'void_helm', resultCount: 1, ingredients: [{ blockId: 'void_crystal', count: 3 }, { blockId: 'dark_filament', count: 4 }], requiresWorkbench: true },
   { resultBlockId: 'void_chest', resultCount: 1, ingredients: [{ blockId: 'void_crystal', count: 5 }, { blockId: 'dark_filament', count: 7 }, { blockId: 'ore_gold', count: 4 }], requiresWorkbench: true },
   { resultBlockId: 'void_greaves', resultCount: 1, ingredients: [{ blockId: 'void_crystal', count: 4 }, { blockId: 'dark_filament', count: 5 }, { blockId: 'ore_gold', count: 3 }], requiresWorkbench: true },
+
+  // === M27: 宝箱 ===
+  { resultBlockId: 'chest', resultCount: 1, ingredients: [{ blockId: 'wreck_scrap', count: 6 }, { blockId: 'ore_iron', count: 1 }], requiresWorkbench: true },
 ];
 
 export function canCraft(recipe: Recipe, inv: Inventory, nearWorkbench: boolean): boolean {
