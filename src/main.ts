@@ -49,6 +49,9 @@ const storyEl = document.getElementById('story')!;
 const storyTitleEl = document.getElementById('story-title')!;
 const storyLinesEl = document.getElementById('story-lines')!;
 
+// 像素缩放：以 2 倍逻辑分辨率渲染再拉伸到全屏（泰拉瑞亚式视野，人物更清晰）
+const PIXEL_ZOOM = 2;
+
 // ========== 状态 ==========
 let terrain = generateTerrain(20261116);
 const renderer = new Renderer(canvas);
@@ -1061,7 +1064,8 @@ async function init() {
 }
 
 function resize() {
-  const w = window.innerWidth, h = window.innerHeight;
+  const w = Math.max(320, Math.floor(window.innerWidth / PIXEL_ZOOM));
+  const h = Math.max(240, Math.floor(window.innerHeight / PIXEL_ZOOM));
   renderer.resize(w, h);
   cam.width = w; cam.height = h;
 }
@@ -1261,8 +1265,9 @@ function bindInput() {
 
   canvas.addEventListener('mousemove', e => {
     const rect = canvas.getBoundingClientRect();
-    const sx = e.clientX - rect.left;
-    const sy = e.clientY - rect.top;
+    // 画布以 2 倍像素缩放显示，这里换算回逻辑像素
+    const sx = (e.clientX - rect.left) * (canvas.width / rect.width);
+    const sy = (e.clientY - rect.top) * (canvas.height / rect.height);
     mouseTile = { x: Math.floor((sx + cam.x) / TILE_SIZE), y: Math.floor((sy + cam.y) / TILE_SIZE) };
     mouseWorldX = sx + cam.x;
     mouseWorldY = sy + cam.y;
