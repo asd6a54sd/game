@@ -129,6 +129,7 @@ let furnaceStatusEl: HTMLDivElement | null = null;
 
 // M29: 自动保存计时
 let autosaveTimer = 0;
+let freshMode = false; // ?fresh=1 预览模式：不自动覆盖存档
 
 // M30: 永久成长
 const growth = new GrowthManager();
@@ -972,6 +973,7 @@ init();
 async function init() {
   // M29: 启动时自动加载存档（?fresh=1 强制生成新地图，忽略存档）
   const forceFresh = new URLSearchParams(location.search).has('fresh');
+  freshMode = forceFresh;
   const save = forceFresh ? null : readSave();
   if (save) {
     applySaveData(save);
@@ -1397,7 +1399,7 @@ function update(dt: number) {
   autosaveTimer += dt;
   if (autosaveTimer >= AUTOSAVE_INTERVAL) {
     autosaveTimer = 0;
-    doSave(true);
+    if (!freshMode) doSave(true);
   }
 
   // M25: 宠物 AI 更新

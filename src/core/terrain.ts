@@ -146,6 +146,18 @@ export function generateTerrain(seed = 20261116): TerrainData {
     heightMap[x] = Math.max(45, Math.min(95, base + v));
   }
 
+  // M1: 低频山脊层 — 尖峰型噪声制造小山丘（周期约 90 格）
+  for (let x = 0; x < width; x++) {
+    const r = REGIONS[regionIdxAt(x)];
+    const nv = n3.noise2D(x * 0.011, 13);
+    const ridge = 1 - Math.abs(nv * 2 - 1);   // 0..1，尖锐山脊
+    let add = Math.floor(ridge * ridge * 18);
+    // 平原与谷地削弱山脊
+    if (r.id === 'silent_sea') add = Math.floor(add * 0.25);
+    else if (r.id === 'underground_valley') add = Math.floor(add * 0.4);
+    heightMap[x] = Math.max(45, Math.min(95, heightMap[x] + add));
+  }
+
   // M1: 出生点平台 — 前 26 列压平，让玩家有稳定的起步区
   const SPAWN_H = 62;
   for (let x = 0; x < 26; x++) heightMap[x] = SPAWN_H;
@@ -154,21 +166,44 @@ export function generateTerrain(seed = 20261116): TerrainData {
     heightMap[x] = Math.max(45, Math.min(95, Math.round(heightMap[x] * t + SPAWN_H * (1 - t))));
   }
 
-  // M1: 相邻列高差限幅 + 均值平滑，消除锯齿坑洼（模拟游戏里连续起伏的地表）
-  for (let pass = 0; pass < 4; pass++) {
+  // M1: 相邻列高差限幅（3 格，保留山形）+ 均值平滑
+  for (let pass = 0; pass < 3; pass++) {
     for (let x = 1; x < width; x++) {
       const d = heightMap[x] - heightMap[x - 1];
-      if (d > 2) heightMap[x] = heightMap[x - 1] + 2;
-      else if (d < -2) heightMap[x] = heightMap[x - 1] - 2;
+      if (d > 3) heightMap[x] = heightMap[x - 1] + 3;
+      else if (d < -3) heightMap[x] = heightMap[x - 1] - 3;
     }
     for (let x = width - 2; x >= 0; x--) {
       const d = heightMap[x] - heightMap[x + 1];
-      if (d > 2) heightMap[x] = heightMap[x + 1] + 2;
-      else if (d < -2) heightMap[x] = heightMap[x + 1] - 2;
+      if (d > 3) heightMap[x] = heightMap[x + 1] + 3;
+      else if (d < -3) heightMap[x] = heightMap[x + 1] - 3;
     }
     for (let x = 1; x < width - 1; x++) {
       heightMap[x] = Math.round((heightMap[x - 1] + heightMap[x] * 2 + heightMap[x + 1]) / 4);
     }
+  }
+
+  // M1: 断崖 — 少量位置插入 2~3 格宽的陡坡（每格 2~3 格台阶，可跳过）
+  const cliffRng = mulberry32(seed + 777);
+  for (let x = 70; x < width - 40; ) {
+    const total = 5 + Math.floor(cliffRng() * 5);       // 总高差 5~9 格
+    const dir = cliffRng() > 0.5 ? 1 : -1;              // 抬升 / 下降
+    const w = 2 + Math.floor(cliffRng() * 2);           // 陡坡宽度 2~3 格
+    const step = Math.min(3, Math.ceil(total / w));
+    for (let i = 0; i < w; i++) {
+      const xx = x + i;
+      if (xx >= width) break;
+      heightMap[xx] = Math.max(45, Math.min(95, heightMap[xx] + dir * step * (i + 1)));
+    }
+    // 台地保持后缓降，形成断崖+台地地貌
+    const tail = 8 + Math.floor(cliffRng() * 10);
+    for (let i = 0; i < tail; i++) {
+      const xx = x + w + i;
+      if (xx >= width) break;
+      const k = 1 - i / tail;
+      heightMap[xx] = Math.max(45, Math.min(95, heightMap[xx] + Math.round(dir * step * w * k)));
+    }
+    x += 90 + Math.floor(cliffRng() * 80);
   }
 
   // --- 填充 ---
