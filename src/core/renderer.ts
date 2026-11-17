@@ -343,6 +343,37 @@ export class Renderer {
         ctx.globalAlpha = 1;
       }
     }
+
+    // 洞穴氛围：发光尘埃 + 钟乳石剪影（仅地下空腔）
+    const startY = Math.max(0, Math.floor(cam.y / TILE_SIZE) - 1);
+    const endY = Math.min(MAP_HEIGHT, Math.ceil((cam.y + cam.height) / TILE_SIZE) + 1);
+    for (let ty = startY; ty < endY; ty++) {
+      for (let tx = startX; tx < endX; tx++) {
+        const idx = ty * MAP_WIDTH + tx;
+        if (biToBlock(tiles[idx]) !== 'empty') continue;
+        if (ty <= heightMap[tx] + 8) continue; // 只在地表以下
+        const dx = Math.floor(tx * TILE_SIZE - cam.x);
+        const dy = Math.floor(ty * TILE_SIZE - cam.y);
+
+        // 发光尘埃
+        if (this.decorRand(tx * 131 + ty, 11) > 0.988) {
+          const pulse = Math.max(0.1, 0.35 + 0.3 * Math.sin(time * 2 + tx * 0.7 + ty * 0.3));
+          ctx.globalAlpha = pulse;
+          ctx.fillStyle = '#7fd6c8';
+          ctx.fillRect(dx + 6, dy + 6, 2, 2);
+          ctx.globalAlpha = 1;
+        }
+        // 钟乳石：上方实心、当前空气
+        if (ty > 0 && biToBlock(tiles[(ty - 1) * MAP_WIDTH + tx]) !== 'empty'
+          && this.decorRand(tx * 977 + ty, 12) > 0.9) {
+          const len = 3 + Math.floor(this.decorRand(tx + ty * 31, 13) * 5);
+          ctx.globalAlpha = 0.35;
+          ctx.fillStyle = '#2a2430';
+          ctx.fillRect(dx + 3 + Math.floor(this.decorRand(tx, 14) * 9), dy, 2, len);
+          ctx.globalAlpha = 1;
+        }
+      }
+    }
   }
 
   /** 每列确定性随机（0..1），用于稳定的装饰分布 */
