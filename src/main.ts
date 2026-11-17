@@ -35,6 +35,7 @@ import { SmeltManager, SMELT_RECIPES, canSmelt } from './core/smelting.js';
 import { SaveData, writeSave, readSave, formatSaveTime, u8ToB64, b64ToU8, SAVE_VERSION, AUTOSAVE_INTERVAL } from './core/save.js';
 import { GrowthManager, LIFE_CRYSTAL_MAX_USES, MANA_CRYSTAL_MAX_USES, LIFE_CRYSTAL_GAIN, MANA_CRYSTAL_GAIN } from './core/growth.js';
 import { CropManager } from './core/farming.js';
+import { SettlementManager, SETTLER_DEFS, SETTLE_INTERVAL } from './core/settlement.js';
 
 // ========== DOM ==========
 const loading = document.getElementById('loading')!;
@@ -135,6 +136,10 @@ const growth = new GrowthManager();
 // M31: 种植
 const cropMgr = new CropManager();
 
+// M32: NPC 城镇入驻
+const settlementMgr = new SettlementManager();
+const settlerShops: Record<string, ShopItem[]> = {};
+
 // M15: 世界事件系统
 const ev = new WorldEventManager();
 const eventTypesSeen = new Set<string>(); // M19: 事件幸存者成就
@@ -181,6 +186,9 @@ ach.onUnlock = (a: AchievementState) => {
 // M20: 商店系统
 let shopOpenLocal = false;
 const merchantShop: ShopItem[] = NPC_DEFS.merchant.shop.map(s => ({ ...s }));
+// M32: 当前打开的商店（流浪商人 / 定居者）
+let activeShop: ShopItem[] = merchantShop;
+let activeShopName = '流浪商人';
 let shopMsg = '';
 let shopMsgTimer = 0;
 
@@ -222,9 +230,24 @@ function isNearMerchant(): boolean {
   return false;
 }
 
+// M32: 检测玩家附近 3 tile 内的定居者，返回 NPC 类型 id
+function nearbySettlerId(): string | null {
+  const pc = Math.floor(player.x / TILE_SIZE);
+  const pr = Math.floor(player.y / TILE_SIZE);
+  for (let dy = -2; dy <= 2; dy++) {
+    for (let dx = -3; dx <= 3; dx++) {
+      const tx = pc + dx, ty = pr + dy;
+      if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) continue;
+      const id = SettlementManager.typeByBlock(biToBlock(terrain.tiles[ty * MAP_WIDTH + tx]));
+      if (id) return id;
+    }
+  }
+  return null;
+}
+
 // M20: 购买商品
 function buyItem(index: number) {
-  const item = merchantShop[index];
+  const item = activeShop[index];
   if (!item) return;
   if (item.stock === 0) { shopMsg = '已售罄'; shopMsgTimer = 2; return; }
   const gold = inv.count('gold_coin');
@@ -698,6 +721,7 @@ function collectSaveData(): SaveData {
     timeOfDay: renderer.timeOfDay,
     growth: growth.serialize(), // M30
     crops: cropMgr.serialize(), // M31
+    settlement: settlementMgr.serialize(), // M32
   };
 }
 
@@ -743,6 +767,8 @@ function applySaveData(save: SaveData) {
   growth.restore(save.growth);
   // M31: 作物
   cropMgr.restore(save.crops);
+  // M32: 定居点
+  settlementMgr.restore(save.settlement);
   // 时间
   if (typeof save.timeOfDay === 'number') renderer.timeOfDay = save.timeOfDay;
   fishingMsg = `已载入存档（${formatSaveTime(save.timestamp)}）`;
@@ -1080,15 +1106,28 @@ function bindInput() {
         sfx.toggle();
         console.log(`[音效] ${sfx.isEnabled() ? '开启' : '关闭'}`);
         break;
-      // M20: 打开商店（靠近商人时）
+      // M20/M32: 打开商店（定居者优先，其次流浪商人）
       case 'KeyB':
         if (shopOpenLocal) {
           shopOpenLocal = false; inputBlocked = false;
-        } else if (isNearMerchant()) {
-          shopOpenLocal = true; inputBlocked = true;
-          shopMsg = `欢迎！按数字键购买，按 T 出售选中`; shopMsgTimer = 3;
         } else {
-          shopMsg = '附近没有商人'; shopMsgTimer = 2;
+          const settlerId = nearbySettlerId();
+          if (settlerId) {
+            if (!settlerShops[settlerId]) {
+              settlerShops[settlerId] = NPC_DEFS[settlerId].shop.map(s => ({ ...s }));
+            }
+            activeShop = settlerShops[settlerId];
+            activeShopName = NPC_DEFS[settlerId].name;
+            shopOpenLocal = true; inputBlocked = true;
+            shopMsg = `${activeShopName}：按数字键购买，按 T 出售选中`; shopMsgTimer = 3;
+          } else if (isNearMerchant()) {
+            activeShop = merchantShop;
+            activeShopName = '流浪商人';
+            shopOpenLocal = true; inputBlocked = true;
+            shopMsg = `欢迎！按数字键购买，按 T 出售选中`; shopMsgTimer = 3;
+          } else {
+            shopMsg = '附近没有商人或定居者'; shopMsgTimer = 2;
+          }
         }
         break;
       // M11: 饰品系统
@@ -1330,6 +1369,18 @@ function update(dt: number) {
   // M31: 作物生长推进
   cropMgr.update(dt, getBlock, setBlock);
 
+  // M32: NPC 城镇入驻
+  if (settlementMgr.hasFlag && getBlock(settlementMgr.flagTx, settlementMgr.flagTy) !== 'settlement_flag') {
+    settlementMgr.removeFlag();
+  }
+  const newSettler = settlementMgr.update(dt, getBlock, setBlock);
+  if (newSettler) {
+    const def = SETTLER_DEFS.find(d => d.id === newSettler);
+    fishingMsg = `🏠 ${def?.name ?? newSettler} 已入驻定居点！（按 B 交易）`;
+    fishingMsgTimer = 4;
+    sfx.pickup();
+  }
+
   // M29: 自动保存（每 90 秒，静默）
   autosaveTimer += dt;
   if (autosaveTimer >= AUTOSAVE_INTERVAL) {
@@ -1498,6 +1549,12 @@ function update(dt: number) {
           inv.consumeSelected(1);
           // M27: 放置宝箱 → 建立储物数据
           if (placeId === 'chest') chestMgr.create(mouseTile.x, mouseTile.y);
+          // M32: 放置定居旗 → 建立定居点
+          if (placeId === 'settlement_flag') {
+            settlementMgr.placeFlag(mouseTile.x, mouseTile.y);
+            fishingMsg = `🏠 定居点已建立！每 ${SETTLE_INTERVAL} 秒会有定居者搬来`;
+            fishingMsgTimer = 4;
+          }
           sfx.place();
         }
       }
@@ -1941,7 +1998,7 @@ function render() {
   renderer.drawAchievementHUD(ach.achievements);
   if (achPopup) renderer.drawAchievementPopup(achPopup.text);
   // M20: 商店面板
-  if (shopOpenLocal) renderer.drawShop(merchantShop, inv.count('gold_coin'), shopMsg);
+  if (shopOpenLocal) renderer.drawShop(activeShop, inv.count('gold_coin'), shopMsg);
   // M21: 试炼 HUD + 消息
   if (trial.active || trialMsg) renderer.drawTrialHUD(trial, trialMsg);
   // M22: 药水 buff HUD

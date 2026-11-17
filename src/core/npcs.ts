@@ -58,6 +58,8 @@ export const SELL_PRICES: Record<string, number> = {
   life_crystal: 60, mana_crystal: 55,
   // M31: 种植
   wheat_seed: 1, ember_wheat: 6,
+  // M32: 定居旗
+  settlement_flag: 30,
 };
 
 /** 商人商品列表（玩家可购买）*/
@@ -81,11 +83,40 @@ export const MERCHANT_SHOP: ShopItem[] = [
   { blockId: 'magnet_crystal', buyPrice: 100, sellPrice: 50, stock: 1 },
 ];
 
+// === M32: 定居者商店 ===
+export const MEDIC_SHOP: ShopItem[] = [
+  { blockId: 'health_potion', buyPrice: 18, sellPrice: 6, stock: -1 },
+  { blockId: 'purify_torch', buyPrice: 6, sellPrice: 3, stock: -1 },
+  { blockId: 'regen_ring', buyPrice: 85, sellPrice: 35, stock: 1 },
+  { blockId: 'life_crystal', buyPrice: 75, sellPrice: 60, stock: 2 },
+];
+
+export const ENGINEER_SHOP: ShopItem[] = [
+  { blockId: 'wooden_arrow', buyPrice: 1, sellPrice: 1, stock: -1 },
+  { blockId: 'chest', buyPrice: 10, sellPrice: 8, stock: -1 },
+  { blockId: 'furnace', buyPrice: 28, sellPrice: 20, stock: 2 },
+  { blockId: 'settlement_flag', buyPrice: 40, sellPrice: 30, stock: 1 },
+  { blockId: 'iron_pickaxe', buyPrice: 55, sellPrice: 35, stock: 1 },
+];
+
 export const NPC_DEFS: Record<string, NpcDef> = {
   merchant: {
     id: 'merchant',
     name: '流浪商人',
     paletteId: 'gold01',
     shop: MERCHANT_SHOP,
+  },
+  // M32: 定居者
+  medic: {
+    id: 'medic',
+    name: '医师',
+    paletteId: 'bio02',
+    shop: MEDIC_SHOP,
+  },
+  engineer: {
+    id: 'engineer',
+    name: '工程师',
+    paletteId: 'iron02',
+    shop: ENGINEER_SHOP,
   },
 };

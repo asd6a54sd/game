@@ -110,6 +110,9 @@ export const RECIPES: Recipe[] = [
   // === M31: 种植 ===
   { resultBlockId: 'wheat_seed', resultCount: 3, ingredients: [{ blockId: 'ember_ash', count: 2 }, { blockId: 'bio_glow', count: 1 }], requiresWorkbench: true },
   { resultBlockId: 'health_potion', resultCount: 1, ingredients: [{ blockId: 'ember_wheat', count: 2 }, { blockId: 'crystal_glow', count: 1 }], requiresWorkbench: true },
+
+  // === M32: 定居旗 ===
+  { resultBlockId: 'settlement_flag', resultCount: 1, ingredients: [{ blockId: 'wreck_hull', count: 4 }, { blockId: 'iron_bar', count: 2 }, { blockId: 'ember_ash', count: 3 }], requiresWorkbench: true },
 ];
 
 export function canCraft(recipe: Recipe, inv: Inventory, nearWorkbench: boolean): boolean {

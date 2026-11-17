@@ -8,6 +8,7 @@
 import { ItemStack } from './inventory.js';
 import { ChestData } from './chest.js';
 import { CropSave } from './farming.js';
+import { SettlementSave } from './settlement.js';
 
 const SAVE_KEY = 'ember_sea_save_v1';
 export const SAVE_VERSION = 1;
@@ -38,6 +39,8 @@ export interface SaveData {
   growth?: { hpUses: number; mpUses: number };
   // M31: 作物
   crops?: CropSave[];
+  // M32: 定居点
+  settlement?: SettlementSave;
 }
 
 /** Uint8Array → base64（分块避免参数过多爆栈） */

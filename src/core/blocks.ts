@@ -370,6 +370,15 @@ export const BLOCKS: Record<string, BlockDef> = {
   },
   wheat_seed: { id: 'wheat_seed', name: '余烬小麦种子', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'bio01', variants: [], drops: [] },
   ember_wheat: { id: 'ember_wheat', name: '余烬小麦', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'gold01', variants: [], drops: [] },
+
+  // === M32: NPC 城镇入驻 ===
+  settlement_flag: {
+    id: 'settlement_flag', name: '定居旗', category: 'special',
+    hardness: 8, toolLevel: 0, paletteId: 'red02', variants: [],
+    drops: [{ blockId: 'settlement_flag', chance: 1.0 }],
+  },
+  settler_medic: { id: 'settler_medic', name: '医师', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'bio02', variants: [], drops: [] },
+  settler_engineer: { id: 'settler_engineer', name: '工程师', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'iron02', variants: [], drops: [] },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);
