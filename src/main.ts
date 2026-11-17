@@ -29,6 +29,7 @@ import { POTION_DEFS, aggregateBuffs } from './core/potions.js';
 import { MOUNT_DEFS } from './core/mounts.js';
 import { rollCatch, rollChestLoot, FISH_DEFS } from './core/fishing.js';
 import { PET_DEFS, Pet, createPet, updatePet } from './core/pets.js';
+import { ArmorManager, ARMOR_DEFS, ARMOR_SETS, ArmorSlot } from './core/armor.js';
 
 // ========== DOM ==========
 const loading = document.getElementById('loading')!;
@@ -105,6 +106,9 @@ let companionsInitialized = false;
 // M11: 饰品系统
 const acc = new AccessoryManager();
 let dashKeyHeld = false;
+
+// M26: 护甲系统
+const armorMgr = new ArmorManager();
 
 // M15: 世界事件系统
 const ev = new WorldEventManager();
@@ -373,6 +377,37 @@ function togglePet() {
   fishingMsg = `召唤了 ${PET_DEFS[petId].name}！`;
   fishingMsgTimer = 2;
   sfx.pickup();
+}
+
+// M26: 装备/卸下护甲（O 键）
+function equipArmorKey() {
+  const sel = inv.getSelected();
+  const def = sel.blockId && sel.count > 0 ? ARMOR_DEFS[sel.blockId] : null;
+  if (def) {
+    // 装备选中护甲
+    const { ok, replaced } = armorMgr.equip(sel.blockId);
+    if (!ok) return;
+    inv.consumeSelected(1);
+    if (replaced) inv.add(replaced, 1);
+    fishingMsg = `装备 ${def.name}`;
+    fishingMsgTimer = 2;
+    sfx.pickup();
+    return;
+  }
+  // 未选中护甲 → 依次卸下 head → chest → legs
+  const order: ArmorSlot[] = ['head', 'chest', 'legs'];
+  for (const slot of order) {
+    const removed = armorMgr.unequip(slot);
+    if (removed) {
+      inv.add(removed, 1);
+      fishingMsg = `卸下 ${ARMOR_DEFS[removed].name}`;
+      fishingMsgTimer = 2;
+      sfx.pickup();
+      return;
+    }
+  }
+  fishingMsg = '需要选中护甲（O 键装备 / 再按卸下）';
+  fishingMsgTimer = 2;
 }
 
 // M24: 钓鱼 — 检测玩家附近是否有液态方块
@@ -663,6 +698,10 @@ function bindInput() {
       case 'KeyP':
         togglePet();
         break;
+      // M26: 装备/卸下护甲
+      case 'KeyO':
+        equipArmorKey();
+        break;
       case 'KeyV':
         sfx.toggle();
         console.log(`[音效] ${sfx.isEnabled() ? '开启' : '关闭'}`);
@@ -818,7 +857,9 @@ function update(dt: number) {
   renderer.timeOfDay = (renderer.timeOfDay + dt / 240) % 1;
 
   // 玩家（躯壳属性 + 饰品 Buff）
-  player.maxHp = shellMgr.current.baseHp;
+  const armorBuff = armorMgr.getAggregatedBuff(); // M26
+  player.maxHp = shellMgr.current.baseHp + (armorBuff.maxHpBonus ?? 0);
+  if (player.hp > player.maxHp) player.hp = player.maxHp;
   const buff = acc.getAggregatedBuff();
 
   // 速度：躯壳速度 × 饰品速度倍率
@@ -833,6 +874,8 @@ function update(dt: number) {
   player.moveSpeed *= currentPotionBuff.speedMult;
   // M23: 坐骑移速
   if (player.mounted && player.mountId) player.moveSpeed *= MOUNT_DEFS[player.mountId].speedMult;
+  // M26: 护甲移速
+  player.moveSpeed *= armorBuff.moveSpeedBonus ?? 1;
   // M13: jumpBonus（rock_titan_crown）
   player.jumpSpeed = shellMgr.current.jumpSpeed * (buff.jumpBonus ?? 1);
   // M13: gravityReduction（rock_titan_crown）
@@ -843,6 +886,8 @@ function update(dt: number) {
     player.jumpSpeed *= m.jumpMult;
     player.gravityMult *= m.gravityMult;
   }
+  // M26: 护甲跳跃
+  player.jumpSpeed *= armorBuff.jumpBonus ?? 1;
 
   // 冲刺触发：按住 Ctrl 且有冲刺靴
   if (dashKeyHeld && !acc.isDashing) {
@@ -1128,8 +1173,9 @@ function updateEnemiesSystem(dt: number, _effectivePower: number) {
         const isNight = renderer.timeOfDay > 0.55 || renderer.timeOfDay < 0.1;
         const meleeDmg = (sword.damage + shellMgr.current.damage * 0.5)
           * (achBuff.damageMult ?? 1) * (isNight ? (achBuff.nightDamageMult ?? 1) : 1)
-          * currentPotionBuff.damageMult;
-        const baseCrit = 0.10 + (buffLocal.critBonus ?? 0) + (achBuff.critBonus ?? 0);
+          * currentPotionBuff.damageMult * (armorMgr.getAggregatedBuff().damageMult ?? 1);
+        const baseCrit = 0.10 + (buffLocal.critBonus ?? 0) + (achBuff.critBonus ?? 0)
+          + (armorMgr.getAggregatedBuff().critBonus ?? 0);
         const died = hitEnemy(e, meleeDmg, 160, player.facing as 1 | -1);
         spawnDmgText(e.x, e.y - e.def.height / 2, meleeDmg, '#ff8040', baseCrit, 1.5 * (buffLocal.critDamageMult ?? 1));
         sfx.hitEnemy();
@@ -1189,7 +1235,7 @@ function isPlayerSwingingWeapon(): boolean {
       const rangedDmg = (tool.damage + shellMgr.current.damage * 0.5)
         * (achBuffR.damageMult ?? 1) * (achBuffR.rangedDamageMult ?? 1)
         * (isNight ? (achBuffR.nightDamageMult ?? 1) : 1)
-        * currentPotionBuff.damageMult;
+        * currentPotionBuff.damageMult * (armorMgr.getAggregatedBuff().damageMult ?? 1);
       playerProjectiles.push({
         x: player.x, y: player.y - 8,
         vx: (dx / dist) * spd, vy: (dy / dist) * spd,
@@ -1371,13 +1417,19 @@ function respawnPlayer() {
 /** M11: 饰品减伤 + M15 闪避几率（shadow_cowl 25%）*/
 function reduceDamage(damage: number): number {
   const buff = acc.getAggregatedBuff();
+  const armorBuff = armorMgr.getAggregatedBuff(); // M26
   // M15: dodgeChance（暗影兜帽 25% 几率完全豁免）
   if (buff.dodgeChance && Math.random() < buff.dodgeChance) {
     spawnDmgText(player.x, player.y - player.height / 2, 0, '#a080e0', 0, 1);
     return 0; // 完全闪避
   }
-  const reduction = (buff.damageReduction ?? 0) + currentPotionBuff.defenseReduction;
-  return Math.max(1, Math.round(damage * (1 - reduction)));
+  // M26: 护甲固定防御（泰拉瑞亚式：damage - defense*0.5）
+  const defense = armorMgr.getTotalDefense();
+  let dmg = damage - defense * 0.5;
+  const reduction = (buff.damageReduction ?? 0) + currentPotionBuff.defenseReduction
+    + (armorBuff.damageReduction ?? 0);
+  dmg = dmg * (1 - reduction);
+  return Math.max(1, Math.round(dmg));
 }
 
 function render() {
@@ -1504,10 +1556,27 @@ function updateHUD() {
   if (guide.bossHint) guideParts.push(guide.bossHint);
   hudRegion.textContent = guideParts.join(' | ');
 
+  // M26: 护甲栏 HUD
+  const armorBar = document.getElementById('armor-bar') || createArmorBar();
+  const slotTxt = (id: string | null, label: string) => id ? `${label}${ARMOR_DEFS[id].name}` : `${label}—`;
+  const activeSets = armorMgr.getActiveSets().map(s => ARMOR_SETS[s].name);
+  const defVal = armorMgr.getTotalDefense();
+  armorBar.textContent = `[O 装备/卸下] 防御 ${defVal} | ${slotTxt(armorMgr.head, '头:')} ${slotTxt(armorMgr.chest, '胸:')} ${slotTxt(armorMgr.legs, '腿:')}`
+    + (activeSets.length ? ` ★${activeSets.join('/')}套装生效` : '');
+
   // 躯壳选择条（右下角）
   const bar = document.getElementById('shell-bar') || createShellBar();
   bar.innerHTML = sList;
   (bar as HTMLElement).textContent = `[Tab 切换] ${sList}`;
+}
+
+function createArmorBar(): HTMLElement {
+  const el = document.createElement('div');
+  el.id = 'armor-bar';
+  el.style.cssText = 'position:fixed;left:12px;bottom:64px;font:11px monospace;color:#d8c8a0;'
+    + 'background:rgba(10,10,14,0.6);padding:3px 8px;border-radius:4px;pointer-events:none;z-index:20;';
+  document.body.appendChild(el);
+  return el;
 }
 
 function createShellBar(): HTMLDivElement {
@@ -1706,8 +1775,9 @@ function updateBossesSystem(dt: number) {
         const isNightB = renderer.timeOfDay > 0.55 || renderer.timeOfDay < 0.1;
         const bossDmg = (TOOLS[px.toolName].damage + shellMgr.current.damage * 0.5)
           * (achBuffB.damageMult ?? 1) * (isNightB ? (achBuffB.nightDamageMult ?? 1) : 1)
-          * currentPotionBuff.damageMult;
-        const baseCrit = 0.12 + (buffLocal.critBonus ?? 0) + (achBuffB.critBonus ?? 0);
+          * currentPotionBuff.damageMult * (armorMgr.getAggregatedBuff().damageMult ?? 1);
+        const baseCrit = 0.12 + (buffLocal.critBonus ?? 0) + (achBuffB.critBonus ?? 0)
+          + (armorMgr.getAggregatedBuff().critBonus ?? 0);
         const died = hitBoss(boss, bossDmg, 80, player.facing as 1 | -1);
         spawnDmgText(boss.x, boss.y - bossHalfH(boss), bossDmg, '#c040e8', baseCrit, 1.5 * (buffLocal.critDamageMult ?? 1));
         if (died) {

@@ -75,6 +75,24 @@ export const RECIPES: Recipe[] = [
   { resultBlockId: 'ember_sprite_summon', resultCount: 1, ingredients: [{ blockId: 'ember_ash', count: 8 }, { blockId: 'crystal_glow', count: 2 }], requiresWorkbench: true },
   { resultBlockId: 'glow_wisp_summon', resultCount: 1, ingredients: [{ blockId: 'bio_glow', count: 4 }, { blockId: 'crystal_glow', count: 2 }], requiresWorkbench: true },
   { resultBlockId: 'void_whelp_summon', resultCount: 1, ingredients: [{ blockId: 'void_crystal', count: 3 }, { blockId: 'dark_seed', count: 3 }, { blockId: 'chitin', count: 4 }], requiresWorkbench: true },
+
+  // === M26: 护甲（4套装 × 3部位）===
+  // 铜套
+  { resultBlockId: 'copper_helm', resultCount: 1, ingredients: [{ blockId: 'ore_copper', count: 5 }], requiresWorkbench: true },
+  { resultBlockId: 'copper_chest', resultCount: 1, ingredients: [{ blockId: 'ore_copper', count: 8 }], requiresWorkbench: true },
+  { resultBlockId: 'copper_greaves', resultCount: 1, ingredients: [{ blockId: 'ore_copper', count: 6 }], requiresWorkbench: true },
+  // 铁套
+  { resultBlockId: 'iron_helm', resultCount: 1, ingredients: [{ blockId: 'ore_iron', count: 6 }, { blockId: 'ore_copper', count: 2 }], requiresWorkbench: true },
+  { resultBlockId: 'iron_chest', resultCount: 1, ingredients: [{ blockId: 'ore_iron', count: 10 }, { blockId: 'ore_copper', count: 3 }], requiresWorkbench: true },
+  { resultBlockId: 'iron_greaves', resultCount: 1, ingredients: [{ blockId: 'ore_iron', count: 8 }, { blockId: 'ore_copper', count: 2 }], requiresWorkbench: true },
+  // 余金套
+  { resultBlockId: 'ember_helm', resultCount: 1, ingredients: [{ blockId: 'ore_gold', count: 6 }, { blockId: 'ore_iron', count: 3 }], requiresWorkbench: true },
+  { resultBlockId: 'ember_chest', resultCount: 1, ingredients: [{ blockId: 'ore_gold', count: 10 }, { blockId: 'ore_iron', count: 5 }], requiresWorkbench: true },
+  { resultBlockId: 'ember_greaves', resultCount: 1, ingredients: [{ blockId: 'ore_gold', count: 8 }, { blockId: 'ore_iron', count: 3 }], requiresWorkbench: true },
+  // 虚空套
+  { resultBlockId: 'void_helm', resultCount: 1, ingredients: [{ blockId: 'void_crystal', count: 3 }, { blockId: 'dark_filament', count: 4 }], requiresWorkbench: true },
+  { resultBlockId: 'void_chest', resultCount: 1, ingredients: [{ blockId: 'void_crystal', count: 5 }, { blockId: 'dark_filament', count: 7 }, { blockId: 'ore_gold', count: 4 }], requiresWorkbench: true },
+  { resultBlockId: 'void_greaves', resultCount: 1, ingredients: [{ blockId: 'void_crystal', count: 4 }, { blockId: 'dark_filament', count: 5 }, { blockId: 'ore_gold', count: 3 }], requiresWorkbench: true },
 ];
 
 export function canCraft(recipe: Recipe, inv: Inventory, nearWorkbench: boolean): boolean {

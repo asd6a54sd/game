@@ -310,6 +310,20 @@ export const BLOCKS: Record<string, BlockDef> = {
   ember_sprite_summon: { id: 'ember_sprite_summon', name: '余烬精灵灯', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'ember02', variants: [], drops: [] },
   glow_wisp_summon: { id: 'glow_wisp_summon', name: '幽蓝萤虫瓶', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'cold01', variants: [], drops: [] },
   void_whelp_summon: { id: 'void_whelp_summon', name: '虚空幼龙蛋', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void02', variants: [], drops: [] },
+
+  // === M26: 护甲（4套装 × 3部位）===
+  copper_helm: { id: 'copper_helm', name: '铜头盔', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'rust02', variants: [], drops: [] },
+  copper_chest: { id: 'copper_chest', name: '铜胸甲', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'rust02', variants: [], drops: [] },
+  copper_greaves: { id: 'copper_greaves', name: '铜腿甲', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'rust02', variants: [], drops: [] },
+  iron_helm: { id: 'iron_helm', name: '铁头盔', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'iron01', variants: [], drops: [] },
+  iron_chest: { id: 'iron_chest', name: '铁胸甲', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'iron01', variants: [], drops: [] },
+  iron_greaves: { id: 'iron_greaves', name: '铁腿甲', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'iron01', variants: [], drops: [] },
+  ember_helm: { id: 'ember_helm', name: '余金头盔', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'ember02', variants: [], drops: [] },
+  ember_chest: { id: 'ember_chest', name: '余金胸甲', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'ember02', variants: [], drops: [] },
+  ember_greaves: { id: 'ember_greaves', name: '余金腿甲', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'ember02', variants: [], drops: [] },
+  void_helm: { id: 'void_helm', name: '虚空头盔', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void01', variants: [], drops: [] },
+  void_chest: { id: 'void_chest', name: '虚空胸甲', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void01', variants: [], drops: [] },
+  void_greaves: { id: 'void_greaves', name: '虚空腿甲', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void01', variants: [], drops: [] },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);
