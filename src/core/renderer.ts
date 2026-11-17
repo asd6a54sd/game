@@ -278,6 +278,80 @@ export class Renderer {
     ctx.fillRect(0, horizonY, W, 40);
   }
 
+  /** 地表装饰：草丛、石子、断裂残片、水面波光（纯视觉，不影响碰撞） */
+  drawDecor(cam: Camera, tiles: Uint8Array, heightMap: Uint8Array, time: number) {
+    const ctx = this.ctx;
+    const startX = Math.max(0, Math.floor(cam.x / TILE_SIZE) - 1);
+    const endX = Math.min(MAP_WIDTH, Math.ceil((cam.x + cam.width) / TILE_SIZE) + 1);
+    for (let x = startX; x < endX; x++) {
+      const sy = heightMap[x];
+      if (sy <= 0 || sy >= MAP_HEIGHT) continue;
+      const surf = biToBlock(tiles[sy * MAP_WIDTH + x]);
+      const sx = Math.floor(x * TILE_SIZE - cam.x);
+      const gy = Math.floor(sy * TILE_SIZE - cam.y);
+
+      // 水面波光
+      if (BLOCKS[surf]?.liquid) {
+        const above = sy - 1 >= 0 ? biToBlock(tiles[(sy - 1) * MAP_WIDTH + x]) : 'empty';
+        if (!BLOCKS[above]?.liquid) {
+          const wave = Math.sin(time * 2 + x * 0.7) * 1.5;
+          ctx.globalAlpha = 0.55;
+          ctx.fillStyle = '#cfefff';
+          ctx.fillRect(sx, gy - 2 + wave, TILE_SIZE, 1);
+          if (this.decorRand(x, 3) > 0.6) {
+            ctx.globalAlpha = 0.85;
+            const sp = (time * 20 + x * 7) % TILE_SIZE;
+            ctx.fillRect(sx + sp, gy + 3, 2, 1);
+          }
+          ctx.globalAlpha = 1;
+        }
+        continue; // 水面上不放草
+      }
+      if (!BLOCKS[surf] || /door|altar|npc|crystal|chest/.test(surf)) continue;
+
+      // 草丛（约 45% 的列）
+      if (this.decorRand(x, 1) > 0.55) {
+        const blades = 2 + Math.floor(this.decorRand(x, 2) * 3);
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = this.decorRand(x, 5) > 0.7 ? '#8a9a4f' : '#6d7c3d';
+        for (let b = 0; b < blades; b++) {
+          const bx = sx + 3 + Math.floor(this.decorRand(x * 7 + b, 4) * 10);
+          const bh = 3 + Math.floor(this.decorRand(x * 13 + b, 5) * 5);
+          const lean = Math.sin(time * 1.5 + x + b) > 0 ? 1 : 0;
+          ctx.fillRect(bx, gy - bh, 1, bh);
+          ctx.fillRect(bx + lean, gy - bh - 1, 1, 1);
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      // 小石子
+      if (this.decorRand(x, 6) > 0.82) {
+        const px = sx + 4 + Math.floor(this.decorRand(x, 7) * 8);
+        ctx.fillStyle = '#5d5560';
+        ctx.fillRect(px, gy - 2, 3, 2);
+        ctx.fillStyle = '#7a7280';
+        ctx.fillRect(px, gy - 2, 2, 1);
+      }
+
+      // 残骸带：断裂钢筋/残片剪影
+      if (this.decorRand(x, 8) > 0.94) {
+        const h = 8 + Math.floor(this.decorRand(x, 9) * 14);
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = '#3a3138';
+        ctx.fillRect(sx + 8, gy - h, 2, h);
+        ctx.fillRect(sx + 8, gy - h, 5, 2);
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+
+  /** 每列确定性随机（0..1），用于稳定的装饰分布 */
+  private decorRand(x: number, salt: number): number {
+    let h = Math.imul(x ^ (salt * 374761393), 668265263);
+    h = Math.imul(h ^ (h >>> 13), 1274126177);
+    return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+  }
+
   drawWorld(tiles: Uint8Array, cam: Camera, breaking: BreakState | null, heightMap?: Uint8Array) {
     const ctx = this.ctx;
     const startX = Math.max(0, Math.floor(cam.x / TILE_SIZE) - 1);

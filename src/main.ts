@@ -2094,6 +2094,8 @@ function render() {
   renderer.drawBackground(cam, terrain.heightMap);
   renderer.drawScenery(cam, terrain.tiles, terrain.heightMap);
   renderer.drawWorld(terrain.tiles, cam, breakState, terrain.heightMap);
+  // 地表装饰（草丛/石子/残片/水面波光）
+  renderer.drawDecor(cam, terrain.tiles, terrain.heightMap, performance.now() / 1000);
 
   // M15: 世界事件滤镜层（在震屏偏移内）
   renderer.drawEventOverlay(ev.current);
