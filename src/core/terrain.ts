@@ -88,7 +88,7 @@ export function biToBlock(idx: number): string {
 }
 
 export interface RegionStructure {
-  kind: 'hut' | 'camp' | 'crystal_altar' | 'rock_altar';
+  kind: 'hut' | 'camp' | 'crystal_altar' | 'rock_altar' | 'dungeon' | 'skeleton_altar';
   x: number; y: number; // 结构左上角 tile 坐标
   width: number; height: number;
   region: RegionId;
@@ -546,6 +546,71 @@ function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
       region: 'gobi_mine',
     });
     break;
+  }
+
+  // 大框架: 地牢 — 地底幽谷深处的地下建筑（骷髅王门锁 + 守卫）
+  {
+    const DX = 316, DY = 108, DW = 34, DH = 16;
+    const brick = bi('dungeon_brick');
+    const door = bi('dungeon_door');
+    // 2 格厚外壳，内部掏空
+    for (let dy = 0; dy < DH; dy++) {
+      for (let dx = 0; dx < DW; dx++) {
+        const x = DX + dx, y = DY + dy;
+        if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) continue;
+        const edge = dx < 2 || dx >= DW - 2 || dy < 2 || dy >= DH - 2;
+        tiles[y * MAP_WIDTH + x] = edge ? brick : bi('empty');
+      }
+    }
+    // 内部陈设：宝箱（战利品由 main 初始化）+ 金矿点缀
+    const chestSpots: [number, number][] = [
+      [DX + 6, DY + DH - 3],
+      [DX + DW - 8, DY + DH - 3],
+    ];
+    for (const [cx, cy] of chestSpots) {
+      tiles[cy * MAP_WIDTH + cx] = bi('chest');
+    }
+    for (let i = 0; i < 6; i++) {
+      const gx = DX + 4 + Math.floor(rng() * (DW - 8));
+      const gy = DY + 2 + Math.floor(rng() * 3);
+      tiles[gy * MAP_WIDTH + gx] = bi('ore_gold');
+    }
+    // 竖井：地表 → 地牢顶部，2 格宽，两侧砖壁
+    const s0 = DX + Math.floor(DW / 2) - 1;
+    const s1 = s0 + 1;
+    const surfY = heightMap[s0];
+    for (let y = Math.max(0, surfY); y <= DY + 1; y++) {
+      tiles[y * MAP_WIDTH + (s0 - 1)] = brick;
+      tiles[y * MAP_WIDTH + (s1 + 1)] = brick;
+      tiles[y * MAP_WIDTH + s0] = bi('empty');
+      tiles[y * MAP_WIDTH + s1] = bi('empty');
+    }
+    // 井口立柱（地表上方标记入口）
+    for (let y = Math.max(0, surfY - 3); y < surfY; y++) {
+      tiles[y * MAP_WIDTH + (s0 - 1)] = brick;
+      tiles[y * MAP_WIDTH + (s1 + 1)] = brick;
+    }
+    // 井底锁门：未击败骷髅王时不可破坏
+    for (const x of [s0, s1]) {
+      for (let y = DY; y <= DY + 1; y++) {
+        tiles[y * MAP_WIDTH + x] = door;
+      }
+    }
+    structures.push({
+      kind: 'dungeon',
+      x: DX, y: DY, width: DW, height: DH,
+      region: 'underground_valley',
+    });
+    // 骷髅祭坛：井口右侧地表
+    const altarX = s1 + 3;
+    if (altarX < MAP_WIDTH && surfY - 1 >= 0) {
+      tiles[(surfY - 1) * MAP_WIDTH + altarX] = bi('dungeon_altar');
+      structures.push({
+        kind: 'skeleton_altar',
+        x: altarX, y: surfY - 1, width: 1, height: 1,
+        region: 'underground_valley',
+      });
+    }
   }
 
   return structures;

@@ -49,6 +49,9 @@ export const ENEMY_DEFS: Record<string, EnemyDef> = {
   elite_iron_tyrant: { type: 'elite_iron_tyrant', name: '钢铁暴君', paletteId: 'iron01', behavior: 'chaser', hp: 120, damage: 22, speed: 110, jumpForce: 400, width: 24, height: 36, cooldownAttack: 0.6, cooldownHurtFlash: 0.4, dropTable: [{ blockId: 'ore_iron', chance: 1.0, count: 2 }, { blockId: 'ore_gold', chance: 0.5, count: 1 }, { blockId: 'wreck_scrap', chance: 1.0, count: 3 }], accessoryDropChance: 0.08, spawnAtNight: true, spawnAtDay: false, isElite: true },
   elite_void_ravager: { type: 'elite_void_ravager', name: '虚空屠戮者', paletteId: 'void04', behavior: 'flyer', hp: 90, damage: 18, speed: 200, jumpForce: 0, width: 28, height: 20, cooldownAttack: 0.5, cooldownHurtFlash: 0.35, dropTable: [{ blockId: 'dark_seed', chance: 1.0, count: 2 }, { blockId: 'void_crystal', chance: 0.4, count: 1 }], accessoryDropChance: 0.12, spawnAtNight: true, spawnAtDay: false, isElite: true },
   elite_chitin_queen: { type: 'elite_chitin_queen', name: '蜂巢女王', paletteId: 'bone01', behavior: 'hopper', hp: 140, damage: 20, speed: 180, jumpForce: 360, width: 30, height: 24, cooldownAttack: 0.7, cooldownHurtFlash: 0.4, dropTable: [{ blockId: 'chitin_hive', chance: 1.0, count: 3 }, { blockId: 'bio_glow', chance: 0.8, count: 2 }], accessoryDropChance: 0.10, spawnAtNight: true, spawnAtDay: false, isElite: true },
+
+  // === 大框架: 地牢守卫（未击败骷髅王闯入地牢时生成，几乎不可击杀）===
+  dungeon_guardian: { type: 'dungeon_guardian', name: '地牢守卫', paletteId: 'void04', behavior: 'chaser', hp: 99999, damage: 9999, speed: 300, jumpForce: 520, width: 40, height: 56, cooldownAttack: 0.5, cooldownHurtFlash: 0.1, spawnAtNight: true, spawnAtDay: true, isElite: true },
 };
 
 export interface Enemy {

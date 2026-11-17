@@ -34,6 +34,7 @@ import { ChestManager, ChestData, addToSlots } from './core/chest.js';
 import { SmeltManager, SMELT_RECIPES, canSmelt } from './core/smelting.js';
 import { SaveData, writeSave, readSave, clearSave, formatSaveTime, u8ToB64, b64ToU8, SAVE_VERSION, AUTOSAVE_INTERVAL } from './core/save.js';
 import { GrowthManager, LIFE_CRYSTAL_MAX_USES, MANA_CRYSTAL_MAX_USES, LIFE_CRYSTAL_GAIN, MANA_CRYSTAL_GAIN } from './core/growth.js';
+import { ProgressionManager } from './core/progression.js';
 import { CropManager } from './core/farming.js';
 import { SettlementManager, SETTLER_DEFS, SETTLE_INTERVAL } from './core/settlement.js';
 
@@ -51,6 +52,9 @@ let cam = createCamera(window.innerWidth, window.innerHeight);
 let player = createPlayer();
 let breakState: BreakState = createBreakState();
 const inv = new Inventory();
+
+// 大框架: 阶段进度
+const prog = new ProgressionManager();
 
 interface PlayerExt extends Player {
   toolName: string;
@@ -70,6 +74,7 @@ const wb = new WorkbenchUI(inv, {
   onClose: () => { inputBlocked = false; },
   onCraftSuccess: (r) => {
     tasks.onCraft(r.resultBlockId, r.resultCount);
+    prog.onCraft(); // 大框架: 阶段进度
     // M19: 初探者成就 — 合成工具
     if (TOOLS[r.resultBlockId]) ach.addProgress('first_tool', 1);
   },
@@ -400,6 +405,15 @@ const fishing: FishingState = {
 let fishingMsg = '';
 let fishingMsgTimer = 0;
 
+// 大框架: 阶段推进提示
+prog.onStageChange = (stage, idx) => {
+  fishingMsg = `🚩 阶段 ${idx + 1}/${prog.total} 推进：${stage.name} — ${stage.goal}`;
+  fishingMsgTimer = 5;
+  sfx.pickup();
+  shake(cam, 3);
+};
+let guardianWarned = false;
+
 // M25: 宠物系统
 let activePet: Pet | null = null;
 // 召唤物品 → 宠物 id 映射
@@ -723,6 +737,7 @@ function collectSaveData(): SaveData {
     growth: growth.serialize(), // M30
     crops: cropMgr.serialize(), // M31
     settlement: settlementMgr.serialize(), // M32
+    progression: prog.serialize(), // 大框架: 阶段进度
   };
 }
 
@@ -770,6 +785,8 @@ function applySaveData(save: SaveData) {
   cropMgr.restore(save.crops);
   // M32: 定居点
   settlementMgr.restore(save.settlement);
+  // 大框架: 阶段进度
+  prog.restore(save.progression);
   // 时间
   if (typeof save.timeOfDay === 'number') renderer.timeOfDay = save.timeOfDay;
   fishingMsg = `已载入存档（${formatSaveTime(save.timestamp)}）`;
@@ -979,6 +996,7 @@ async function init() {
     applySaveData(save);
   } else {
     placePlayerOnGround(player, terrain.heightMap);
+    initDungeonLoot(); // 大框架: 地牢宝箱战利品
   }
   if (forceFresh) {
     fishingMsg = '已生成新地图（?fresh=1）· Ctrl+Shift+S 清除存档';
@@ -1536,6 +1554,7 @@ function update(dt: number) {
   }
   // M17: 任务 — 挖方块触发
   for (const bid of breakState.removedBlocks) tasks.onMine(bid);
+  prog.onMine(breakState.removedBlocks.length); // 大框架: 阶段进度
   breakState.removedBlocks.length = 0;
   // M27: 被挖掉的宝箱 → 内容物掉落到地面
   for (const rc of breakState.removedChests) {
@@ -1622,6 +1641,9 @@ function update(dt: number) {
   // ========== Boss 系统 ==========
   updateBossesSystem(dt);
 
+  // ========== 大框架: 地牢守卫 ==========
+  updateDungeonGate();
+
   // ========== 敌人系统 ==========
   updateEnemiesSystem(dt, effectivePower);
 
@@ -1705,6 +1727,7 @@ function updateEnemiesSystem(dt: number, _effectivePower: number) {
         }
         if (died) {
           tasks.onKill(false); // M17: 击杀敌人任务
+          prog.onKill(); // 大框架: 阶段进度
           ach.addProgress('kill_50', 1); // M19: 战士成就
           if (trial.active) trial.enemyDied(); // M21: 试炼计数
           sfx.enemyDie();
@@ -1813,6 +1836,7 @@ function updatePlayerProjectiles(dt: number) {
         p.hitIds.add(e.id);
         if (died) {
           tasks.onKill(false);
+          prog.onKill(); // 大框架: 阶段进度
           ach.addProgress('kill_50', 1);
           ach.addProgress('ranged_kill_20', 1); // M19: 神射手成就
           if (trial.active) trial.enemyDied(); // M21: 试炼计数
@@ -2079,6 +2103,7 @@ function updateHUD() {
   // 故事引导 HUD（区块目标 + Boss 召唤提示）
   const guideParts: string[] = [`${regionNameAt(pcol)} · ${guide.subtitle} · 目标: ${guide.goal}`];
   if (guide.bossHint) guideParts.push(guide.bossHint);
+  guideParts.push(prog.hudText); // 大框架: 阶段主线
   hudRegion.textContent = guideParts.join(' | ');
 
   // M26: 护甲栏 HUD
@@ -2188,7 +2213,28 @@ function trySummonBoss() {
     });
   }
 
-  // 3. void_assimilator（靠近暗能量结界）
+  // 3. 骷髅王祭坛（地牢竖井口，未击败时无消耗召唤）
+  const skelAltar = terrain.structures.find(s => s.kind === 'skeleton_altar');
+  if (skelAltar && !prog.skeletonDefeated) {
+    const ax = (skelAltar.x + 0.5) * TILE_SIZE;
+    const ay = skelAltar.y * TILE_SIZE;
+    candidates.push({
+      kind: 'skeleton_king',
+      ax, ay,
+      costCheck: () => true,
+      costText: '无',
+      summon: () => {
+        bosses.push(createBoss('skeleton_king', ax, ay - 40));
+        shake(cam, 6);
+        sfx.bossSummon();
+        fishingMsg = '💀 骷髅王苏醒了！击败它才能解开地牢之门';
+        fishingMsgTimer = 4;
+        console.log('[Boss] 💀 骷髅王 已苏醒！');
+      },
+    });
+  }
+
+  // 4. void_assimilator（靠近暗能量结界）
   const barrier = findNearestVoidBarrier(terrain.tiles, player.x, player.y);
   if (barrier) {
     candidates.push({
@@ -2234,6 +2280,73 @@ function trySummonBoss() {
 
   best.summon();
   bossSpawnCooldown = 30;
+}
+
+// ========== 大框架: 地牢门锁 / 守卫 / 战利品 ==========
+
+/** 骷髅王倒下：全图地牢门化为空气，解除门锁 */
+function unlockDungeon() {
+  let opened = 0;
+  for (let ty = 0; ty < MAP_HEIGHT; ty++) {
+    for (let tx = 0; tx < MAP_WIDTH; tx++) {
+      if (biToBlock(terrain.tiles[ty * MAP_WIDTH + tx]) === 'dungeon_door') {
+        setBlock(tx, ty, 'empty');
+        opened++;
+      }
+    }
+  }
+  shake(cam, 8);
+  sfx.pickup();
+  fishingMsg = '🔓 地牢之门已被解开！';
+  fishingMsgTimer = 5;
+  console.log(`[地牢] 门锁解除，共打开 ${opened} 格`);
+}
+
+/** 玩家闯入地牢且未击败骷髅王 → 生成守卫（接触秒杀，几乎不可击杀） */
+function updateDungeonGate() {
+  const d = terrain.structures.find(s => s.kind === 'dungeon');
+  if (!d) return;
+  const tx = Math.floor(player.x / TILE_SIZE);
+  const ty = Math.floor(player.y / TILE_SIZE);
+  const inside = tx >= d.x + 2 && tx < d.x + d.width - 2 && ty >= d.y + 2 && ty < d.y + d.height - 2;
+  if (!inside) return;
+
+  prog.enterDungeon();
+  if (prog.skeletonDefeated) return;
+
+  const hasGuardian = enemies.some(e => e.def.type === 'dungeon_guardian' && e.state !== 'dead');
+  if (hasGuardian) return;
+
+  const gx = (d.x + d.width / 2) * TILE_SIZE;
+  const gy = (d.y + d.height - 3) * TILE_SIZE;
+  enemies.push(createEnemy('dungeon_guardian', gx, gy));
+  shake(cam, 9);
+  sfx.bossSummon();
+  if (!guardianWarned) {
+    guardianWarned = true;
+    fishingMsg = '☠ 地牢守卫被惊醒了！击败骷髅王之前不要踏入地牢！';
+    fishingMsgTimer = 5;
+  }
+  console.log('[地牢] ☠ 地牢守卫苏醒');
+}
+
+/** 新地图首次生成：给地牢宝箱预填战利品 */
+function initDungeonLoot() {
+  const d = terrain.structures.find(s => s.kind === 'dungeon');
+  if (!d) return;
+  let idx = 0;
+  for (let ty = d.y; ty < d.y + d.height; ty++) {
+    for (let tx = d.x; tx < d.x + d.width; tx++) {
+      if (getBlock(tx, ty) !== 'chest') continue;
+      if (chestMgr.get(tx, ty)) continue;
+      const c = chestMgr.create(tx, ty);
+      addToSlots(c.slots, idx === 0 ? 'life_crystal' : 'mana_crystal', 1);
+      for (const item of rollChestLoot()) addToSlots(c.slots, item.blockId, item.count);
+      addToSlots(c.slots, 'gold_coin', 5 + Math.floor(Math.random() * 10));
+      idx++;
+    }
+  }
+  console.log(`[地牢] 已预填 ${idx} 个宝箱战利品`);
 }
 
 // ========== Boss 更新 ==========
@@ -2326,6 +2439,8 @@ function updateBossesSystem(dt: number) {
         spawnDmgText(boss.x, boss.y - bossHalfH(boss), bossDmg, '#c040e8', baseCrit, 1.5 * (buffLocal.critDamageMult ?? 1));
         if (died) {
           tasks.onKill(true, !!boss.def.isNightBoss); // M17: 击杀 Boss 任务
+          prog.onBossKill(boss.def.id); // 大框架: 阶段进度
+          if (boss.def.id === 'skeleton_king') unlockDungeon();
           // M19: 成就
           ach.addProgress('kill_boss_1', 1);
           ach.addProgress('all_bosses', 1);
@@ -2382,6 +2497,14 @@ function updateBossesSystem(dt: number) {
             purifyNearbyVoidBarrier(boss.x, boss.y);
             sfx.bossDie();
             console.log('[Boss] ✅ 幽紫晶体守卫 已被净化！→ 晶守核心');
+          } else if (boss.def.id === 'skeleton_king') {
+            // 大框架: 骷髅王专属掉落（地牢钥匙主题）
+            breakState.drops.push({ x: boss.x, y: boss.y, vx: 0, vy: -100, blockId: 'gold_coin', life: 60 });
+            breakState.drops.push({ x: boss.x + 20, y: boss.y, vx: 50, vy: -80, blockId: 'gold_coin', life: 60 });
+            breakState.drops.push({ x: boss.x - 20, y: boss.y, vx: -50, vy: -80, blockId: 'dungeon_brick', life: 60 });
+            breakState.drops.push({ x: boss.x, y: boss.y - 30, vx: 0, vy: -160, blockId: 'life_crystal', life: 60 });
+            sfx.bossDie();
+            console.log('[Boss] 💀 骷髅王 已倒下！地牢之门开启');
           } else {
             breakState.drops.push({ x: boss.x, y: boss.y, vx: 0, vy: -100, blockId: 'dark_seed', life: 60 });
             breakState.drops.push({ x: boss.x + 20, y: boss.y, vx: 50, vy: -80, blockId: 'dark_seed', life: 60 });

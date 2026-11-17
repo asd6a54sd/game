@@ -379,6 +379,27 @@ export const BLOCKS: Record<string, BlockDef> = {
   },
   settler_medic: { id: 'settler_medic', name: '医师', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'bio02', variants: [], drops: [] },
   settler_engineer: { id: 'settler_engineer', name: '工程师', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'iron02', variants: [], drops: [] },
+
+  // === 大框架: 地牢 ===
+  dungeon_brick: {
+    id: 'dungeon_brick', name: '地牢砖', category: 'special',
+    hardness: 90, toolLevel: 3,
+    paletteId: 'bone04', variants: ['bone03', 'bone04'],
+    drops: [{ blockId: 'dungeon_brick', chance: 1.0 }],
+  },
+  dungeon_door: {
+    id: 'dungeon_door', name: '地牢之门', category: 'special',
+    hardness: 999, toolLevel: 9,
+    paletteId: 'void03', variants: ['void03'],
+    drops: [],
+  },
+  dungeon_altar: {
+    id: 'dungeon_altar', name: '骷髅祭坛', category: 'special',
+    hardness: 0, toolLevel: 0,
+    paletteId: 'ember02', variants: [],
+    emitsLight: 6,
+    drops: [],
+  },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);

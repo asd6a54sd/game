@@ -9,9 +9,10 @@ import { ItemStack } from './inventory.js';
 import { ChestData } from './chest.js';
 import { CropSave } from './farming.js';
 import { SettlementSave } from './settlement.js';
+import type { ProgressionSave } from './progression.js';
 
 const SAVE_KEY = 'ember_sea_save_v1';
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
 export const AUTOSAVE_INTERVAL = 90; // 秒
 
 export interface SaveData {
@@ -41,6 +42,8 @@ export interface SaveData {
   crops?: CropSave[];
   // M32: 定居点
   settlement?: SettlementSave;
+  // 大框架: 阶段进度
+  progression?: ProgressionSave;
 }
 
 /** Uint8Array → base64（分块避免参数过多爆栈） */

@@ -87,6 +87,13 @@ export const BOSS_DEFS: Record<string, BossDef> = {
     desc: '地底幽谷中的虚空施法者',
     region: 'underground_valley', isNightBoss: true,
   },
+
+  // === 大框架: 地牢门锁 Boss ===
+  skeleton_king: {
+    id: 'skeleton_king', name: '骷髅王', paletteId: 'iron02',
+    width: 44, height: 64, hp: 700, speed: 95, damage: 22,
+    desc: '被诅咒的地牢之主，击败后地牢之门才会开启',
+  },
 };
 
 export interface BossProjectile {
