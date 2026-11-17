@@ -27,6 +27,7 @@ import { TrialManager } from './trial.js';
 import { ActiveBuff } from './potions.js';
 import { MOUNT_DEFS } from './mounts.js';
 import { PET_DEFS, Pet } from './pets.js';
+import { drawCharacter, makeModel, NPC_MODELS, CharKind } from './sprites.js';
 
 
 export class Renderer {
@@ -176,6 +177,18 @@ export class Renderer {
               tiles,
             );
           }
+          continue;
+        }
+        // NPC 角色模型（站立方块 → 像素人形，脚底对齐格底）
+        const npcModel = NPC_MODELS[id];
+        if (npcModel) {
+          drawCharacter(
+            ctx,
+            npcModel,
+            Math.floor(tx * TILE_SIZE - cam.x),
+            Math.floor(ty * TILE_SIZE - cam.y - TILE_SIZE),
+            TILE_SIZE, TILE_SIZE * 2, 1, performance.now() / 1000,
+          );
           continue;
         }
         const def = BLOCKS[id];
@@ -586,30 +599,19 @@ export class Renderer {
     ctx.fillStyle = 'rgba(255, 236, 180, 0.75)';
     ctx.fillRect(px + 2, py + 1, p.width - 4, 1);
 
-    // 身体
-    ctx.fillStyle = shellColors.body;
-    ctx.fillRect(px, py + TILE_SIZE, p.width, p.height - TILE_SIZE);
-    // 头部
-    ctx.fillStyle = shellColors.head;
-    ctx.fillRect(px + 2, py + 2, p.width - 4, TILE_SIZE - 4);
-    // 眼睛
-    ctx.fillStyle = shellColors.eye;
-    const eyeX = p.facing === 1 ? px + p.width - 6 : px + 4;
-    ctx.fillRect(eyeX, py + 6, 2, 2);
-    // 手脚暗边
-    ctx.fillStyle = 'rgba(0,0,0,0.35)';
-    ctx.fillRect(px - 1, py + TILE_SIZE + 4, 2, TILE_SIZE * 0.5);
-    ctx.fillRect(px + p.width - 1, py + TILE_SIZE + 4, 2, TILE_SIZE * 0.5);
-
-    // 手持工具
+    // 像素模型（头 / 躯干 / 四肢 / 武器）
     const toolName = (p as Player & { toolName?: string }).toolName ?? 'hand_pickaxe';
     const tool = TOOLS[toolName] ?? TOOLS.hand_pickaxe;
-    const handX = p.facing === 1 ? px + p.width : px - 10;
-    const handY = py + TILE_SIZE + 2;
-    ctx.fillStyle = PALETTE_MAP.get(tool.paletteId) ?? '#888';
-    ctx.fillRect(handX, handY, 10, 3);
-    ctx.fillStyle = 'rgba(0,0,0,0.5)';
-    ctx.fillRect(p.facing === 1 ? handX - 2 : handX + 9, handY + 1, 2, 2);
+    drawCharacter(
+      ctx,
+      makeModel(shellColors.body, shellColors.eye, {
+        kind: 'humanoid',
+        light: shellColors.head,
+        accent: shellColors.head,
+        weapon: PALETTE_MAP.get(tool.paletteId) ?? '#888',
+      }),
+      px, py, p.width, p.height, p.facing, performance.now() / 1000,
+    );
 
     // HP bar
     const barW = p.width + 4, barH = 3;
@@ -659,37 +661,26 @@ export class Renderer {
       if (e.hurtCooldown > 0 && Math.floor(e.hurtCooldown * 20) % 2 === 0) ctx.globalAlpha = 0.6;
       if (e.state === 'dead') ctx.globalAlpha = Math.max(0, 1 - e.deathProgress);
       const w = e.def.width, h = e.def.height;
-      if (e.def.behavior === 'hopper') {
-        ctx.fillStyle = main;
-        this.roundRect(ctx, epx, epy + 2, w, h - 2, 4); ctx.fill();
-        ctx.fillStyle = dark;
-        this.roundRect(ctx, epx + 2, epy + h - 5, w - 4, 3, 2); ctx.fill();
-        ctx.fillStyle = eye;
-        ctx.fillRect(epx + w / 2 - 4 + e.facing, epy + 5, 2, 2);
-        ctx.fillRect(epx + w / 2 + 2 + e.facing, epy + 5, 2, 2);
-      } else if (e.def.behavior === 'chaser') {
-        ctx.fillStyle = main;
-        ctx.fillRect(epx + 2, epy + 8, w - 4, h - 8);
-        ctx.fillStyle = dark;
-        ctx.fillRect(epx + 3, epy + 3, w - 6, 8);
-        ctx.fillStyle = eye;
-        ctx.fillRect(epx + w / 2 - 3 + e.facing, epy + 5, 2, 2);
-        ctx.fillRect(epx + w / 2 + 1 + e.facing, epy + 5, 2, 2);
-        ctx.fillStyle = dark;
-        ctx.fillRect(epx + 1, epy + 10, 2, h - 12);
-        ctx.fillRect(epx + w - 3, epy + 10, 2, h - 12);
-      } else if (e.def.behavior === 'flyer') {
-        const wingFlap = Math.sin(Date.now() * 0.03) > 0 ? 1 : -1;
-        ctx.fillStyle = dark;
-        ctx.fillRect(epx - 2, epy + h / 2 - 3 + wingFlap, 4, 3);
-        ctx.fillRect(epx + w - 2, epy + h / 2 - 3 + wingFlap, 4, 3);
-        ctx.fillStyle = main;
-        ctx.fillRect(epx, epy + 3, w, h - 6);
-        ctx.fillStyle = eye;
-        ctx.fillRect(epx + w / 2 - 1 + e.facing, epy + h / 2 - 1, 2, 2);
-        ctx.fillStyle = 'rgba(248, 212, 255, 0.15)';
-        ctx.fillRect(epx - 4, epy - 2, w + 8, h + 4);
-      }
+      // 像素模型：史莱姆→blob，跳跃型→beast，飞行型→flyer，其余→humanoid
+      const kind: CharKind = e.def.type.includes('slime')
+        ? 'blob'
+        : e.def.behavior === 'hopper'
+          ? 'beast'
+          : e.def.behavior === 'flyer'
+            ? 'flyer'
+            : 'humanoid';
+      const elite = (e.def as { isElite?: boolean }).isElite === true;
+      drawCharacter(
+        ctx,
+        makeModel(main, eye, {
+          kind,
+          dark,
+          crown: elite,
+          horns: e.def.behavior === 'chaser' || e.def.behavior === 'hopper' || elite,
+          weapon: e.def.behavior === 'chaser' ? dark : undefined,
+        }),
+        epx, epy, w, h, e.facing, performance.now() / 1000,
+      );
       ctx.globalAlpha = 1;
       if (e.hp < e.def.hp && e.state !== 'dead') {
         const barW = w, barH = 2;
@@ -701,19 +692,6 @@ export class Renderer {
     }
   }
 
-  private roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.lineTo(x + w - r, y);
-    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-    ctx.lineTo(x + w, y + h - r);
-    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-    ctx.lineTo(x + r, y + h);
-    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-    ctx.lineTo(x, y + r);
-    ctx.quadraticCurveTo(x, y, x + r, y);
-    ctx.closePath();
-  }
 
   drawPlacementGhost(blockId: string, tx: number, ty: number, cam: Camera, isSolid: boolean) {
     const ctx = this.ctx;
@@ -858,30 +836,20 @@ export class Renderer {
     if (boss.phase === 'phase2') { bodyColor = '#8020a0'; darkColor = '#400565'; eyeColor = '#ff60d0'; }
     if (boss.phase === 'phase3') { bodyColor = '#c040e0'; darkColor = '#600590'; eyeColor = '#ff80ff'; }
 
-    // Boss 主体（矩形身体 + 触手）
+    // Boss 像素模型（泰坦体型 + 王冠 / 角 / 多眼 / 触须）
     const w = boss.def.width, h = boss.def.height;
-    // 主体（梯形上宽下窄）
-    ctx.fillStyle = bodyColor;
-    this.roundRect(ctx, bpx + 4, bpy + 10, w - 8, h - 18, 6); ctx.fill();
-    // 头部
-    ctx.fillStyle = darkColor;
-    this.roundRect(ctx, bpx + 6, bpy + 4, w - 12, 14, 4); ctx.fill();
-    // 双眼
-    ctx.fillStyle = eyeColor;
-    ctx.fillRect(bpx + 14 + boss.facing * 2, bpy + 8, 4, 4);
-    ctx.fillRect(bpx + w - 18 + boss.facing * 2, bpy + 8, 4, 4);
-    // 身体暗纹
-    ctx.fillStyle = darkColor;
-    ctx.fillRect(bpx + w / 2 - 8, bpy + 18, 16, 3);
-    ctx.fillRect(bpx + w / 2 - 5, bpy + 24, 10, 2);
-    // 触手（底部 4 根）
-    const tentacleWobble = Math.sin(Date.now() * 0.006) * 3;
-    for (let i = 0; i < 4; i++) {
-      const tx = bpx + 6 + i * 10;
-      const ty = bpy + h - 8;
-      ctx.fillStyle = bodyColor;
-      ctx.fillRect(tx, ty, 5, 8 + tentacleWobble + Math.sin(Date.now() * 0.008 + i) * 2);
-    }
+    drawCharacter(
+      ctx,
+      makeModel(bodyColor, eyeColor, {
+        kind: 'titan',
+        dark: darkColor,
+        accent: darkColor,
+        crown: true,
+        horns: true,
+        multiEye: true,
+      }),
+      bpx, bpy, w, h, boss.facing, performance.now() / 1000,
+    );
     // 发光光环（phase3 更强）
     if (!isDead) {
       ctx.globalAlpha = alpha * (boss.phase === 'phase3' ? 0.35 : boss.phase === 'phase2' ? 0.2 : 0.12);
