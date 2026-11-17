@@ -118,6 +118,14 @@ export class Renderer {
         ctx.lineTo(x + 40, mountainBaseY);
         ctx.fill();
       }
+
+      // 地平线雾气 — 让远山与地面自然衔接
+      const fog = ctx.createLinearGradient(0, mountainBaseY - 80, 0, mountainBaseY + 24);
+      fog.addColorStop(0, 'rgba(150, 90, 60, 0)');
+      fog.addColorStop(0.65, 'rgba(150, 90, 60, 0.14)');
+      fog.addColorStop(1, 'rgba(165, 100, 65, 0.26)');
+      ctx.fillStyle = fog;
+      ctx.fillRect(0, mountainBaseY - 80, this.canvas.width, 104);
     }
 
     // 日月天体（仅地表视野内）
@@ -162,8 +170,18 @@ export class Renderer {
         if (!def) continue;
         const px = Math.floor(tx * TILE_SIZE - cam.x);
         const py = Math.floor(ty * TILE_SIZE - cam.y);
+        // 边缘融合掩码：上右下左是否同类方块
+        const sameId = (nx: number, ny: number): boolean => {
+          if (nx < 0 || nx >= MAP_WIDTH || ny < 0 || ny >= MAP_HEIGHT) return false;
+          return biToBlock(tiles[ny * MAP_WIDTH + nx]) === id;
+        };
+        let mask = 0;
+        if (sameId(tx, ty - 1)) mask |= 1;
+        if (sameId(tx + 1, ty)) mask |= 2;
+        if (sameId(tx, ty + 1)) mask |= 4;
+        if (sameId(tx - 1, ty)) mask |= 8;
         const exposedTop = ty === 0 || biToBlock(tiles[idx - MAP_WIDTH]) === 'empty';
-        this.drawTile(ctx, px, py, def, tx, ty, exposedTop);
+        this.drawTile(ctx, px, py, def, tx, ty, mask, exposedTop);
         // 深层冷色偏移，区分浅层/深层
         if (ty > 100) {
           const a = Math.min(0.12, (ty - 100) * 0.0025);
@@ -229,54 +247,126 @@ export class Renderer {
     def: typeof BLOCKS[string],
     tx: number,
     ty: number,
+    mask = 0,
     exposedTop = false,
   ) {
+    // mask 位：1=上同类 2=右同类 4=下同类 8=左同类
     const baseColor = PALETTE_MAP.get(def.paletteId) ?? '#888';
+    const grp = def.paletteId.slice(0, 4);
+    const seed = (tx * 374761393 + ty * 668265263) >>> 0;
+
     ctx.fillStyle = baseColor;
     ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
 
-    // === 内部纹理：明暗噪点块，打破纯色 ===
-    const seed = (tx * 374761393 + ty * 668265263) >>> 0;
-    for (let i = 0; i < 12; i++) {
+    // === 公共颗粒纹理 ===
+    for (let i = 0; i < 10; i++) {
       const s = (seed + i * 2654435761) >>> 0;
       const vx = (s & 0xf) % (TILE_SIZE - 2);
       const vy = ((s >> 4) & 0xf) % (TILE_SIZE - 2);
-      const light = ((s >> 8) & 1) === 1;
-      ctx.fillStyle = light ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.10)';
+      ctx.fillStyle = ((s >> 8) & 1) ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.13)';
       ctx.fillRect(px + vx, py + vy, 2, 2);
     }
-    // 旧变体点缀（保留）
-    for (let i = 0; i < 8; i++) {
-      const s = (seed + i * 12345) >>> 0;
-      const v = s & 0xff;
-      const vx = (s >> 8) % TILE_SIZE;
-      const vy = (s >> 16) % TILE_SIZE;
-      if (v < 60 && def.variants.length > 0) {
-        const vId = def.variants[v % def.variants.length];
-        const vc = PALETTE_MAP.get(vId);
-        if (vc) { ctx.fillStyle = vc; ctx.fillRect(px + vx, py + vy, 1, 1); }
+
+    // === 材质专属图案 ===
+    switch (grp) {
+      case 'rust': {
+        // 岩石/锈土：短裂纹
+        const n = 2 + (seed % 2);
+        ctx.strokeStyle = 'rgba(0,0,0,0.36)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i < n; i++) {
+          const s = (seed + i * 7919) >>> 0;
+          const x0 = 2 + (s % 9);
+          const y0 = 2 + ((s >> 4) % 9);
+          ctx.beginPath();
+          ctx.moveTo(px + x0 + 0.5, py + y0 + 0.5);
+          ctx.lineTo(px + x0 + 3 + ((s >> 8) % 4) + 0.5, py + y0 + 2 + ((s >> 12) % 3) + 0.5);
+          ctx.stroke();
+        }
+        break;
+      }
+      case 'iron': {
+        // 金属：铆钉点阵
+        const pts: [number, number][] = [[3, 3], [11, 4], [5, 11], [12, 12]];
+        for (const [dx, dy] of pts) {
+          ctx.fillStyle = 'rgba(0,0,0,0.32)';
+          ctx.fillRect(px + dx, py + dy, 2, 2);
+          ctx.fillStyle = 'rgba(255,255,255,0.16)';
+          ctx.fillRect(px + dx, py + dy, 1, 1);
+        }
+        break;
+      }
+      case 'embe': {
+        // 余烬：火星亮点
+        const n = 2 + (seed % 3);
+        for (let i = 0; i < n; i++) {
+          const s = (seed + i * 104729) >>> 0;
+          ctx.fillStyle = 'rgba(255, 214, 130, 0.75)';
+          ctx.fillRect(px + 2 + (s % 12), py + 2 + ((s >> 6) % 12), 1, 1);
+        }
+        break;
+      }
+      case 'bone': {
+        // 骨白：暗斑
+        const s = seed >>> 3;
+        ctx.fillStyle = 'rgba(0,0,0,0.16)';
+        ctx.fillRect(px + 3 + (s % 6), py + 4 + ((s >> 3) % 6), 3, 2);
+        break;
+      }
+      case 'cold': {
+        // 液态金属：横向波光
+        ctx.fillStyle = 'rgba(255,255,255,0.26)';
+        ctx.fillRect(px + 2, py + 5 + (seed % 3), 12, 1);
+        ctx.fillStyle = 'rgba(0,0,0,0.16)';
+        ctx.fillRect(px + 3, py + 9 + ((seed >> 4) % 3), 9, 1);
+        break;
+      }
+      case 'void': {
+        // 虚空：紫色星点
+        const s = seed >>> 2;
+        ctx.fillStyle = 'rgba(248, 212, 255, 0.70)';
+        ctx.fillRect(px + 3 + (s % 10), py + 3 + ((s >> 4) % 10), 1, 1);
+        ctx.fillRect(px + 4 + ((s >> 8) % 9), py + 5 + ((s >> 12) % 8), 1, 1);
+        break;
       }
     }
 
-    // === 立体明暗：顶部高光 / 底部阴影 / 左右侧光 ===
-    ctx.fillStyle = 'rgba(255,255,255,0.16)';
-    ctx.fillRect(px, py, TILE_SIZE, 2);
-    ctx.fillStyle = 'rgba(0,0,0,0.30)';
-    ctx.fillRect(px, py + TILE_SIZE - 3, TILE_SIZE, 3);
-    ctx.fillStyle = 'rgba(255,255,255,0.07)';
-    ctx.fillRect(px, py, 1, TILE_SIZE);
-    ctx.fillStyle = 'rgba(0,0,0,0.18)';
-    ctx.fillRect(px + TILE_SIZE - 1, py, 1, TILE_SIZE);
+    // === 边缘融合：仅在与异类方块相邻的边画明暗（同类连成整体，无瓦片感）===
+    if (!(mask & 1)) {
+      ctx.fillStyle = 'rgba(255,255,255,0.16)';
+      ctx.fillRect(px, py, TILE_SIZE, 2);
+    }
+    if (!(mask & 4)) {
+      ctx.fillStyle = 'rgba(0,0,0,0.30)';
+      ctx.fillRect(px, py + TILE_SIZE - 3, TILE_SIZE, 3);
+    }
+    if (!(mask & 8)) {
+      ctx.fillStyle = 'rgba(255,255,255,0.07)';
+      ctx.fillRect(px, py, 1, TILE_SIZE);
+    }
+    if (!(mask & 2)) {
+      ctx.fillStyle = 'rgba(0,0,0,0.18)';
+      ctx.fillRect(px + TILE_SIZE - 1, py, 1, TILE_SIZE);
+    }
 
-    // === 露天方块：暖色顶部亮边，勾出地表轮廓 ===
+    // === 露天顶面：暖色高光 + 草叶/碎石装饰 ===
     if (exposedTop) {
       ctx.fillStyle = 'rgba(255, 226, 160, 0.40)';
       ctx.fillRect(px, py, TILE_SIZE, 2);
       ctx.fillStyle = 'rgba(255, 210, 140, 0.14)';
-      ctx.fillRect(px, py + 2, TILE_SIZE, 3);
+      ctx.fillRect(px, py + 2, TILE_SIZE, 2);
+      // 草叶 / 残骸碎片
+      const n = 2 + (seed % 3);
+      for (let i = 0; i < n; i++) {
+        const s = (seed + i * 31337) >>> 0;
+        const gx = 2 + (s % 12);
+        const gh = 2 + ((s >> 5) % 3);
+        ctx.fillStyle = i % 2 === 0 ? 'rgba(255, 205, 115, 0.72)' : 'rgba(190, 140, 80, 0.75)';
+        ctx.fillRect(px + gx, py - gh, 1, gh);
+      }
     }
 
-    // === 矿石：中心亮斑 + 十字星光，便于辨认 ===
+    // === 矿石：中心亮斑 + 十字星光 ===
     if (def.id.includes('ore') || def.id === 'crystal_glow' || def.id === 'void_crystal' || def.id === 'bio_glow') {
       ctx.fillStyle = 'rgba(255,255,255,0.80)';
       ctx.fillRect(px + 6, py + 6, 4, 4);
