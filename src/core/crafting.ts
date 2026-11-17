@@ -138,5 +138,23 @@ export function craft(recipe: Recipe, inv: Inventory): boolean {
     if (need > 0) return false;
   }
   inv.add(recipe.resultBlockId, recipe.resultCount);
+  ensureHotbar(inv, recipe.resultBlockId);
   return true;
+}
+
+/**
+ * 确保合成产物可直接取用：
+ * 快捷栏已有 → 不动；有空位 → add 已放入；
+ * 否则与当前选中的快捷栏槽交换，被替换的物品回到主背包原位。
+ */
+function ensureHotbar(inv: Inventory, blockId: string) {
+  if (inv.hotbar.some(s => s.blockId === blockId)) return;
+  const selIdx = inv.selectedHotbar;
+  const sel = inv.hotbar[selIdx];
+  if (sel.blockId === blockId) return;
+  const idx = inv.slots.findIndex(s => s.blockId === blockId);
+  if (idx < 0) return;
+  const product = inv.slots[idx];
+  inv.hotbar[selIdx] = { blockId: product.blockId, count: product.count };
+  inv.slots[idx] = sel.blockId ? { ...sel } : { blockId: '', count: 0 };
 }

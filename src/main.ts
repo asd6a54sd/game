@@ -984,6 +984,19 @@ async function init() {
     fishingMsg = '已生成新地图（?fresh=1）· Ctrl+Shift+S 清除存档';
     fishingMsgTimer = 6;
   }
+  // 试玩便利：?gift=1 补齐宠物召唤材料（不写入正式平衡）
+  if (new URLSearchParams(location.search).has('gift')) {
+    const gifts: [string, number][] = [
+      ['ember_ash', 8], ['crystal_glow', 2], ['bio_glow', 4],
+      ['void_crystal', 3], ['dark_seed', 3], ['chitin', 4],
+    ];
+    for (const [id, n] of gifts) {
+      const lack = n - inv.count(id);
+      if (lack > 0) inv.add(id, lack);
+    }
+    fishingMsg = '🎁 已补齐宠物召唤材料（?gift=1）';
+    fishingMsgTimer = 6;
+  }
   voidEngine.initFromTerrain(terrain.tiles);
   initCompanions();
   initStoryGuides();
