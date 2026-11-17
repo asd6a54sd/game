@@ -2291,6 +2291,7 @@ function trySummonBoss() {
         bosses.push(boss);
         shake(cam, 6);
         sfx.bossSummon();
+        story.show(BOSS_STORY.rock_titan_summon); // 剧情：泰坦苏醒
         console.log('[Boss] ⛰ 岩石泰坦 已苏醒！');
       },
     });
@@ -2312,6 +2313,7 @@ function trySummonBoss() {
         const boss = createBoss('crystal_warden', ax, ay - 40);
         bosses.push(boss);
         sfx.bossSummon();
+        story.show(BOSS_STORY.crystal_warden_summon); // 剧情：晶体守卫成形
         console.log('[Boss] 💎 幽紫晶体守卫 已降临！');
       },
     });
@@ -2352,6 +2354,7 @@ function trySummonBoss() {
         const boss = createBoss('void_assimilator', barrier.x, barrier.y - 30);
         bosses.push(boss);
         sfx.bossSummon();
+        story.show(BOSS_STORY.void_assimilator_summon); // 剧情：同化体降临
         console.log('[Boss] ☠ 黑雾同化体 已降临！');
       },
     });
@@ -2429,6 +2432,7 @@ function updateDungeonGate() {
   sfx.bossSummon();
   if (!guardianWarned) {
     guardianWarned = true;
+    story.show(BOSS_STORY.dungeon_guardian); // 剧情：守卫警告
     fishingMsg = '☠ 地牢守卫被惊醒了！击败骷髅王之前不要踏入地牢！';
     fishingMsgTimer = 5;
   }
@@ -2595,6 +2599,7 @@ function updateBossesSystem(dt: number) {
             breakState.drops.push({ x: boss.x, y: boss.y - 30, vx: 0, vy: -160, blockId: 'rock_titan_crown', life: 60 });
             purifyNearbyVoidBarrier(boss.x, boss.y);
             sfx.bossDie();
+            story.show(BOSS_STORY.rock_titan_defeat); // 剧情：泰坦崩塌
             console.log('[Boss] ✅ 岩石泰坦 已崩塌！→ 岩石泰坦王冠');
           } else if (boss.def.id === 'crystal_warden') {
             breakState.drops.push({ x: boss.x, y: boss.y, vx: 0, vy: -100, blockId: 'void_crystal', life: 60 });
@@ -2604,6 +2609,7 @@ function updateBossesSystem(dt: number) {
             breakState.drops.push({ x: boss.x, y: boss.y - 30, vx: 0, vy: -160, blockId: 'crystal_warden_core', life: 60 });
             purifyNearbyVoidBarrier(boss.x, boss.y);
             sfx.bossDie();
+            story.show(BOSS_STORY.crystal_warden_defeat); // 剧情：净化完成
             console.log('[Boss] ✅ 幽紫晶体守卫 已被净化！→ 晶守核心');
           } else if (boss.def.id === 'skeleton_king') {
             // 大框架: 骷髅王专属掉落（地牢钥匙主题）
@@ -2621,6 +2627,7 @@ function updateBossesSystem(dt: number) {
             breakState.drops.push({ x: boss.x, y: boss.y - 30, vx: 0, vy: -160, blockId: 'void_assimilator_heart', life: 60 });
             purifyNearbyVoidBarrier(boss.x, boss.y);
             sfx.bossDie();
+            story.show(BOSS_STORY.void_assimilator_defeat); // 剧情：同化失败
             console.log('[Boss] ✅ 黑雾同化体 已被净化！→ 同化之心');
           }
           // M13: 每个 Boss 30% 概率额外掉 1 件随机普通饰品

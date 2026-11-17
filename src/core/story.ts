@@ -130,6 +130,69 @@ export const REGION_STORY: Record<string, StoryEntry> = {
 
 /** Boss 剧情（key 为自定义事件 id） */
 export const BOSS_STORY: Record<string, StoryEntry> = {
+  rock_titan_summon: {
+    id: 'boss_rock_titan_summon',
+    title: '岩石泰坦苏醒',
+    lines: [
+      '祭坛裂开，整座矿脉站了起来。',
+      '它胸腔里的金脉还在跳。',
+    ],
+    duration: 6,
+  },
+  rock_titan_defeat: {
+    id: 'boss_rock_titan_defeat',
+    title: '泰坦崩塌',
+    lines: [
+      '岩石碎成雨，露出藏在核心里的王冠。',
+      '矿脉安静了，仿佛刚才什么都没发生。',
+    ],
+    duration: 6,
+  },
+  crystal_warden_summon: {
+    id: 'boss_crystal_warden_summon',
+    title: '晶体守卫成形',
+    lines: [
+      '幽紫晶体在结界中央拼合、立起。',
+      '它没有脸，却一直「看」着你。',
+    ],
+    duration: 6,
+  },
+  crystal_warden_defeat: {
+    id: 'boss_crystal_warden_defeat',
+    title: '净化完成',
+    lines: [
+      '晶体碎成无数个你，然后一并熄灭。',
+      '暗能量退开，露出一条窄路。',
+    ],
+    duration: 6,
+  },
+  void_assimilator_summon: {
+    id: 'boss_void_assimilator_summon',
+    title: '黑雾同化体降临',
+    lines: [
+      '黑雾在结界上聚成人形，模仿着你的动作。',
+      '它学得太像了，连伤口都一样。',
+    ],
+    duration: 6,
+  },
+  void_assimilator_defeat: {
+    id: 'boss_void_assimilator_defeat',
+    title: '同化失败',
+    lines: [
+      '同化体散成雾，结界后面露出一段旧路。',
+      '你听见自己心跳的回声，比刚才多了一拍。',
+    ],
+    duration: 6,
+  },
+  dungeon_guardian: {
+    id: 'boss_dungeon_guardian',
+    title: '地牢守卫苏醒',
+    lines: [
+      '砖墙里渗出金属摩擦声。',
+      '它不看守宝箱——它看守的是门后的东西。快退出去。',
+    ],
+    duration: 5.5,
+  },
   skeleton_king_summon: {
     id: 'boss_skeleton_king_summon',
     title: '骷髅王苏醒了',
