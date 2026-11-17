@@ -43,17 +43,17 @@ class ValueNoise {
   }
   private fade(t: number) { return t * t * (3 - 2 * t); }
   private lerp(a: number, b: number, t: number) { return a + t * (b - a); }
+  /** 整数格点取值 0..1（用置换表做确定性随机） */
+  private grid(ix: number, iy: number): number {
+    return this.perm[(this.perm[ix & 255] + (iy & 255)) & 511] / 511;
+  }
+  /** 平滑值噪声 0..1 —— 相邻格点之间线性插值，保证地形/矿层成片而非逐格跳变 */
   noise2D(x: number, y: number): number {
-    const X = Math.floor(x) & 255, Y = Math.floor(y) & 255;
-    x -= Math.floor(x); y -= Math.floor(y);
-    const u = this.fade(x), v = this.fade(y);
-    const A = this.perm[X] + Y, AA = this.perm[A], AB = this.perm[A + 1];
-    const B = this.perm[X + 1] + Y, BA = this.perm[B], BB = this.perm[B + 1];
-    return this.lerp(
-      this.lerp(hash(this.perm[AA], x, y), hash(this.perm[BA], x - 1, y), u),
-      this.lerp(hash(this.perm[AB], x, y - 1), hash(this.perm[BB], x - 1, y - 1), u),
-      v
-    );
+    const xi = Math.floor(x), yi = Math.floor(y);
+    const u = this.fade(x - xi), v = this.fade(y - yi);
+    const a = this.lerp(this.grid(xi, yi), this.grid(xi + 1, yi), u);
+    const b = this.lerp(this.grid(xi, yi + 1), this.grid(xi + 1, yi + 1), u);
+    return this.lerp(a, b, v);
   }
   fbm(x: number, y: number, octaves = 4): number {
     let v = 0, a = 0.5, f = 1;
@@ -63,11 +63,6 @@ class ValueNoise {
     }
     return v;
   }
-}
-function hash(p: number, x: number, y: number) {
-  const h = p * 374761393 + x * 668265263 + y * 1442695040888963407;
-  const n = Math.imul(h ^ (h >>> 13), 1274126177);
-  return ((n ^ (n >>> 16)) >>> 0) / 0xffffffff;
 }
 function mulberry32(seed: number) {
   let t = seed >>> 0;
@@ -151,59 +146,65 @@ export function generateTerrain(seed = 20261116): TerrainData {
     const r = REGIONS[regionIdxAt(x)];
     const nv = n3.noise2D(x * 0.011, 13);
     const ridge = 1 - Math.abs(nv * 2 - 1);   // 0..1，尖锐山脊
-    let add = Math.floor(ridge * ridge * 18);
+    let add = Math.floor(ridge * ridge * 12);
     // 平原与谷地削弱山脊
     if (r.id === 'silent_sea') add = Math.floor(add * 0.25);
     else if (r.id === 'underground_valley') add = Math.floor(add * 0.4);
     heightMap[x] = Math.max(45, Math.min(95, heightMap[x] + add));
   }
 
-  // M1: 出生点平台 — 前 26 列压平，让玩家有稳定的起步区
+  // 出生点平台 — 前 16 列压平，随后 12 列过渡回自然地形
   const SPAWN_H = 62;
-  for (let x = 0; x < 26; x++) heightMap[x] = SPAWN_H;
-  for (let x = 26; x < 44; x++) {
-    const t = (x - 26) / 18;
+  for (let x = 0; x < 16; x++) heightMap[x] = SPAWN_H;
+  for (let x = 16; x < 30; x++) {
+    const t = (x - 16) / 14;
     heightMap[x] = Math.max(45, Math.min(95, Math.round(heightMap[x] * t + SPAWN_H * (1 - t))));
   }
 
-  // M1: 相邻列高差限幅（3 格，保留山形）+ 均值平滑
+  // 相邻列高差限幅 2 格 + 均值平滑 —— 地表连续可走，同时保留丘陵起伏
   for (let pass = 0; pass < 3; pass++) {
     for (let x = 1; x < width; x++) {
       const d = heightMap[x] - heightMap[x - 1];
-      if (d > 3) heightMap[x] = heightMap[x - 1] + 3;
-      else if (d < -3) heightMap[x] = heightMap[x - 1] - 3;
+      if (d > 2) heightMap[x] = heightMap[x - 1] + 2;
+      else if (d < -2) heightMap[x] = heightMap[x - 1] - 2;
     }
     for (let x = width - 2; x >= 0; x--) {
       const d = heightMap[x] - heightMap[x + 1];
-      if (d > 3) heightMap[x] = heightMap[x + 1] + 3;
-      else if (d < -3) heightMap[x] = heightMap[x + 1] - 3;
+      if (d > 2) heightMap[x] = heightMap[x + 1] + 2;
+      else if (d < -2) heightMap[x] = heightMap[x + 1] - 2;
     }
     for (let x = 1; x < width - 1; x++) {
       heightMap[x] = Math.round((heightMap[x - 1] + heightMap[x] * 2 + heightMap[x + 1]) / 4);
     }
   }
 
-  // M1: 断崖 — 少量位置插入 2~3 格宽的陡坡（每格 2~3 格台阶，可跳过）
+  // 缓坡台地 — 用连续斜坡代替断崖，形成可攀爬的地貌层次
   const cliffRng = mulberry32(seed + 777);
-  for (let x = 70; x < width - 40; ) {
-    const total = 5 + Math.floor(cliffRng() * 5);       // 总高差 5~9 格
+  for (let x = 60; x < width - 40; ) {
+    const total = 4 + Math.floor(cliffRng() * 4);       // 总高差 4~7 格
     const dir = cliffRng() > 0.5 ? 1 : -1;              // 抬升 / 下降
-    const w = 2 + Math.floor(cliffRng() * 2);           // 陡坡宽度 2~3 格
-    const step = Math.min(3, Math.ceil(total / w));
+    const w = 8 + Math.floor(cliffRng() * 6);           // 斜坡宽度 8~13 格（每格 ≤1 格）
     for (let i = 0; i < w; i++) {
       const xx = x + i;
       if (xx >= width) break;
-      heightMap[xx] = Math.max(45, Math.min(95, heightMap[xx] + dir * step * (i + 1)));
+      const k = i / w;
+      heightMap[xx] = Math.max(45, Math.min(95, heightMap[xx] + Math.round(dir * total * k)));
     }
-    // 台地保持后缓降，形成断崖+台地地貌
-    const tail = 8 + Math.floor(cliffRng() * 10);
-    for (let i = 0; i < tail; i++) {
-      const xx = x + w + i;
-      if (xx >= width) break;
-      const k = 1 - i / tail;
-      heightMap[xx] = Math.max(45, Math.min(95, heightMap[xx] + Math.round(dir * step * w * k)));
+    x += 70 + Math.floor(cliffRng() * 60);
+  }
+
+  // 最终再限幅一次，确保任何位置落差都不超过 2 格（可跳过）
+  for (let pass = 0; pass < 2; pass++) {
+    for (let x = 1; x < width; x++) {
+      const d = heightMap[x] - heightMap[x - 1];
+      if (d > 2) heightMap[x] = heightMap[x - 1] + 2;
+      else if (d < -2) heightMap[x] = heightMap[x - 1] - 2;
     }
-    x += 90 + Math.floor(cliffRng() * 80);
+    for (let x = width - 2; x >= 0; x--) {
+      const d = heightMap[x] - heightMap[x + 1];
+      if (d > 2) heightMap[x] = heightMap[x + 1] + 2;
+      else if (d < -2) heightMap[x] = heightMap[x + 1] - 2;
+    }
   }
 
   // --- 填充 ---
@@ -263,16 +264,17 @@ function surfaceBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: Val
   }
 }
 
-function shallowBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: ValueNoise, n3: ValueNoise, rng: () => number): number {
+function shallowBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: ValueNoise, n3: ValueNoise, _rng: () => number): number {
   const noise = n1.noise2D(x * 0.08, y * 0.08);
   switch (r) {
     case 'wreck_zone':
-      if (noise > 0.7) return bi('wreck_scrap');
-      if (rng() > 0.92) return bi('ember_ash');
+      // 低频噪声 → 金属残片成片分布，避免逐格跳色造成"马赛克"观感
+      if (noise > 0.80) return bi('wreck_scrap');
+      if (n3.noise2D(x * 0.05, y * 0.05) > 0.62) return bi('wreck_hull');
       return bi('cracked_ground');
     case 'crack_waste':
-      if (noise > 0.6) return bi('cracked_ground');
-      if (noise < 0.3) return bi('surface_dust');
+      if (noise > 0.66) return bi('cracked_ground');
+      if (noise < 0.22) return bi('surface_dust');
       return bi('wind_rock');
     case 'gobi_mine': return bi('desert_ground');
     case 'silent_sea':

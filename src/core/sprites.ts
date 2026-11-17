@@ -150,52 +150,72 @@ function drawHumanoid(
   y: number, w: number, h: number,
   facing: number, time: number, u: number, cx: number,
 ) {
-  const headW = Math.max(4, Math.round(w * 0.66));
-  const headH = Math.max(4, Math.round(h * 0.30));
+  // 比例：头 24% / 躯干 36% / 腿 40% —— 人形轮廓清晰，不再是竖条
+  const headW = Math.max(6, Math.round(w * 0.62));
+  const headH = Math.max(6, Math.round(h * 0.24));
   const bodyY = y + headH;
-  const bodyH = Math.max(3, Math.round(h * 0.38));
-  const legH = Math.max(2, h - headH - bodyH);
+  const bodyH = Math.max(5, Math.round(h * 0.36));
+  const bodyW = Math.max(6, Math.round(w * 0.76));
+  const legW = Math.max(3, Math.round(w * 0.22));
+  const gap = Math.max(1, Math.round(w * 0.06));
+  const legY = bodyY + bodyH;
+  const legH = Math.max(4, y + h - legY);
   const swing = Math.sin(time * 9);
+  const lift = swing > 0 ? u : 0;
+  const bootH = Math.max(2, Math.round(u * 1.5));
 
-  // 双腿（交替 1px 抬升，走出行走感）
-  const legL = y + headH + bodyH - 1;
-  rect(ctx, cx - w * 0.28, legL + (swing > 0 ? 0 : -u), w * 0.22, legH + 1, m.dark);
-  rect(ctx, cx + w * 0.06, legL + (swing > 0 ? -u : 0), w * 0.22, legH + 1, m.dark);
+  // ---- 腿（双脚错步 + 靴子）----
+  rect(ctx, cx - gap / 2 - legW, legY, legW, Math.max(1, legH - lift), m.dark);
+  rect(ctx, cx + gap / 2, legY, legW, Math.max(1, legH - (u - lift)), m.dark);
+  ctx.fillStyle = shade(m.dark, -0.2);
+  ctx.fillRect(Math.round(cx - gap / 2 - legW), Math.round(legY + legH - bootH - lift), legW, bootH);
+  ctx.fillRect(Math.round(cx + gap / 2), Math.round(legY + legH - bootH - (u - lift)), legW, bootH);
 
-  // 躯干
-  rect(ctx, cx - w * 0.36, bodyY, w * 0.72, bodyH, m.main);
-  rect(ctx, cx - w * 0.36, bodyY, u, bodyH, m.light);
-  rect(ctx, cx + w * 0.36 - u, bodyY, u, bodyH, m.dark);
-  rect(ctx, cx - w * 0.36, bodyY + bodyH - u, w * 0.72, u, m.dark);
-
+  // ---- 躯干（左缘受光 / 右缘阴影 / 腰带）----
+  rect(ctx, cx - bodyW / 2, bodyY, bodyW, bodyH, m.main);
+  rect(ctx, cx - bodyW / 2, bodyY, u, bodyH, m.light);
+  rect(ctx, cx + bodyW / 2 - u, bodyY, u, bodyH, m.dark);
+  rect(ctx, cx - bodyW / 2, bodyY + bodyH - u, bodyW, u, m.dark);
+  // 肩线
+  rect(ctx, cx - bodyW / 2 - u, bodyY, bodyW + u * 2, u, m.light);
   // 胸甲 / 围裙
   if (m.accent) {
-    rect(ctx, cx - w * 0.16, bodyY + u, w * 0.32, Math.max(2, bodyH * 0.42), m.accent);
+    rect(ctx, cx - bodyW * 0.24, bodyY + u * 1.5, bodyW * 0.48, bodyH * 0.52, m.accent);
   }
 
-  // 双臂
-  const armY = bodyY + u;
-  rect(ctx, cx - w * 0.48, armY + (swing > 0 ? 0 : u), Math.max(1, w * 0.14), bodyH * 0.72, m.dark);
-  rect(ctx, cx + w * 0.34, armY + (swing > 0 ? u : 0), Math.max(1, w * 0.14), bodyH * 0.72, m.dark);
+  // ---- 双臂（前后摆动；前臂用主色提高辨识度）----
+  const armW = Math.max(2, Math.round(w * 0.15));
+  const armH = Math.max(4, Math.round(bodyH * 0.86));
+  const armSwing = Math.round(swing * u);
+  rect(ctx, cx - bodyW / 2 - armW, bodyY + u + armSwing, armW, armH, m.dark);
+  rect(ctx, cx + bodyW / 2, bodyY + u - armSwing, armW, armH, m.main);
 
-  // 头
-  rect(ctx, cx - headW / 2, y, headW, headH, m.light);
-  rect(ctx, cx + headW / 2 - u, y, u, headH, m.dark);
-  rect(ctx, cx - headW / 2, y + headH - u, headW, u, m.main);
+  // ---- 头（浅色皮肤 + 头发/头盔 + 双眼）----
+  const hx = Math.round(cx - headW / 2 + facing * u * 0.5);
+  // 脖子
+  rect(ctx, cx - u, y + headH - u, u * 2, u, m.dark);
+  rect(ctx, hx, y, headW, headH, m.light);
+  rect(ctx, hx + headW - u, y, u, headH, m.main);
+  rect(ctx, hx, y + headH - u, headW, u, m.main);
   // 头发 / 头盔
-  rect(ctx, cx - headW / 2, y, headW, u * 1.6, m.accent ?? m.main);
+  const hair = m.accent ?? m.dark;
+  rect(ctx, hx, y, headW, Math.max(2, Math.round(headH * 0.34)), hair);
+  rect(ctx, hx + (facing >= 0 ? 0 : headW - u), y + u, u, Math.round(headH * 0.45), hair);
 
-  // 双眼（朝向侧）
-  const eyeY = y + headH * 0.52;
-  const ex = facing >= 0 ? cx + headW * 0.06 : cx - headW * 0.30;
-  rect(ctx, ex, eyeY, Math.max(1, u), Math.max(1, u), m.eye);
-  rect(ctx, ex + (facing >= 0 ? -u * 2.2 : u * 2.2), eyeY, Math.max(1, u), Math.max(1, u), m.eye);
+  // 双眼（朝向侧的偏移）
+  const eyeY = y + Math.round(headH * 0.56);
+  const eyeSize = Math.max(1, u);
+  const ex = facing >= 0 ? hx + Math.round(headW * 0.40) : hx + Math.round(headW * 0.24);
+  rect(ctx, ex, eyeY, eyeSize, eyeSize, m.eye);
+  rect(ctx, ex + (facing >= 0 ? eyeSize * 2 : -eyeSize * 2), eyeY, eyeSize, eyeSize, m.eye);
 
-  // 武器
+  // ---- 武器（镐 / 工具，握在前手）----
   if (m.weapon) {
-    const hx = facing >= 0 ? cx + w * 0.40 : cx - w * 0.62;
-    rect(ctx, hx, armY + bodyH * 0.2, Math.max(2, w * 0.30), Math.max(2, u), m.weapon);
-    rect(ctx, hx + (facing >= 0 ? w * 0.22 : 0), armY + bodyH * 0.2 - u, Math.max(1, u * 2), Math.max(2, u * 2), m.weapon);
+    const handY = bodyY + u + armH * 0.6;
+    const len = Math.max(4, Math.round(w * 0.42));
+    const hxx = facing >= 0 ? cx + bodyW / 2 + armW - u : cx - bodyW / 2 - armW - len + u;
+    rect(ctx, hxx, handY, len, Math.max(2, u), m.weapon);
+    rect(ctx, hxx + (facing >= 0 ? len - u * 2 : 0), handY - u * 2.5, Math.max(2, u * 2), u * 3, m.weapon);
   }
 
   // 王冠（精英）

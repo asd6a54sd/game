@@ -1,6 +1,7 @@
 /**
  * 烬海纪元 · 玩家角色
- * 最左侧留角色剪影做比例锚点 —— 本玩家尺寸: 0.75 tile 宽 × 1.75 tile 高
+ * 泰拉瑞亚式比例：1.25 tile 宽 × 2.6 tile 高（约 20×42 px）
+ * —— 有清晰的头部 / 躯干 / 四肢分区，站在地表时约占 2.5 格高
  */
 import { TILE_SIZE } from './terrain.js';
 import { isSolid } from './blocks.js';
@@ -32,10 +33,10 @@ export interface Player {
 }
 
 export function createPlayer(): Player {
-  const w = TILE_SIZE * 0.75;
-  const h = TILE_SIZE * 1.75;
+  const w = TILE_SIZE * 1.25;
+  const h = TILE_SIZE * 2.6;
   return {
-    x: 3 * TILE_SIZE,
+    x: 16 * TILE_SIZE,
     y: 0,
     vx: 0, vy: 0,
     width: w, height: h,
@@ -98,7 +99,7 @@ export function updatePlayer(
 
   // 出界复活
   if (p.y > MAP_HEIGHT * TILE_SIZE + 200) {
-    p.x = 3 * TILE_SIZE;
+    p.x = 16 * TILE_SIZE;
     p.y = 50 * TILE_SIZE;
     p.vx = p.vy = 0;
   }

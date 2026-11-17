@@ -1960,7 +1960,8 @@ function render() {
   // 震屏偏移：世界层（地形/实体）偏移，HUD 固定屏幕
   ctx.save();
   ctx.translate(ox, oy);
-  renderer.drawBackground(cam);
+  renderer.drawBackground(cam, terrain.heightMap);
+  renderer.drawScenery(cam, terrain.tiles, terrain.heightMap);
   renderer.drawWorld(terrain.tiles, cam, breakState, terrain.heightMap);
 
   // M15: 世界事件滤镜层（在震屏偏移内）

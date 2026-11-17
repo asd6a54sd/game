@@ -29,11 +29,16 @@ import { MOUNT_DEFS } from './mounts.js';
 import { PET_DEFS, Pet } from './pets.js';
 import { drawCharacter, makeModel, NPC_MODELS, CharKind } from './sprites.js';
 
+/** 不生长地表植被的方块（液态金属 / 废墟结构 / 结界） */
+const saltSurfaces = new Set(['liquid_metal', 'metal_float', 'rebel_brick', 'void_barrier']);
+
 
 export class Renderer {
   // public 以便 main.ts 震屏偏移（save/translate/restore）
   ctx: CanvasRenderingContext2D;
   private starField: { x: number; y: number; b: number }[] = [];
+  // 视差云层（构造时生成，随相机水平循环）
+  private clouds: { x: number; y: number; w: number; h: number; layer: number }[] = [];
   // 日夜循环 0..1 (0 = 黎明, 0.5 = 正午, 0.9 = 深夜)
   timeOfDay = 0.3;
 
@@ -43,6 +48,7 @@ export class Renderer {
     this.ctx = ctx;
     ctx.imageSmoothingEnabled = false;
     this.generateStars();
+    this.generateClouds();
   }
 
   private generateStars() {
@@ -53,6 +59,26 @@ export class Renderer {
         b: 0.3 + Math.random() * 0.7,
       });
     }
+  }
+
+  private generateClouds() {
+    for (let i = 0; i < 30; i++) {
+      this.clouds.push({
+        x: Math.random() * 2400,
+        y: 5 + Math.random() * 30,
+        w: 56 + Math.random() * 96,
+        h: 14 + Math.random() * 18,
+        layer: i % 2,
+      });
+    }
+  }
+
+  /** 确定性 0..1 哈希 —— 装饰物位置随世界坐标稳定，不随相机漂移 */
+  private hash01(n: number): number {
+    let t = (n | 0) >>> 0;
+    t = Math.imul(t ^ (t >>> 16), 2246822507) >>> 0;
+    t = Math.imul(t ^ (t >>> 13), 3266489909) >>> 0;
+    return ((t ^ (t >>> 16)) >>> 0) / 4294967296;
   }
 
   resize(w: number, h: number) {
@@ -67,11 +93,11 @@ export class Renderer {
     const t = this.timeOfDay;
     let topC: string, midC: string, botC: string;
     if (t < 0.25) { // 黎明
-      topC = '#2a1830'; midC = '#5a2428'; botC = '#8a3a20';
+      topC = '#2a1830'; midC = '#5a2a38'; botC = '#a05a38';
     } else if (t < 0.55) { // 白天
-      topC = '#2c2840'; midC = '#4a2a30'; botC = '#6e3c26';
+      topC = '#31506b'; midC = '#4d7188'; botC = '#93b0b6';
     } else if (t < 0.75) { // 黄昏
-      topC = '#241a34'; midC = '#471832'; botC = '#6a2408';
+      topC = '#241a34'; midC = '#4a1e36'; botC = '#7a2c0e';
     } else { // 深夜
       topC = '#06060e'; midC = '#0c0a16'; botC = '#181014';
     }
@@ -83,76 +109,166 @@ export class Renderer {
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
   }
 
-  drawBackground(cam: Camera) {
+  drawBackground(cam: Camera, heightMap?: Uint8Array) {
     const ctx = this.ctx;
-    // 夜晚才显示星星
+    const W = this.canvas.width;
     const t = this.timeOfDay;
-    if (t > 0.55 || t < 0.1) {
-      const alpha = t > 0.55 ? (t - 0.55) * 2.2 : (0.1 - t) * 4;
-      for (const s of this.starField) {
-        const sx = s.x - cam.x * 0.2;
-        const sy = s.y - cam.y * 0.2;
-        ctx.fillStyle = `rgba(232, 197, 71, ${s.b * alpha * 0.5})`;
-        ctx.fillRect(Math.floor(sx), Math.floor(sy), 2, 2);
-      }
-    }
-    // 远处山脉剪影（双层，提升层次）
-    const mountainBaseY = 55 * TILE_SIZE - cam.y * 0.4;
-    if (mountainBaseY > -80) {
-      // 远层
-      ctx.fillStyle = '#2a1210';
-      for (let x = -50; x < this.canvas.width + 50; x += 56) {
-        const h = 30 + ((Math.sin(x * 0.02 + 1.4) + 1) * 22);
-        ctx.beginPath();
-        ctx.moveTo(x, mountainBaseY);
-        ctx.lineTo(x + 28, mountainBaseY - h);
-        ctx.lineTo(x + 56, mountainBaseY);
-        ctx.fill();
-      }
-      // 近层
-      ctx.fillStyle = '#3e1c14';
-      for (let x = -50; x < this.canvas.width + 50; x += 40) {
-        const h = 20 + ((Math.sin(x * 0.03) + 1) * 15);
-        ctx.beginPath();
-        ctx.moveTo(x, mountainBaseY);
-        ctx.lineTo(x + 20, mountainBaseY - h);
-        ctx.lineTo(x + 40, mountainBaseY);
-        ctx.fill();
-      }
 
-      // 地平线雾气 — 让远山与地面自然衔接
-      const fog = ctx.createLinearGradient(0, mountainBaseY - 80, 0, mountainBaseY + 24);
-      fog.addColorStop(0, 'rgba(150, 90, 60, 0)');
-      fog.addColorStop(0.65, 'rgba(150, 90, 60, 0.14)');
-      fog.addColorStop(1, 'rgba(165, 100, 65, 0.26)');
-      ctx.fillStyle = fog;
-      ctx.fillRect(0, mountainBaseY - 80, this.canvas.width, 104);
+    // 视野内地表平均高度 → 地平线屏幕 Y（远景、云层据此对齐地面）
+    let surfPx = 62 * TILE_SIZE;
+    if (heightMap) {
+      const c0 = Math.max(0, Math.floor(cam.x / TILE_SIZE));
+      const c1 = Math.min(MAP_WIDTH - 1, Math.ceil((cam.x + W) / TILE_SIZE));
+      let sum = 0, n = 0;
+      for (let x = c0; x <= c1; x++) { sum += heightMap[x]; n++; }
+      if (n > 0) surfPx = (sum / n) * TILE_SIZE;
     }
+    const horizonY = Math.round(surfPx - cam.y);
+    if (horizonY < -240) return;   // 身在地下：天空层不参与绘制
+
+    // 星空（夜间）
+    if (t > 0.55 || t < 0.1) {
+      const alpha = t > 0.55 ? Math.min(1, (t - 0.55) * 2.2) : Math.min(1, (0.1 - t) * 4);
+      for (const s of this.starField) {
+        const sy = Math.floor(s.y - cam.y * 0.2);
+        if (sy < -4 || sy > horizonY - 60) continue;
+        ctx.fillStyle = `rgba(232, 197, 71, ${s.b * alpha * 0.5})`;
+        ctx.fillRect(Math.floor(s.x - cam.x * 0.2), sy, 2, 2);
+      }
+    }
+
+    this.drawClouds(cam, horizonY);
+    this.drawMountains(cam, horizonY);
+    this.drawFarForest(cam, horizonY);
 
     // 日月天体（仅地表视野内）
-    if (mountainBaseY > -200) {
-      if (t >= 0.06 && t < 0.6) {
-        // 太阳
-        const sx = this.canvas.width * (0.2 + t * 1.0);
-        const sy = mountainBaseY - 130;
-        const sunGrad = ctx.createRadialGradient(sx, sy, 4, sx, sy, 44);
-        sunGrad.addColorStop(0, 'rgba(255, 190, 100, 0.85)');
-        sunGrad.addColorStop(0.35, 'rgba(230, 120, 60, 0.25)');
-        sunGrad.addColorStop(1, 'rgba(230, 120, 60, 0)');
-        ctx.fillStyle = sunGrad;
-        ctx.beginPath(); ctx.arc(sx, sy, 44, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#f2a862';
-        ctx.beginPath(); ctx.arc(sx, sy, 11, 0, Math.PI * 2); ctx.fill();
-      } else if (t >= 0.75 || t < 0.06) {
-        // 月亮
-        const sx = this.canvas.width * 0.72;
-        const sy = mountainBaseY - 150;
-        ctx.fillStyle = 'rgba(230,230,240,0.12)';
-        ctx.beginPath(); ctx.arc(sx, sy, 28, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = 'rgba(236,236,246,0.92)';
-        ctx.beginPath(); ctx.arc(sx, sy, 11, 0, Math.PI * 2); ctx.fill();
-      }
+    if (t >= 0.06 && t < 0.6) {
+      const sx = W * (0.2 + t * 1.0);
+      const sy = horizonY - 150;
+      const sunGrad = ctx.createRadialGradient(sx, sy, 4, sx, sy, 44);
+      sunGrad.addColorStop(0, 'rgba(255, 196, 110, 0.85)');
+      sunGrad.addColorStop(0.35, 'rgba(235, 130, 70, 0.25)');
+      sunGrad.addColorStop(1, 'rgba(235, 130, 70, 0)');
+      ctx.fillStyle = sunGrad;
+      ctx.beginPath(); ctx.arc(sx, sy, 44, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#f4ad68';
+      ctx.beginPath(); ctx.arc(sx, sy, 12, 0, Math.PI * 2); ctx.fill();
+    } else if (t >= 0.75 || t < 0.06) {
+      const sx = W * 0.72;
+      const sy = horizonY - 170;
+      ctx.fillStyle = 'rgba(230,230,240,0.12)';
+      ctx.beginPath(); ctx.arc(sx, sy, 30, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(238,238,248,0.94)';
+      ctx.beginPath(); ctx.arc(sx, sy, 12, 0, Math.PI * 2); ctx.fill();
     }
+  }
+
+  /** 视差云层 — 边缘天空的主要体积感来源 */
+  private drawClouds(cam: Camera, horizonY: number) {
+    const ctx = this.ctx;
+    const W = this.canvas.width;
+    const t = this.timeOfDay;
+    const night = t > 0.55 || t < 0.1;
+    const main = night ? 'rgba(150, 162, 188, 0.20)' : 'rgba(255, 250, 240, 0.92)';
+    const under = night ? 'rgba(74, 84, 112, 0.26)' : 'rgba(196, 202, 214, 0.82)';
+    const span = Math.max(W + 300, 900);
+    for (const c of this.clouds) {
+      const par = c.layer === 0 ? 0.10 : 0.18;
+      const sx = ((c.x - cam.x * par) % span + span) % span - 150;
+      const sy = horizonY - c.y * TILE_SIZE + cam.y * (1 - par) * 0.5;
+      if (sy > horizonY - 12 || sy < -c.h - 80) continue;
+      const cw = c.w, ch = c.h;
+      const bottom = sy + ch;
+      ctx.fillStyle = under;
+      ctx.fillRect(sx + 6, bottom - ch * 0.30, cw - 12, ch * 0.30);
+      ctx.fillStyle = main;
+      ctx.beginPath();
+      ctx.arc(sx + cw * 0.24, bottom - ch * 0.46, ch * 0.50, 0, Math.PI * 2);
+      ctx.arc(sx + cw * 0.48, bottom - ch * 0.74, ch * 0.80, 0, Math.PI * 2);
+      ctx.arc(sx + cw * 0.74, bottom - ch * 0.50, ch * 0.56, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  /** 远处山脉剪影（双层） */
+  private drawMountains(cam: Camera, horizonY: number) {
+    const ctx = this.ctx;
+    const W = this.canvas.width;
+    const base = horizonY + 12;
+    if (base < -80) return;
+
+    const off1 = cam.x * 0.12;
+    ctx.fillStyle = '#3a4a52';
+    for (let sx = -110; sx < W + 110; sx += 96) {
+      const wx = sx + off1;
+      const h = 74 + Math.sin(wx * 0.011) * 38 + Math.sin(wx * 0.031 + 2) * 18;
+      const peak = sx + Math.sin(wx * 0.017 + 1) * 22;
+      ctx.beginPath();
+      ctx.moveTo(sx - 64, base);
+      ctx.lineTo(peak, base - h);
+      ctx.lineTo(sx + 64, base);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    const off2 = cam.x * 0.2;
+    ctx.fillStyle = '#2b3a42';
+    for (let sx = -80; sx < W + 80; sx += 62) {
+      const wx = sx + off2;
+      const h = 44 + Math.sin(wx * 0.02 + 1.1) * 24 + Math.sin(wx * 0.052) * 12;
+      const peak = sx + Math.sin(wx * 0.026 + 3) * 14;
+      ctx.beginPath();
+      ctx.moveTo(sx - 40, base);
+      ctx.lineTo(peak, base - h);
+      ctx.lineTo(sx + 40, base);
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    // 地平线雾气 — 让远山与地面自然衔接
+    const fog = ctx.createLinearGradient(0, base - 90, 0, base + 22);
+    fog.addColorStop(0, 'rgba(120, 110, 105, 0)');
+    fog.addColorStop(0.7, 'rgba(120, 110, 105, 0.14)');
+    fog.addColorStop(1, 'rgba(135, 120, 105, 0.24)');
+    ctx.fillStyle = fog;
+    ctx.fillRect(0, base - 90, W, 114);
+  }
+
+  /** 远景森林剪影带 — 让地平线不再是空旷的分割线 */
+  private drawFarForest(cam: Camera, horizonY: number) {
+    if (horizonY < -50) return;
+    const ctx = this.ctx;
+    const W = this.canvas.width;
+
+    // 远层：连绵树线
+    const off = cam.x * 0.45;
+    ctx.fillStyle = '#1d2b1d';
+    ctx.beginPath();
+    ctx.moveTo(-40, horizonY + 40);
+    for (let sx = -40; sx <= W + 40; sx += 8) {
+      const wx = sx + off;
+      const n = Math.sin(wx * 0.009) * 0.5 + Math.sin(wx * 0.026 + 1.3) * 0.25 + Math.sin(wx * 0.061 + 4) * 0.12;
+      ctx.lineTo(sx, horizonY + 10 - (32 + n * 30));
+    }
+    ctx.lineTo(W + 40, horizonY + 40);
+    ctx.closePath();
+    ctx.fill();
+
+    // 近层：圆冠树剪影
+    ctx.fillStyle = '#141f16';
+    const off2 = cam.x * 0.62;
+    for (let sx = -30; sx <= W + 30; sx += 34) {
+      const wx = sx + off2;
+      const hh = 34 + (Math.sin(wx * 0.02) * 0.5 + Math.sin(wx * 0.047 + 2) * 0.5) * 18;
+      const cx = sx + Math.sin(wx * 0.013) * 6;
+      ctx.fillRect(cx - 1, horizonY - hh + 10, 2, hh);
+      ctx.beginPath();
+      ctx.arc(cx, horizonY - hh + 4, 9 + Math.sin(wx * 0.05) * 3, 0, Math.PI * 2);
+      ctx.arc(cx - 7, horizonY - hh + 11, 6, 0, Math.PI * 2);
+      ctx.arc(cx + 7, horizonY - hh + 11, 6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.fillRect(0, horizonY, W, 40);
   }
 
   drawWorld(tiles: Uint8Array, cam: Camera, breaking: BreakState | null, heightMap?: Uint8Array) {
@@ -206,7 +322,8 @@ export class Renderer {
         if (sameId(tx, ty + 1)) mask |= 4;
         if (sameId(tx - 1, ty)) mask |= 8;
         const exposedTop = ty === 0 || biToBlock(tiles[idx - MAP_WIDTH]) === 'empty';
-        this.drawTile(ctx, px, py, def, tx, ty, mask, exposedTop);
+        const naturalTop = !!heightMap && Math.abs(ty - heightMap[tx]) <= 1;
+        this.drawTile(ctx, px, py, def, tx, ty, mask, exposedTop, naturalTop);
         // 深层冷色偏移，区分浅层/深层
         if (ty > 100) {
           const a = Math.min(0.12, (ty - 100) * 0.0025);
@@ -327,6 +444,7 @@ export class Renderer {
     ty: number,
     mask = 0,
     exposedTop = false,
+    naturalTop = false,
   ) {
     // mask 位：1=上同类 2=右同类 4=下同类 8=左同类
     const baseColor = PALETTE_MAP.get(def.paletteId) ?? '#888';
@@ -336,12 +454,12 @@ export class Renderer {
     ctx.fillStyle = baseColor;
     ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
 
-    // === 公共颗粒纹理 ===
-    for (let i = 0; i < 10; i++) {
+    // === 公共颗粒纹理（少量，避免逐格噪点让地下变成马赛克）===
+    for (let i = 0; i < 6; i++) {
       const s = (seed + i * 2654435761) >>> 0;
       const vx = (s & 0xf) % (TILE_SIZE - 2);
       const vy = ((s >> 4) & 0xf) % (TILE_SIZE - 2);
-      ctx.fillStyle = ((s >> 8) & 1) ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.13)';
+      ctx.fillStyle = ((s >> 8) & 1) ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.09)';
       ctx.fillRect(px + vx, py + vy, 2, 2);
     }
 
@@ -409,39 +527,27 @@ export class Renderer {
       }
     }
 
-    // === 边缘融合：仅在与异类方块相邻的边画明暗（同类连成整体，无瓦片感）===
-    if (!(mask & 1)) {
-      ctx.fillStyle = 'rgba(255,255,255,0.16)';
+    // === 边缘融合：只在朝向空气的一侧画明暗，内部不做逐格分隔（避免瓦片网格感）===
+    if (!(mask & 1) && exposedTop) {
+      ctx.fillStyle = 'rgba(255,255,255,0.14)';
       ctx.fillRect(px, py, TILE_SIZE, 2);
     }
     if (!(mask & 4)) {
-      ctx.fillStyle = 'rgba(0,0,0,0.30)';
-      ctx.fillRect(px, py + TILE_SIZE - 3, TILE_SIZE, 3);
+      ctx.fillStyle = 'rgba(0,0,0,0.14)';
+      ctx.fillRect(px, py + TILE_SIZE - 2, TILE_SIZE, 2);
     }
     if (!(mask & 8)) {
-      ctx.fillStyle = 'rgba(255,255,255,0.07)';
+      ctx.fillStyle = 'rgba(0,0,0,0.10)';
       ctx.fillRect(px, py, 1, TILE_SIZE);
     }
     if (!(mask & 2)) {
-      ctx.fillStyle = 'rgba(0,0,0,0.18)';
+      ctx.fillStyle = 'rgba(0,0,0,0.10)';
       ctx.fillRect(px + TILE_SIZE - 1, py, 1, TILE_SIZE);
     }
 
-    // === 露天顶面：暖色高光 + 草叶/碎石装饰 ===
+    // === 露天顶面：草皮 / 矿物壳层 ===
     if (exposedTop) {
-      ctx.fillStyle = 'rgba(255, 226, 160, 0.40)';
-      ctx.fillRect(px, py, TILE_SIZE, 2);
-      ctx.fillStyle = 'rgba(255, 210, 140, 0.14)';
-      ctx.fillRect(px, py + 2, TILE_SIZE, 2);
-      // 草叶 / 残骸碎片
-      const n = 2 + (seed % 3);
-      for (let i = 0; i < n; i++) {
-        const s = (seed + i * 31337) >>> 0;
-        const gx = 2 + (s % 12);
-        const gh = 2 + ((s >> 5) % 3);
-        ctx.fillStyle = i % 2 === 0 ? 'rgba(255, 205, 115, 0.72)' : 'rgba(190, 140, 80, 0.75)';
-        ctx.fillRect(px + gx, py - gh, 1, gh);
-      }
+      this.drawSurfaceCrust(ctx, px, py, def, seed, naturalTop);
     }
 
     // === 矿石：中心亮斑 + 十字星光 ===
@@ -459,6 +565,200 @@ export class Renderer {
       const intensity = def.emitsLight / 15;
       ctx.fillStyle = `rgba(${intensity * 200 + 55}, ${intensity * 150 + 50}, ${intensity * 100 + 55}, ${intensity * 0.25})`;
       ctx.fillRect(px, py, TILE_SIZE, TILE_SIZE);
+    }
+  }
+
+  /** 地表壳层 —— 草皮盖住方块顶面，让地表读起来是"地面"而不是积木 */
+  private drawSurfaceCrust(
+    ctx: CanvasRenderingContext2D,
+    px: number,
+    py: number,
+    def: typeof BLOCKS[string],
+    seed: number,
+    natural: boolean,
+  ) {
+    const grp = def.paletteId.slice(0, 4);
+    const noPlant = grp === 'cold' || def.id === 'metal_float' || def.id === 'rebel_brick';
+    if (!natural || noPlant) {
+      ctx.fillStyle = 'rgba(255, 232, 180, 0.26)';
+      ctx.fillRect(px, py, TILE_SIZE, 2);
+      return;
+    }
+
+    const moss = grp === 'void'
+      ? { dark: '#3a2a52', mid: '#4c3a68', light: '#6a5488' }
+      : grp === 'iron'
+        ? { dark: '#3c4a2a', mid: '#51603a', light: '#6e8048' }
+        : { dark: '#3f6b26', mid: '#55913a', light: '#79b84c' };
+
+    // 草皮 4~5px：暗底 + 中间调 + 顶部高光
+    ctx.fillStyle = moss.dark;
+    ctx.fillRect(px, py, TILE_SIZE, 5);
+    ctx.fillStyle = moss.mid;
+    ctx.fillRect(px, py, TILE_SIZE, 3);
+    ctx.fillStyle = moss.light;
+    ctx.fillRect(px, py, TILE_SIZE, 1);
+
+    // 下沿垂坠（草土交界的有机边缘）
+    const n = 2 + (seed % 3);
+    for (let i = 0; i < n; i++) {
+      const s = (seed + i * 7349) >>> 0;
+      ctx.fillStyle = moss.dark;
+      ctx.fillRect(px + (s % TILE_SIZE), py + 5, 1, 2 + ((s >> 6) % 3));
+    }
+    // 向上草叶
+    for (let i = 0; i < 4; i++) {
+      const s = (seed + i * 31337) >>> 0;
+      const bh = 2 + ((s >> 5) % 4);
+      ctx.fillStyle = i % 2 === 0 ? moss.mid : moss.light;
+      ctx.fillRect(px + 1 + (s % (TILE_SIZE - 2)), py - bh, 1, bh);
+    }
+  }
+
+  /**
+   * 地表装饰层 —— 树 / 灌木 / 草丛 / 花
+   * 纯渲染：不进 tiles、不参与碰撞；位置由世界坐标哈希决定，相机移动不抖动
+   */
+  drawScenery(cam: Camera, tiles: Uint8Array, heightMap: Uint8Array) {
+    const ctx = this.ctx;
+    const c0 = Math.max(0, Math.floor(cam.x / TILE_SIZE) - 3);
+    const c1 = Math.min(MAP_WIDTH - 1, Math.ceil((cam.x + this.canvas.width) / TILE_SIZE) + 3);
+    const spacing = 9;
+
+    for (let x = c0; x <= c1; x++) {
+      const sy = heightMap[x];
+      if (sy <= 0 || sy >= MAP_HEIGHT) continue;
+      const surf = biToBlock(tiles[sy * MAP_WIDTH + x]);
+      if (surf === 'empty') continue;          // 地表被挖开
+      if (saltSurfaces.has(surf)) continue;    // 液态金属/废墟不长植物
+      const sx = Math.round(x * TILE_SIZE + TILE_SIZE / 2 - cam.x);
+      const gy = Math.round(sy * TILE_SIZE - cam.y - 1);
+
+      const hg = this.hash01(x * 37 + 11);
+      if (hg < 0.60) this.drawGrassTuft(ctx, sx, gy, x);
+      if (hg > 0.95) this.drawFlower(ctx, sx, gy, x);
+
+      // 树：按分块抖动定位（纯函数，避免随相机扫描顺序变化而闪烁）
+      const blk = Math.floor(x / spacing);
+      const treeCol = blk * spacing + Math.floor(this.hash01(blk * 7 + 13) * spacing);
+      if (x !== treeCol) continue;
+      const th = this.hash01(blk * 131 + 5);
+      if (th < 0.26) this.drawBush(ctx, sx, gy, th);
+      else this.drawTree(ctx, sx, gy, 4 + Math.floor(th * 6), blk);
+    }
+  }
+
+  private drawGrassTuft(ctx: CanvasRenderingContext2D, sx: number, gy: number, x: number) {
+    const n = 3 + Math.floor(this.hash01(x * 17 + 3) * 3);
+    for (let i = 0; i < n; i++) {
+      const bx = sx - 7 + Math.floor(this.hash01(x * 91 + i * 53) * 14);
+      const bh = 3 + Math.floor(this.hash01(x * 13 + i * 7) * 4);
+      ctx.fillStyle = i % 2 === 0 ? '#5b8f3a' : '#3f6f2a';
+      ctx.fillRect(bx, gy - bh, 1, bh);
+    }
+  }
+
+  private drawFlower(ctx: CanvasRenderingContext2D, sx: number, gy: number, x: number) {
+    const h = 4 + Math.floor(this.hash01(x * 23) * 3);
+    ctx.fillStyle = '#3f6f2a';
+    ctx.fillRect(sx, gy - h, 1, h);
+    const cols = ['#e8c547', '#e86a5a', '#c8a0e8'];
+    ctx.fillStyle = cols[x % cols.length];
+    ctx.fillRect(sx - 1, gy - h - 2, 3, 2);
+    ctx.fillStyle = '#fff8e8';
+    ctx.fillRect(sx, gy - h - 1, 1, 1);
+  }
+
+  private drawBush(ctx: CanvasRenderingContext2D, sx: number, gy: number, seed: number) {
+    const r = 7 + Math.floor(seed * 18);
+    ctx.fillStyle = '#2c5426';
+    ctx.beginPath();
+    ctx.arc(sx, gy - r * 0.7, r, 0, Math.PI * 2);
+    ctx.arc(sx - r * 0.7, gy - r * 0.3, r * 0.7, 0, Math.PI * 2);
+    ctx.arc(sx + r * 0.7, gy - r * 0.3, r * 0.7, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#3f7a30';
+    ctx.beginPath();
+    ctx.arc(sx - 1, gy - r * 0.9, r * 0.58, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  private drawTree(
+    ctx: CanvasRenderingContext2D, sx: number, gy: number,
+    hTiles: number, seed: number,
+  ) {
+    const trunkH = hTiles * TILE_SIZE;
+    const trunkW = 6 + (seed % 3);
+    const topY = gy - trunkH;
+
+    // 落影
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';
+    ctx.beginPath();
+    ctx.ellipse(sx, gy, trunkW * 1.8, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 枝干（在树干前画，形成分叉）
+    ctx.fillStyle = '#33241a';
+    const b1 = this.hash01(seed * 29 + 3);
+    const b2 = this.hash01(seed * 53 + 9);
+    ctx.fillRect(sx - Math.round(trunkW * 1.6), topY + Math.round(trunkH * b1), Math.round(trunkW * 1.6), 3);
+    ctx.fillRect(sx + Math.round(trunkW * 0.4), topY + Math.round(trunkH * b2), Math.round(trunkW * 1.6), 3);
+
+    // 树干
+    ctx.fillStyle = '#3b2a1b';
+    ctx.fillRect(sx - trunkW / 2, topY, trunkW, trunkH);
+    ctx.fillStyle = '#5c4128';
+    ctx.fillRect(sx - trunkW / 2, topY, 2, trunkH);
+    ctx.fillStyle = '#2a1d12';
+    ctx.fillRect(sx + trunkW / 2 - 2, topY, 2, trunkH);
+    // 树根
+    ctx.fillStyle = '#3b2a1b';
+    ctx.fillRect(sx - trunkW / 2 - 3, gy - 5, 3, 5);
+    ctx.fillRect(sx + trunkW / 2, gy - 5, 3, 5);
+
+    // 树冠：多个叶团叠出不规则轮廓（避免"棒棒糖"式圆球）
+    const cr = 15 + (seed % 5) * 3;
+    const cy = topY + 4;
+    const puff = (i: number): [number, number, number] => {
+      const a = this.hash01(seed * 71 + i * 37);
+      const b = this.hash01(seed * 43 + i * 19);
+      return [
+        sx + (a - 0.5) * cr * 1.5,
+        cy + 4 + (b - 0.5) * cr * 0.9,
+        cr * (0.45 + b * 0.35),
+      ];
+    };
+    ctx.fillStyle = '#2c5426';
+    ctx.beginPath();
+    ctx.arc(sx + 2, cy + 8, cr * 0.95, 0, Math.PI * 2);
+    for (let i = 0; i < 4; i++) {
+      const [x1, y1, r1] = puff(i);
+      ctx.arc(x1, y1, r1, 0, Math.PI * 2);
+    }
+    ctx.fill();
+    ctx.fillStyle = '#3f7a30';
+    ctx.beginPath();
+    ctx.arc(sx - 3, cy + 2, cr * 0.72, 0, Math.PI * 2);
+    for (let i = 0; i < 2; i++) {
+      const [x1, y1, r1] = puff(i + 5);
+      ctx.arc(x1, y1 - 3, r1 * 0.8, 0, Math.PI * 2);
+    }
+    ctx.fill();
+    ctx.fillStyle = '#5fa33c';
+    ctx.beginPath();
+    ctx.arc(sx - cr * 0.30, cy - 4, cr * 0.44, 0, Math.PI * 2);
+    ctx.arc(sx + cr * 0.34, cy - 1, cr * 0.32, 0, Math.PI * 2);
+    ctx.fill();
+    // 叶簇点状高光 —— 压住过于圆润的边缘，保留像素感
+    for (let i = 0; i < 10; i++) {
+      const h1 = this.hash01(seed * 97 + i * 31);
+      const h2 = this.hash01(seed * 61 + i * 17);
+      ctx.fillStyle = i % 3 === 0 ? '#7dc45a' : 'rgba(18,48,18,0.38)';
+      ctx.fillRect(
+        Math.round(sx + (h1 - 0.5) * cr * 1.7),
+        Math.round(cy + (h2 - 0.3) * cr * 1.5),
+        2, 2,
+      );
     }
   }
 
@@ -586,14 +886,11 @@ export class Renderer {
     ctx.fillStyle = glow;
     ctx.fillRect(px - 18, py - 18, p.width + 36, p.height + 36);
 
-    // M1: 角色描边 — 深色底 + 暖色轮廓，确保从地形背景中分离
-    ctx.fillStyle = 'rgba(0,0,0,0.60)';
-    ctx.fillRect(px - 2, py - 1, p.width + 4, p.height + 2);
-    ctx.fillStyle = 'rgba(255, 226, 160, 0.55)';
-    ctx.fillRect(px - 1, py, 1, p.height);
-    ctx.fillRect(px + p.width, py, 1, p.height);
-    ctx.fillStyle = 'rgba(255, 236, 180, 0.75)';
-    ctx.fillRect(px + 2, py + 1, p.width - 4, 1);
+    // 地面投影 —— 用落影代替方块描边，让人物与地表有接触关系
+    ctx.fillStyle = 'rgba(0,0,0,0.30)';
+    ctx.beginPath();
+    ctx.ellipse(px + p.width / 2, py + p.height + 1, p.width * 0.52, 3, 0, 0, Math.PI * 2);
+    ctx.fill();
 
     // 像素模型（头 / 躯干 / 四肢 / 武器）
     const toolName = (p as Player & { toolName?: string }).toolName ?? 'hand_pickaxe';
