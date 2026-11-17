@@ -6,7 +6,7 @@ import './style.css';
 import { generateTerrain, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, biToBlock, regionNameAt, regionIdAt } from './core/terrain.js';
 import { BLOCKS, isSolid } from './core/blocks.js';
 import { createCamera, follow, shake, updateShake, getShakeOffset } from './core/camera.js';
-import { createPlayer, updatePlayer, placePlayerOnGround, Player } from './core/player.js';
+import { createPlayer, updatePlayer, placePlayerOnGround, playerOverlapsTile, Player } from './core/player.js';
 import { Renderer } from './core/renderer.js';
 import { createBreakState, startBreaking, stopBreaking, updateBreaking, updateParticles, BreakState } from './core/break.js';
 import { Inventory } from './core/inventory.js';
@@ -1621,27 +1621,34 @@ function update(dt: number) {
       const existing = getBlock(mouseTile.x, mouseTile.y);
       if (existing === 'empty') {
         const placeId = selected.blockId;
-        // M31: 种子 → 种植作物
-        const cropDef = cropMgr.cropBySeed(placeId);
-        if (cropDef) {
-          setBlock(mouseTile.x, mouseTile.y, cropDef.stages[0]);
-          cropMgr.plant(mouseTile.x, mouseTile.y, cropDef.id);
-          inv.consumeSelected(1);
-          sfx.place();
-          fishingMsg = `🌱 已种下 ${cropDef.name}（约 ${cropDef.stageDuration * (cropDef.stages.length - 1)} 秒成熟）`;
-          fishingMsgTimer = 2.5;
+        // 禁止把方块放到自己身上（会导致人物卡进墙里）
+        const blockedByPlayer = isSolid(placeId) && playerOverlapsTile(player, mouseTile.x, mouseTile.y);
+        if (blockedByPlayer) {
+          fishingMsg = '不能把方块放在自己身上';
+          fishingMsgTimer = 1.5;
         } else {
-          setBlock(mouseTile.x, mouseTile.y, placeId);
-          inv.consumeSelected(1);
-          // M27: 放置宝箱 → 建立储物数据
-          if (placeId === 'chest') chestMgr.create(mouseTile.x, mouseTile.y);
-          // M32: 放置定居旗 → 建立定居点
-          if (placeId === 'settlement_flag') {
-            settlementMgr.placeFlag(mouseTile.x, mouseTile.y);
-            fishingMsg = `🏠 定居点已建立！每 ${SETTLE_INTERVAL} 秒会有定居者搬来`;
-            fishingMsgTimer = 4;
+          // M31: 种子 → 种植作物
+          const cropDef = cropMgr.cropBySeed(placeId);
+          if (cropDef) {
+            setBlock(mouseTile.x, mouseTile.y, cropDef.stages[0]);
+            cropMgr.plant(mouseTile.x, mouseTile.y, cropDef.id);
+            inv.consumeSelected(1);
+            sfx.place();
+            fishingMsg = `🌱 已种下 ${cropDef.name}（约 ${cropDef.stageDuration * (cropDef.stages.length - 1)} 秒成熟）`;
+            fishingMsgTimer = 2.5;
+          } else {
+            setBlock(mouseTile.x, mouseTile.y, placeId);
+            inv.consumeSelected(1);
+            // M27: 放置宝箱 → 建立储物数据
+            if (placeId === 'chest') chestMgr.create(mouseTile.x, mouseTile.y);
+            // M32: 放置定居旗 → 建立定居点
+            if (placeId === 'settlement_flag') {
+              settlementMgr.placeFlag(mouseTile.x, mouseTile.y);
+              fishingMsg = `🏠 定居点已建立！每 ${SETTLE_INTERVAL} 秒会有定居者搬来`;
+              fishingMsgTimer = 4;
+            }
+            sfx.place();
           }
-          sfx.place();
         }
       }
     }

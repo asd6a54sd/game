@@ -74,6 +74,9 @@ export function updatePlayer(
   p: Player, dt: number, input: { left: boolean; right: boolean; jump: boolean; sprint: boolean },
   getTileSolid: (x: number, y: number) => boolean
 ) {
+  // 卡进方块时先脱困 —— 避免被碰撞推挤到错误方向（按左反而向右弹飞）
+  unstickPlayer(p, getTileSolid);
+
   // 水平
   const control = p.onGround ? 1 : PHYSICS.airControl;
   if (input.left) { p.vx -= p.moveSpeed * 8 * dt * control; p.facing = -1; }
@@ -91,10 +94,24 @@ export function updatePlayer(
   p.vy += PHYSICS.gravity * (p.gravityMult ?? 1) * dt;
   p.vy = Math.min(p.vy, 900);
 
-  // 碰撞检测（分轴）
-  moveAndCollide(p, p.vx * dt, 0, getTileSolid);
+  // 碰撞检测（分轴 + 分段推进）
+  // 低帧率下高速移动可能一帧跨过 1 格薄墙，这里按半格步长拆分，杜绝穿墙/卡墙
+  const maxStep = TILE_SIZE * 0.5;
+  let remainX = p.vx * dt;
+  while (Math.abs(remainX) > 0.0001) {
+    const step = Math.max(-maxStep, Math.min(maxStep, remainX));
+    moveAndCollide(p, step, 0, getTileSolid);
+    remainX -= step;
+    if (p.vx === 0) break;
+  }
   p.onGround = false;
-  moveAndCollide(p, 0, p.vy * dt, getTileSolid);
+  let remainY = p.vy * dt;
+  while (Math.abs(remainY) > 0.0001) {
+    const step = Math.max(-maxStep, Math.min(maxStep, remainY));
+    moveAndCollide(p, 0, step, getTileSolid);
+    remainY -= step;
+    if (p.vy === 0) break;
+  }
 
   // 出界复活
   if (p.y > MAP_HEIGHT * TILE_SIZE + 200) {
@@ -153,6 +170,61 @@ export function blockAABB(id: string, tx: number, ty: number, px: number, py: nu
   const bx = tx * TILE_SIZE, by = ty * TILE_SIZE;
   const bw = TILE_SIZE, bh = TILE_SIZE;
   return px < bx + bw && px + 1 > bx && py < by + bh && py + 1 > by;
+}
+
+/** 玩家 AABB 与某格是否有实际重叠（内缩 1px，避免贴边误判） */
+export function playerOverlapsTile(p: Player, tx: number, ty: number): boolean {
+  const halfW = p.width / 2, halfH = p.height / 2;
+  const eps = 1;
+  return p.x + halfW - eps > tx * TILE_SIZE
+    && p.x - halfW + eps < (tx + 1) * TILE_SIZE
+    && p.y + halfH - eps > ty * TILE_SIZE
+    && p.y - halfH + eps < (ty + 1) * TILE_SIZE;
+}
+
+/** 判断玩家当前位置是否卡在实体方块里 */
+function overlapsSolid(
+  p: Player, isSolid: (x: number, y: number) => boolean,
+): boolean {
+  const halfW = p.width / 2, halfH = p.height / 2;
+  const left = Math.floor((p.x - halfW) / TILE_SIZE);
+  const right = Math.floor((p.x + halfW - 0.01) / TILE_SIZE);
+  const top = Math.floor((p.y - halfH) / TILE_SIZE);
+  const bottom = Math.floor((p.y + halfH - 0.01) / TILE_SIZE);
+  for (let ty = top; ty <= bottom; ty++) {
+    for (let tx = left; tx <= right; tx++) {
+      if (isSolid(tx, ty)) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * 脱困：若玩家被卡进方块，向最近的可站立空位弹出
+ * 优先向上（多数情况是脚下/头部被埋），其次左右，最后向下
+ */
+export function unstickPlayer(
+  p: Player, isSolid: (x: number, y: number) => boolean,
+): boolean {
+  if (!overlapsSolid(p, isSolid)) return false;
+  const ox = p.x, oy = p.y;
+  const step = 2;
+  for (let r = step; r <= 192; r += step) {
+    const candidates: [number, number][] = [[0, -r], [-r, 0], [r, 0], [0, r]];
+    for (const [dx, dy] of candidates) {
+      p.x = ox + dx;
+      p.y = oy + dy;
+      if (!overlapsSolid(p, isSolid)) {
+        p.vx = 0;
+        p.vy = 0;
+        p.onGround = false;
+        return true;
+      }
+    }
+  }
+  p.x = ox;
+  p.y = oy;
+  return false;
 }
 
 export { biToBlock };

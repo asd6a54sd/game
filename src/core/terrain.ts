@@ -440,12 +440,15 @@ function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
         if (hutX + hutW < MAP_WIDTH) tiles[(hutY + dy) * MAP_WIDTH + (hutX + hutW)] = wallId;
       }
     }
-    // 门（中间留空）
-    const doorX = hutX + Math.floor(hutW / 2);
-    if (doorX >= 0 && doorX < MAP_WIDTH) {
-      for (let dy = hutH - 2; dy < hutH; dy++) {
-        const ty = hutY + dy;
-        if (ty >= 0 && ty < MAP_HEIGHT) tiles[ty * MAP_WIDTH + doorX] = bi('empty');
+    // 门：在左墙开出通道（玩家 2.6 格高、1.25 格宽，2 格高/1 格宽的旧门会卡住身体）
+    // 顶部向下覆盖内外地面高差，保证任何地形都能走进小屋
+    const doorCol = hutX - 1;
+    if (doorCol >= 0) {
+      const outerY = heightMap[Math.max(0, hutX - 2)];
+      const top = Math.min(groundY, outerY) - 3;
+      const bottom = Math.max(groundY, outerY) - 1;
+      for (let ty = Math.max(0, top); ty <= Math.min(MAP_HEIGHT - 1, bottom); ty++) {
+        tiles[ty * MAP_WIDTH + doorCol] = bi('empty');
       }
     }
     // 地板（确保是 rebel_brick）
