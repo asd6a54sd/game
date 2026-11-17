@@ -13,7 +13,7 @@ export interface Camera {
 }
 
 export function createCamera(width: number, height: number): Camera {
-  return { x: 0, y: 0, width, height, lerpSpeed: 0.1, shakeAmt: 0 };
+  return { x: 0, y: 0, width, height, lerpSpeed: 0.14, shakeAmt: 0 };
 }
 
 export function follow(cam: Camera, targetX: number, targetY: number, mapWidth: number, mapHeight: number, tileSize: number) {

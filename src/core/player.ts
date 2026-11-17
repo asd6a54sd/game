@@ -64,9 +64,9 @@ export function placePlayerOnGround(p: Player, heightMap: Uint8Array) {
 
 export const PHYSICS = {
   gravity: 1400,
-  moveSpeed: 180,
-  jumpSpeed: 380,
-  airControl: 0.6,
+  moveSpeed: 320,
+  jumpSpeed: 450,
+  airControl: 0.7,
   friction: 0.85,
 };
 

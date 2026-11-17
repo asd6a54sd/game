@@ -28,28 +28,28 @@ export interface ShellDef {
 export const SHELLS: ShellDef[] = [
   {
     id: 'rust_shell', name: '锈躯壳', palette: 'rust',
-    baseHp: 140, speed: 160, jumpSpeed: 360,
+    baseHp: 140, speed: 300, jumpSpeed: 440,
     pickaxePower: 1, miningSpeed: 10, damage: 12,
     passive: '灼烧反击：被敌攻击时对攻击者造成 3 点伤害',
     passiveKey: 'burn',
   },
   {
     id: 'iron_shell', name: '铁躯壳', palette: 'iron',
-    baseHp: 100, speed: 180, jumpSpeed: 380,
+    baseHp: 100, speed: 320, jumpSpeed: 450,
     pickaxePower: 2, miningSpeed: 22, damage: 8,
     passive: '强化镐：镐等级 +1（自动解锁中层矿脉）',
     passiveKey: 'pickaxe',
   },
   {
     id: 'ember_shell', name: '金躯壳', palette: 'ember',
-    baseHp: 80, speed: 220, jumpSpeed: 400,
+    baseHp: 80, speed: 360, jumpSpeed: 470,
     pickaxePower: 1, miningSpeed: 14, damage: 10,
     passive: '荧光光环：身上带 15 tile 照明（吸引怪物）',
     passiveKey: 'glow',
   },
   {
     id: 'bone_shell', name: '骨躯壳', palette: 'bone',
-    baseHp: 70, speed: 260, jumpSpeed: 460,
+    baseHp: 70, speed: 420, jumpSpeed: 520,
     pickaxePower: 0, miningSpeed: 6, damage: 6,
     passive: '二段跳：可在空中再跳一次',
     passiveKey: 'doublejump',

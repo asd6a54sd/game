@@ -160,7 +160,7 @@ function drawHumanoid(
   const gap = Math.max(1, Math.round(w * 0.06));
   const legY = bodyY + bodyH;
   const legH = Math.max(4, y + h - legY);
-  const swing = Math.sin(time * 9);
+  const swing = Math.sin(time * 13);
   const lift = swing > 0 ? u : 0;
   const bootH = Math.max(2, Math.round(u * 1.5));
 
