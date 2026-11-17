@@ -760,7 +760,7 @@ function collectSaveData(): SaveData {
     settlement: settlementMgr.serialize(), // M32
     progression: prog.serialize(), // 大框架: 阶段进度
     storySeen: story.serialize(), // 剧情已看记录
-    mapPatch: 1, // 地图已修补到最新版
+    mapPatch: 3, // 地图已修补到最新版
   };
 }
 
@@ -779,7 +779,7 @@ function applySaveData(save: SaveData) {
   terrain.tiles = b64ToU8(save.tiles);
   terrain.heightMap = b64ToU8(save.heightMap);
   // 旧存档地图修补：拆除封闭小屋、加宽地牢竖井（只执行一次，避免误删玩家自建墙）
-  if ((save.mapPatch ?? 0) < 1) {
+  if ((save.mapPatch ?? 0) < 3) {
     const fixed = patchSealedMap(terrain);
     if (fixed > 0) console.log(`[地图] 🧹 已修补封闭区域（${fixed} 格），不会再被关在墙里`);
   }

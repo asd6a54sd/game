@@ -161,17 +161,17 @@ export function generateTerrain(seed = 20261116): TerrainData {
     heightMap[x] = Math.max(45, Math.min(95, Math.round(heightMap[x] * t + SPAWN_H * (1 - t))));
   }
 
-  // 相邻列高差限幅 2 格 + 均值平滑 —— 地表连续可走，同时保留丘陵起伏
+  // 相邻列高差限幅 1 格 + 均值平滑 —— 地表连续可走，不会出现需要跳跃的台阶/断崖
   for (let pass = 0; pass < 3; pass++) {
     for (let x = 1; x < width; x++) {
       const d = heightMap[x] - heightMap[x - 1];
-      if (d > 2) heightMap[x] = heightMap[x - 1] + 2;
-      else if (d < -2) heightMap[x] = heightMap[x - 1] - 2;
+      if (d > 1) heightMap[x] = heightMap[x - 1] + 1;
+      else if (d < -1) heightMap[x] = heightMap[x - 1] - 1;
     }
     for (let x = width - 2; x >= 0; x--) {
       const d = heightMap[x] - heightMap[x + 1];
-      if (d > 2) heightMap[x] = heightMap[x + 1] + 2;
-      else if (d < -2) heightMap[x] = heightMap[x + 1] - 2;
+      if (d > 1) heightMap[x] = heightMap[x + 1] + 1;
+      else if (d < -1) heightMap[x] = heightMap[x + 1] - 1;
     }
     for (let x = 1; x < width - 1; x++) {
       heightMap[x] = Math.round((heightMap[x - 1] + heightMap[x] * 2 + heightMap[x + 1]) / 4);
@@ -197,13 +197,13 @@ export function generateTerrain(seed = 20261116): TerrainData {
   for (let pass = 0; pass < 2; pass++) {
     for (let x = 1; x < width; x++) {
       const d = heightMap[x] - heightMap[x - 1];
-      if (d > 2) heightMap[x] = heightMap[x - 1] + 2;
-      else if (d < -2) heightMap[x] = heightMap[x - 1] - 2;
+      if (d > 1) heightMap[x] = heightMap[x - 1] + 1;
+      else if (d < -1) heightMap[x] = heightMap[x - 1] - 1;
     }
     for (let x = width - 2; x >= 0; x--) {
       const d = heightMap[x] - heightMap[x + 1];
-      if (d > 2) heightMap[x] = heightMap[x + 1] + 2;
-      else if (d < -2) heightMap[x] = heightMap[x + 1] - 2;
+      if (d > 1) heightMap[x] = heightMap[x + 1] + 1;
+      else if (d < -1) heightMap[x] = heightMap[x + 1] - 1;
     }
   }
 
@@ -254,7 +254,7 @@ function surfaceBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: Val
       if (n1.noise2D(x * 0.2, y * 0.2) > 0.7) return bi('wind_rock');
       return bi('cracked_ground');
     case 'gobi_mine': return bi('desert_ground');
-    case 'silent_sea': return bi('liquid_metal');
+    case 'silent_sea': return bi('metal_float'); // 固态金属壳，保证可以行走（液态金属仍在浅层）
     case 'beast_hive':
       if (n1.noise2D(x * 0.18, y * 0.18) > 0.7) return bi('chitin_hive');
       return bi('cracked_ground');
@@ -336,6 +336,8 @@ function carveStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
         if (dx * dx + dy * dy > rad * rad) continue;
         const x = rx + dx, y = ry + dy;
         if (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) continue;
+        // 洞穴顶部至少留 6 格地表厚度，避免地表破洞把玩家漏进地下
+        if (y < heightMap[x] + 6) continue;
         tiles[y * MAP_WIDTH + x] = bi('empty');
       }
     }
@@ -364,23 +366,13 @@ function carveStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
     }
   }
 
-  // 3. 无声海：液态金属湖面拓宽
-  for (let x = 180; x < 240; x++) {
-    const sy = heightMap[x];
-    for (let y = sy - 8; y < sy; y++) {
-      if (y < 0) break;
-      tiles[y * MAP_WIDTH + x] = bi('liquid_metal');
-    }
-  }
+  // 3. 无声海：地表本身已是液态金属，不再额外垒 8 格高的金属墙（会挡路）
 
-  // 4. 异兽巢穴：蜂巢柱
+  // 4. 异兽巢穴：低矮蜂巢柱（1 格高，可正常跨越，不阻挡行走）
   for (let x = 250; x < 295; x += 3 + Math.floor(rng() * 3)) {
     const sy = heightMap[x];
-    const h = 3 + Math.floor(rng() * 5);
-    for (let dy = 1; dy <= h; dy++) {
-      if (sy - dy < 0) break;
-      tiles[(sy - dy) * MAP_WIDTH + x] = bi('chitin_hive');
-    }
+    if (sy - 1 < 0) continue;
+    tiles[(sy - 1) * MAP_WIDTH + x] = bi('chitin_hive');
   }
 }
 
@@ -398,7 +390,6 @@ export function regionIdAt(col: number): RegionId {
  */
 function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => number): RegionStructure[] {
   const structures: RegionStructure[] = [];
-  const wallId = bi('rebel_brick');
 
   // 在 6 个区块各放一个结构（避开 underground_valley 的暗能量紫柱区）
   const hutPositions: { regionCol: [number, number]; kind: RegionStructure['kind']; name: RegionId }[] = [
@@ -430,25 +421,8 @@ function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
         tiles[ty * MAP_WIDTH + tx] = bi('empty');
       }
     }
-    // 营地遗迹：不建封闭小屋 —— 只保留地板与两根 1 格高残柱
-    // （旧版四面墙 + 屋顶会把玩家关在里面，按 A 还会被碰撞推向右边）
-    for (let dx = 0; dx < hutW; dx++) {
-      const tx = hutX + dx;
-      const ty = groundY;
-      if (tx >= 0 && tx < MAP_WIDTH && ty >= 0 && ty < MAP_HEIGHT) {
-        if (tiles[ty * MAP_WIDTH + tx] !== bi('void_barrier')) {
-          tiles[ty * MAP_WIDTH + tx] = wallId;
-        }
-      }
-    }
-    // 残柱（1 格高，不封闭）
-    if (hutY + hutH - 1 >= 0) {
-      const postY = groundY - 1;
-      if (hutX >= 0 && hutX < MAP_WIDTH) tiles[postY * MAP_WIDTH + hutX] = wallId;
-      if (hutX + hutW - 1 >= 0 && hutX + hutW - 1 < MAP_WIDTH) {
-        tiles[postY * MAP_WIDTH + (hutX + hutW - 1)] = wallId;
-      }
-    }
+    // 营地遗迹：不生成屋顶、围墙、地板或柱子 —— 保持地表完全开阔
+    // （任何抬高/围挡都可能在坡地上形成挡路台阶，导致人物无法正常行走）
 
     structures.push({
       kind: hp.kind,
@@ -595,10 +569,10 @@ function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
       tiles[y * MAP_WIDTH + s1] = bi('empty');
       tiles[y * MAP_WIDTH + s2] = bi('empty');
     }
-    // 井口立柱（地表上方标记入口）
-    for (let y = Math.max(0, surfY - 3); y < surfY; y++) {
-      tiles[y * MAP_WIDTH + (s0 - 1)] = brick;
-      tiles[y * MAP_WIDTH + (s2 + 1)] = brick;
+    // 井口盖板：未击败骷髅王时用锁门封住地表，走路不会意外掉进竖井
+    // （解锁时 unlockDungeon 会把所有 dungeon_door 变成空地，竖井才真正打开）
+    for (const x of [s0, s1, s2]) {
+      if (surfY >= 0 && surfY < MAP_HEIGHT) tiles[surfY * MAP_WIDTH + x] = door;
     }
     // 井底锁门：未击败骷髅王时不可破坏
     for (const x of [s0, s1, s2]) {
@@ -607,8 +581,9 @@ function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
       }
     }
     // 井壁交错砖台：每 3 格一块，玩家可踩着跳回地表，不会被困在井底
+    // 从井底向上铺设，但必须停在地表盖板以下（surfY + 2），不能盖住井口
     let ledgeSide = 0;
-    for (let y = DY + 4; y >= surfY - 3; y -= 3) {
+    for (let y = DY + 4; y >= surfY + 2; y -= 3) {
       const lx = ledgeSide % 2 === 0 ? s0 : s2;
       tiles[y * MAP_WIDTH + lx] = brick;
       ledgeSide++;
@@ -650,6 +625,27 @@ export function patchSealedMap(data: TerrainData): number {
     }
   };
 
+  const at = (tx: number, ty: number): string => {
+    if (tx < 0 || tx >= width || ty < 0 || ty >= height) return 'empty';
+    return BLOCK_ID_LIST[tiles[ty * width + tx]] ?? 'empty';
+  };
+
+  // 拆除旧版地表障碍：无声海的 8 格金属墙、异兽巢穴的高蜂巢柱（会挡路）
+  for (let x = 180; x < 240; x++) {
+    const sy = data.heightMap[x];
+    for (let y = Math.max(0, sy - 8); y < sy; y++) {
+      if (at(x, y) === 'liquid_metal') set(x, y, 'empty');
+    }
+    // 旧版海面是液态金属（非固体），玩家会沉下去；补一层可站立的金属壳
+    if (at(x, sy) === 'liquid_metal') set(x, sy, 'metal_float');
+  }
+  for (let x = 250; x < 295; x++) {
+    const sy = data.heightMap[x];
+    for (let y = Math.max(0, sy - 8); y < sy - 1; y++) {
+      if (at(x, y) === 'chitin_hive') set(x, y, 'empty');
+    }
+  }
+
   for (const s of data.structures) {
     if (s.kind === 'hut' || s.kind === 'camp') {
       // 拆屋顶与两侧墙，只保留地板（与新版生成一致）
@@ -658,7 +654,6 @@ export function patchSealedMap(data: TerrainData): number {
         set(s.x - 1, s.y + dy, 'empty');
         set(s.x + s.width, s.y + dy, 'empty');
       }
-      for (let dx = 0; dx < s.width; dx++) set(s.x + dx, s.y + s.height, 'rebel_brick');
     }
 
     if (s.kind === 'dungeon') {
@@ -666,6 +661,12 @@ export function patchSealedMap(data: TerrainData): number {
       const s0 = DX + Math.floor(DW / 2) - 1;
       const s1 = s0 + 1, s2 = s0 + 2;
       const surfY = data.heightMap[s0];
+      // 清理旧版修补堆到地表以上的砖块（会挡路）
+      for (let y = Math.max(0, surfY - 3); y < surfY; y++) {
+        for (const x of [s0 - 1, s0, s1, s2, s2 + 1]) {
+          if (at(x, y) === 'dungeon_brick') set(x, y, 'empty');
+        }
+      }
       // 加宽为 3 格并重建两侧砖壁
       for (let y = Math.max(0, surfY); y <= DY + 1; y++) {
         set(s0 - 1, y, 'dungeon_brick');
@@ -675,16 +676,16 @@ export function patchSealedMap(data: TerrainData): number {
         set(s2, y, 'empty');
       }
       for (let y = Math.max(0, surfY - 3); y < surfY; y++) {
-        set(s0 - 1, y, 'dungeon_brick');
-        set(s2 + 1, y, 'dungeon_brick');
+        if (at(s0 - 1, y) === 'dungeon_brick') set(s0 - 1, y, 'empty');
+        if (at(s2 + 1, y) === 'dungeon_brick') set(s2 + 1, y, 'empty');
       }
       // 井底锁门
       for (const x of [s0, s1, s2]) {
         for (let y = DY; y <= DY + 1; y++) set(x, y, 'dungeon_door');
       }
-      // 交错砖台：每 3 格一块，保证能跳回地表
+      // 交错砖台：每 3 格一块，保证能跳回地表（不覆盖井口）
       let side = 0;
-      for (let y = DY + 4; y >= surfY - 3; y -= 3) {
+      for (let y = DY + 4; y >= surfY + 2; y -= 3) {
         set(side % 2 === 0 ? s0 : s2, y, 'dungeon_brick');
         side++;
       }

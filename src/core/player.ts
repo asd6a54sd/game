@@ -97,10 +97,35 @@ export function updatePlayer(
   // 碰撞检测（分轴 + 分段推进）
   // 低帧率下高速移动可能一帧跨过 1 格薄墙，这里按半格步长拆分，杜绝穿墙/卡墙
   const maxStep = TILE_SIZE * 0.5;
+  const canStep = p.onGround;
   let remainX = p.vx * dt;
   while (Math.abs(remainX) > 0.0001) {
     const step = Math.max(-maxStep, Math.min(maxStep, remainX));
+    const vxBefore = p.vx;
+    const xBefore = p.x;
     moveAndCollide(p, step, 0, getTileSolid);
+    const blocked = p.vx === 0 && Math.abs(p.x - xBefore) < Math.abs(step) - 0.01;
+    if (blocked && canStep) {
+      // 自动上台阶：1~2 格高的矮台直接迈上去，不需要手动跳
+      const dir = Math.sign(step);
+      const oldX = p.x, oldY = p.y;
+      let stepped = false;
+      for (const lift of [TILE_SIZE, TILE_SIZE * 2]) {
+        p.y = oldY - lift;
+        p.x = oldX + dir * 2;
+        if (!overlapsSolid(p, getTileSolid)) {
+          stepped = true;
+          break;
+        }
+      }
+      if (stepped) {
+        p.vx = vxBefore; // 迈上去后继续走
+      } else {
+        p.x = oldX;
+        p.y = oldY;
+        p.vx = 0;
+      }
+    }
     remainX -= step;
     if (p.vx === 0) break;
   }
@@ -136,10 +161,10 @@ function moveAndCollide(p: Player, dx: number, dy: number, isSolid: (x: number, 
 
   for (let ty = top; ty <= bottom; ty++) {
     for (let tx = left; tx <= right; tx++) {
-      if (isSolid(tx, ty)) {
-        // 回推
+      if (dx !== 0 && isSolid(tx, ty)) {
+        // 回推（只有水平移动才清零水平速度，垂直落地不能把行走速度也清掉）
         if (dx > 0) p.x = tx * TILE_SIZE - halfW - 0.01;
-        else if (dx < 0) p.x = (tx + 1) * TILE_SIZE + halfW + 0.01;
+        else p.x = (tx + 1) * TILE_SIZE + halfW + 0.01;
         p.vx = 0;
       }
     }
@@ -152,11 +177,11 @@ function moveAndCollide(p: Player, dx: number, dy: number, isSolid: (x: number, 
 
   for (let ty = top2; ty <= bottom2; ty++) {
     for (let tx = left2; tx <= right2; tx++) {
-      if (isSolid(tx, ty)) {
+      if (dy !== 0 && isSolid(tx, ty)) {
         if (dy > 0) {
           p.y = ty * TILE_SIZE - halfH - 0.01;
           p.onGround = true;
-        } else if (dy < 0) {
+        } else {
           p.y = (ty + 1) * TILE_SIZE + halfH + 0.01;
         }
         p.vy = 0;
