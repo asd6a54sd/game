@@ -10,6 +10,7 @@ import { ChestData } from './chest.js';
 import { CropSave } from './farming.js';
 import { SettlementSave } from './settlement.js';
 import type { ProgressionSave } from './progression.js';
+import type { StorySave } from './story.js';
 
 const SAVE_KEY = 'ember_sea_save_v1';
 export const SAVE_VERSION = 2;
@@ -44,6 +45,8 @@ export interface SaveData {
   settlement?: SettlementSave;
   // 大框架: 阶段进度
   progression?: ProgressionSave;
+  // 剧情：已看过的剧情 id
+  storySeen?: StorySave;
 }
 
 /** Uint8Array → base64（分块避免参数过多爆栈） */

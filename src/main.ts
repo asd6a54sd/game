@@ -35,6 +35,7 @@ import { SmeltManager, SMELT_RECIPES, canSmelt } from './core/smelting.js';
 import { SaveData, writeSave, readSave, clearSave, formatSaveTime, u8ToB64, b64ToU8, SAVE_VERSION, AUTOSAVE_INTERVAL } from './core/save.js';
 import { GrowthManager, LIFE_CRYSTAL_MAX_USES, MANA_CRYSTAL_MAX_USES, LIFE_CRYSTAL_GAIN, MANA_CRYSTAL_GAIN } from './core/growth.js';
 import { ProgressionManager } from './core/progression.js';
+import { StoryManager, PROLOGUE, STAGE_STORY, REGION_STORY, BOSS_STORY, NPC_STORY } from './core/story.js';
 import { CropManager } from './core/farming.js';
 import { SettlementManager, SETTLER_DEFS, SETTLE_INTERVAL } from './core/settlement.js';
 
@@ -44,6 +45,9 @@ const canvas = document.getElementById('game') as HTMLCanvasElement;
 const hudPos = document.getElementById('hud-pos')!;
 const hudBlock = document.getElementById('hud-block')!;
 const hudRegion = document.getElementById('hud-region')!;
+const storyEl = document.getElementById('story')!;
+const storyTitleEl = document.getElementById('story-title')!;
+const storyLinesEl = document.getElementById('story-lines')!;
 
 // ========== 状态 ==========
 let terrain = generateTerrain(20261116);
@@ -55,6 +59,10 @@ const inv = new Inventory();
 
 // 大框架: 阶段进度
 const prog = new ProgressionManager();
+
+// 剧情系统
+const story = new StoryManager();
+let lastStoryId = '';
 
 interface PlayerExt extends Player {
   toolName: string;
@@ -418,6 +426,7 @@ prog.onStageChange = (stage, idx) => {
   }
   player.hp = player.maxHp;
   player.mana = player.maxMana;
+  story.show(STAGE_STORY[stage.id]); // 剧情：阶段章节
   fishingMsg = `🚩 阶段 ${idx + 1}/${prog.total} · ${stage.name}｜奖励：${got.join('、')}`;
   fishingMsgTimer = 5;
   sfx.pickup();
@@ -749,6 +758,7 @@ function collectSaveData(): SaveData {
     crops: cropMgr.serialize(), // M31
     settlement: settlementMgr.serialize(), // M32
     progression: prog.serialize(), // 大框架: 阶段进度
+    storySeen: story.serialize(), // 剧情已看记录
   };
 }
 
@@ -801,6 +811,8 @@ function applySaveData(save: SaveData) {
   prog.onStageChange = undefined;
   prog.restore(save.progression);
   prog.onStageChange = stageCb;
+  // 剧情：恢复已看记录，避免重复播放
+  story.restore(save.storySeen);
   // 时间
   if (typeof save.timeOfDay === 'number') renderer.timeOfDay = save.timeOfDay;
   fishingMsg = `已载入存档（${formatSaveTime(save.timestamp)}）`;
@@ -1037,6 +1049,7 @@ async function init() {
   bindInput();
   bindWorkbenchClose();
   loading.classList.add('hidden');
+  story.show(PROLOGUE); // 剧情：序章（只在从未看过时播放）
   requestAnimationFrame(loop);
 }
 
@@ -1175,11 +1188,13 @@ function bindInput() {
             if (!settlerShops[settlerId]) {
               settlerShops[settlerId] = NPC_DEFS[settlerId].shop.map(s => ({ ...s }));
             }
+            story.show(NPC_STORY[settlerId]); // 剧情：定居者初见对话
             activeShop = settlerShops[settlerId];
             activeShopName = NPC_DEFS[settlerId].name;
             shopOpenLocal = true; inputBlocked = true;
             shopMsg = `${activeShopName}：按数字键购买，按 T 出售选中`; shopMsgTimer = 3;
           } else if (isNearMerchant()) {
+            story.show(NPC_STORY.merchant); // 剧情：流浪商人初见
             activeShop = merchantShop;
             activeShopName = '流浪商人';
             shopOpenLocal = true; inputBlocked = true;
@@ -1301,6 +1316,8 @@ function loop(t: number) {
 function update(dt: number) {
   // 躯壳切换冷却
   shellMgr.update(dt);
+  // 剧情字幕推进（即使打开合成台也继续计时）
+  story.update(dt);
 
   if (inputBlocked) { updateHUD(); return; }
 
@@ -1323,6 +1340,7 @@ function update(dt: number) {
     lastRegion = curRegion;
     tasks.onEnterRegion(curRegion);
     ach.addProgress('explore_all', 1); // M19: 探险家成就
+    story.show(REGION_STORY[curRegion]); // 剧情：区块初见
   }
 
   // 日夜循环
@@ -2127,6 +2145,26 @@ function render() {
   renderer.drawPotionBuffs(player.activeBuffs);
   renderer.drawHotbar(inv);
   if (showMinimap) renderer.drawMinimap(cam, terrain.tiles, player.x, player.y);
+  refreshStoryUI();
+}
+
+// ========== 剧情字幕 UI ==========
+function refreshStoryUI() {
+  const cur = story.current;
+  if (!cur) {
+    if (lastStoryId) {
+      lastStoryId = '';
+      storyEl.classList.add('hidden');
+    }
+    return;
+  }
+  if (cur.entry.id === lastStoryId) return;
+  lastStoryId = cur.entry.id;
+  storyTitleEl.textContent = cur.entry.title;
+  storyLinesEl.innerHTML = cur.entry.lines.map(l => `<div>${l}</div>`).join('');
+  storyEl.classList.remove('hidden', 'story-in');
+  void storyEl.offsetWidth; // 触发重排，保证动画重播
+  storyEl.classList.add('story-in');
 }
 
 function updateHUD() {
@@ -2293,6 +2331,7 @@ function trySummonBoss() {
         bosses.push(createBoss('skeleton_king', ax, ay - 40));
         shake(cam, 6);
         sfx.bossSummon();
+        story.show(BOSS_STORY.skeleton_king_summon); // 剧情：骷髅王登场
         fishingMsg = '💀 骷髅王苏醒了！击败它才能解开地牢之门';
         fishingMsgTimer = 4;
         console.log('[Boss] 💀 骷髅王 已苏醒！');
@@ -2506,7 +2545,10 @@ function updateBossesSystem(dt: number) {
         if (died) {
           tasks.onKill(true, !!boss.def.isNightBoss); // M17: 击杀 Boss 任务
           prog.onBossKill(boss.def.id); // 大框架: 阶段进度
-          if (boss.def.id === 'skeleton_king') unlockDungeon();
+          if (boss.def.id === 'skeleton_king') {
+            unlockDungeon();
+            story.show(BOSS_STORY.skeleton_king_defeat); // 剧情：门开
+          }
           // M19: 成就
           ach.addProgress('kill_boss_1', 1);
           ach.addProgress('all_bosses', 1);
