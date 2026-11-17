@@ -345,6 +345,10 @@ export const BLOCKS: Record<string, BlockDef> = {
   iron_bar: { id: 'iron_bar', name: '铁锭', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'iron02', variants: [], drops: [] },
   gold_bar: { id: 'gold_bar', name: '金锭', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'gold01', variants: [], drops: [] },
   void_bar: { id: 'void_bar', name: '虚空锭', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void02', variants: [], drops: [] },
+
+  // === M30: 生命 / 魔力水晶 ===
+  life_crystal: { id: 'life_crystal', name: '生命水晶', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'red01', variants: [], drops: [] },
+  mana_crystal: { id: 'mana_crystal', name: '魔力水晶', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'cold01', variants: [], drops: [] },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);

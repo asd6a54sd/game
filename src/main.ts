@@ -33,6 +33,7 @@ import { ArmorManager, ARMOR_DEFS, ARMOR_SETS, ArmorSlot } from './core/armor.js
 import { ChestManager, ChestData, addToSlots } from './core/chest.js';
 import { SmeltManager, SMELT_RECIPES, canSmelt } from './core/smelting.js';
 import { SaveData, writeSave, readSave, formatSaveTime, u8ToB64, b64ToU8, SAVE_VERSION, AUTOSAVE_INTERVAL } from './core/save.js';
+import { GrowthManager, LIFE_CRYSTAL_MAX_USES, MANA_CRYSTAL_MAX_USES, LIFE_CRYSTAL_GAIN, MANA_CRYSTAL_GAIN } from './core/growth.js';
 
 // ========== DOM ==========
 const loading = document.getElementById('loading')!;
@@ -126,6 +127,9 @@ let furnaceStatusEl: HTMLDivElement | null = null;
 
 // M29: 自动保存计时
 let autosaveTimer = 0;
+
+// M30: 永久成长
+const growth = new GrowthManager();
 
 // M15: 世界事件系统
 const ev = new WorldEventManager();
@@ -427,6 +431,44 @@ function equipArmorKey() {
   fishingMsgTimer = 2;
 }
 
+// M30: 使用生命/魔力水晶（U 键，永久提升上限）
+function useCrystalKey() {
+  const sel = inv.getSelected();
+  if (sel.count <= 0 || !sel.blockId) {
+    fishingMsg = '需要选中生命/魔力水晶';
+    fishingMsgTimer = 2;
+    return;
+  }
+  if (sel.blockId === 'life_crystal') {
+    if (!growth.useLifeCrystal()) {
+      fishingMsg = `生命水晶已达上限（${LIFE_CRYSTAL_MAX_USES} 次）`;
+      fishingMsgTimer = 2.5;
+      return;
+    }
+    inv.consumeSelected(1);
+    player.hp = Math.min(player.maxHp, player.hp + LIFE_CRYSTAL_GAIN);
+    fishingMsg = `❤ 生命上限 +${LIFE_CRYSTAL_GAIN}！（${growth.hpUses}/${LIFE_CRYSTAL_MAX_USES}）`;
+    fishingMsgTimer = 3;
+    sfx.pickup();
+    return;
+  }
+  if (sel.blockId === 'mana_crystal') {
+    if (!growth.useManaCrystal()) {
+      fishingMsg = `魔力水晶已达上限（${MANA_CRYSTAL_MAX_USES} 次）`;
+      fishingMsgTimer = 2.5;
+      return;
+    }
+    inv.consumeSelected(1);
+    player.mana = player.maxMana;
+    fishingMsg = `✦ 魔力上限 +${MANA_CRYSTAL_GAIN}！（${growth.mpUses}/${MANA_CRYSTAL_MAX_USES}）`;
+    fishingMsgTimer = 3;
+    sfx.pickup();
+    return;
+  }
+  fishingMsg = '需要选中生命/魔力水晶';
+  fishingMsgTimer = 2;
+}
+
 // M27: 宝箱 UI — 打开 / 关闭 / 重绘
 function openChestUI() {
   const c = chestMgr.findNear(player.x, player.y, 3);
@@ -650,6 +692,7 @@ function collectSaveData(): SaveData {
     armor: { head: armorMgr.head, chest: armorMgr.chest, legs: armorMgr.legs },
     chests: chestMgr.serialize(),
     timeOfDay: renderer.timeOfDay,
+    growth: growth.serialize(), // M30
   };
 }
 
@@ -691,6 +734,8 @@ function applySaveData(save: SaveData) {
   armorMgr.legs = save.armor.legs && ARMOR_DEFS[save.armor.legs] ? save.armor.legs : null;
   // 宝箱
   chestMgr.restore(save.chests ?? []);
+  // M30: 永久成长
+  growth.restore(save.growth);
   // 时间
   if (typeof save.timeOfDay === 'number') renderer.timeOfDay = save.timeOfDay;
   fishingMsg = `已载入存档（${formatSaveTime(save.timestamp)}）`;
@@ -1020,6 +1065,10 @@ function bindInput() {
         if (furnacePanel) closeFurnaceUI();
         else openFurnaceUI();
         break;
+      // M30: 使用生命/魔力水晶
+      case 'KeyU':
+        useCrystalKey();
+        break;
       case 'KeyV':
         sfx.toggle();
         console.log(`[音效] ${sfx.isEnabled() ? '开启' : '关闭'}`);
@@ -1176,8 +1225,12 @@ function update(dt: number) {
 
   // 玩家（躯壳属性 + 饰品 Buff）
   const armorBuff = armorMgr.getAggregatedBuff(); // M26
-  player.maxHp = shellMgr.current.baseHp + (armorBuff.maxHpBonus ?? 0);
+  player.maxHp = shellMgr.current.baseHp + (armorBuff.maxHpBonus ?? 0) + growth.hpBonus; // M30
   if (player.hp > player.maxHp) player.hp = player.maxHp;
+  // M30: 魔力上限与自动回复
+  player.maxMana = 100 + growth.mpBonus;
+  if (player.mana > player.maxMana) player.mana = player.maxMana;
+  player.mana = Math.min(player.maxMana, player.mana + 8 * dt);
   const buff = acc.getAggregatedBuff();
 
   // 速度：躯壳速度 × 饰品速度倍率
@@ -1581,6 +1634,11 @@ function isPlayerSwingingWeapon(): boolean {
   if (tool.category === 'ranged') {
     if (mouseLeft && tool.ammoType) {
       if (inv.count(tool.ammoType) <= 0) return false; // 没弹药
+      // M30: 魔力消耗检查
+      if (tool.manaCost) {
+        if (player.mana < tool.manaCost) return false;
+        player.mana -= tool.manaCost;
+      }
       inv.consume(tool.ammoType, 1);
       // 朝鼠标方向发射
       const dx = mouseWorldX - player.x, dy = mouseWorldY - player.y;
@@ -1921,6 +1979,14 @@ function updateHUD() {
   armorBar.textContent = `[O 装备/卸下] 防御 ${defVal} | ${slotTxt(armorMgr.head, '头:')} ${slotTxt(armorMgr.chest, '胸:')} ${slotTxt(armorMgr.legs, '腿:')}`
     + (activeSets.length ? ` ★${activeSets.join('/')}套装生效` : '');
 
+  // M30: 魔力条 + 永久成长进度
+  const mpBar = document.getElementById('mp-bar') || createMpBar();
+  const mpPct = player.maxMana > 0 ? Math.round((player.mana / player.maxMana) * 100) : 0;
+  mpBar.innerHTML = `✦ 魔力 ${Math.floor(player.mana)} / ${player.maxMana}`
+    + `<div style="height:4px;background:#222;margin-top:2px;border-radius:2px;overflow:hidden;">`
+    + `<div style="height:100%;width:${mpPct}%;background:linear-gradient(90deg,#3a8ad8,#7ad4e8);"></div></div>`
+    + `<span style="color:#888;font-size:10px;">❤${growth.hpUses}/${LIFE_CRYSTAL_MAX_USES} · ✦${growth.mpUses}/${MANA_CRYSTAL_MAX_USES} · [U] 使用水晶</span>`;
+
   // 躯壳选择条（右下角）
   const bar = document.getElementById('shell-bar') || createShellBar();
   bar.innerHTML = sList;
@@ -1932,6 +1998,17 @@ function createArmorBar(): HTMLElement {
   el.id = 'armor-bar';
   el.style.cssText = 'position:fixed;left:12px;bottom:64px;font:11px monospace;color:#d8c8a0;'
     + 'background:rgba(10,10,14,0.6);padding:3px 8px;border-radius:4px;pointer-events:none;z-index:20;';
+  document.body.appendChild(el);
+  return el;
+}
+
+// M30: 魔力条容器
+function createMpBar(): HTMLElement {
+  const el = document.createElement('div');
+  el.id = 'mp-bar';
+  el.style.cssText = 'position:fixed;left:12px;bottom:86px;font:11px monospace;color:#a8d8ff;'
+    + 'background:rgba(10,10,14,0.6);padding:3px 8px;border-radius:4px;'
+    + 'pointer-events:none;z-index:20;min-width:210px;';
   document.body.appendChild(el);
   return el;
 }

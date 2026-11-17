@@ -33,6 +33,8 @@ export interface SaveData {
   chests: ChestData[];
   // 时间
   timeOfDay: number;
+  // M30: 永久成长（生命/魔力水晶使用次数）
+  growth?: { hpUses: number; mpUses: number };
 }
 
 /** Uint8Array → base64（分块避免参数过多爆栈） */

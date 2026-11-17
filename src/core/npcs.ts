@@ -54,6 +54,8 @@ export const SELL_PRICES: Record<string, number> = {
   // M28: 熔炉 + 金属锭
   furnace: 20,
   copper_bar: 8, iron_bar: 14, gold_bar: 32, void_bar: 70,
+  // M30: 水晶
+  life_crystal: 60, mana_crystal: 55,
 };
 
 /** 商人商品列表（玩家可购买）*/

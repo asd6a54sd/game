@@ -18,6 +18,8 @@ export interface Player {
   facing: 1 | -1;
   hp: number;
   maxHp: number;
+  mana: number;        // M30: 当前魔力
+  maxMana: number;     // M30: 魔力上限
   moveSpeed: number;
   jumpSpeed: number;
   gravityMult: number;     // M13: 重力倍率（rock_titan_crown 减轻重力）
@@ -40,6 +42,7 @@ export function createPlayer(): Player {
     onGround: false,
     facing: 1,
     hp: 100, maxHp: 100,
+    mana: 100, maxMana: 100,
     moveSpeed: PHYSICS.moveSpeed,
     jumpSpeed: PHYSICS.jumpSpeed,
     gravityMult: 1,

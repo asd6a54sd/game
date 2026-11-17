@@ -18,6 +18,8 @@ export interface ToolDef {
   piercing?: boolean;     // 弹丸是否穿透（暗焰法杖）
   // M24: 钓鱼竿专用
   rodQuality?: number;    // 钓鱼竿品质（1=基础, 2=强化）
+  // M30: 魔力消耗（远程武器）
+  manaCost?: number;      // 每次射击消耗魔力
 }
 
 export const TOOLS: Record<string, ToolDef> = {
@@ -47,12 +49,14 @@ export const TOOLS: Record<string, ToolDef> = {
     pickaxePower: 0, miningSpeed: 4, damage: 22,
     paletteId: 'void01', category: 'ranged',
     ammoType: 'wooden_arrow', shootCooldown: 0.7, projectileSpeed: 650,
+    manaCost: 4,
   },
   void_staff: {
     id: 'void_staff', name: '暗焰法杖',
     pickaxePower: 0, miningSpeed: 4, damage: 18,
     paletteId: 'void03', category: 'ranged',
     ammoType: 'dark_bolt', shootCooldown: 0.4, projectileSpeed: 420, piercing: true,
+    manaCost: 10,
   },
 
   // === M24: 钓鱼竿 ===
