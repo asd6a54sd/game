@@ -49,6 +49,11 @@ export const SELL_PRICES: Record<string, number> = {
   iron_helm: 20, iron_chest: 30, iron_greaves: 24,
   ember_helm: 45, ember_chest: 65, ember_greaves: 50,
   void_helm: 90, void_chest: 130, void_greaves: 100,
+  // M27: 宝箱
+  chest: 8,
+  // M28: 熔炉 + 金属锭
+  furnace: 20,
+  copper_bar: 8, iron_bar: 14, gold_bar: 32, void_bar: 70,
 };
 
 /** 商人商品列表（玩家可购买）*/

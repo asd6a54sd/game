@@ -31,6 +31,7 @@ import { rollCatch, rollChestLoot, FISH_DEFS } from './core/fishing.js';
 import { PET_DEFS, Pet, createPet, updatePet } from './core/pets.js';
 import { ArmorManager, ARMOR_DEFS, ARMOR_SETS, ArmorSlot } from './core/armor.js';
 import { ChestManager, ChestData, addToSlots } from './core/chest.js';
+import { SmeltManager, SMELT_RECIPES, canSmelt } from './core/smelting.js';
 
 // ========== DOM ==========
 const loading = document.getElementById('loading')!;
@@ -115,6 +116,12 @@ const armorMgr = new ArmorManager();
 const chestMgr = new ChestManager();
 let openChest: ChestData | null = null;
 let chestPanel: HTMLDivElement | null = null;
+
+// M28: 熔炉冶炼
+const smeltMgr = new SmeltManager();
+let furnacePanel: HTMLDivElement | null = null;
+let furnaceProgressEl: HTMLDivElement | null = null;
+let furnaceStatusEl: HTMLDivElement | null = null;
 
 // M15: 世界事件系统
 const ev = new WorldEventManager();
@@ -509,6 +516,117 @@ function buildChestUI() {
   chestPanel = panel;
 }
 
+// M28: 熔炉 — 检测附近 4 格内是否有熔炉方块
+function findNearbyFurnace(): boolean {
+  const ptx = Math.floor(player.x / TILE_SIZE);
+  const pty = Math.floor(player.y / TILE_SIZE);
+  for (let dy = -4; dy <= 4; dy++) {
+    for (let dx = -4; dx <= 4; dx++) {
+      if (getBlock(ptx + dx, pty + dy) === 'furnace') return true;
+    }
+  }
+  return false;
+}
+
+function openFurnaceUI() {
+  if (!findNearbyFurnace()) {
+    fishingMsg = '附近没有熔炉（4 格内）';
+    fishingMsgTimer = 2;
+    return;
+  }
+  inputBlocked = true;
+  buildFurnaceUI();
+}
+
+function closeFurnaceUI() {
+  inputBlocked = false;
+  furnacePanel?.remove();
+  furnacePanel = null;
+  furnaceProgressEl = null;
+  furnaceStatusEl = null;
+}
+
+function buildFurnaceUI() {
+  furnacePanel?.remove();
+  const panel = document.createElement('div');
+  panel.id = 'furnace-panel';
+  panel.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.68);display:flex;'
+    + 'flex-direction:column;align-items:center;justify-content:center;gap:14px;'
+    + 'z-index:1000;font:12px monospace;color:#ddd;';
+
+  const title = document.createElement('div');
+  title.style.cssText = 'font-size:16px;color:#ffb050;';
+  title.textContent = '🔥 熔炉 · 矿石冶炼';
+  panel.appendChild(title);
+
+  // 状态 / 进度
+  furnaceStatusEl = document.createElement('div');
+  furnaceStatusEl.style.cssText = 'color:#ffd060;min-height:16px;';
+  panel.appendChild(furnaceStatusEl);
+
+  const barBg = document.createElement('div');
+  barBg.style.cssText = 'width:320px;height:10px;background:#222;border:1px solid #555;border-radius:5px;overflow:hidden;';
+  furnaceProgressEl = document.createElement('div');
+  furnaceProgressEl.style.cssText = 'height:100%;width:0%;background:linear-gradient(90deg,#ff8a20,#ffd060);transition:width 0.08s linear;';
+  barBg.appendChild(furnaceProgressEl);
+  panel.appendChild(barBg);
+
+  // 配方行
+  const list = document.createElement('div');
+  list.style.cssText = 'display:flex;flex-direction:column;gap:6px;margin-top:6px;';
+  for (const r of SMELT_RECIPES) {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:10px;background:#1a1a20;'
+      + 'border:1px solid #3a3a45;border-radius:4px;padding:6px 10px;min-width:460px;';
+    const ok = canSmelt(r, inv);
+    const inName = BLOCKS[r.inputBlockId]?.name ?? r.inputBlockId;
+    const fuelName = BLOCKS[r.fuelBlockId]?.name ?? r.fuelBlockId;
+    const outName = BLOCKS[r.outputBlockId]?.name ?? r.outputBlockId;
+    row.innerHTML = `<span style="color:${ok ? '#8ce88c' : '#c06060'};font-weight:bold;">${r.name}</span>`
+      + `<span style="flex:1;">${inName}×${r.inputCount} + ${fuelName}×${r.fuelCount} → ${outName}×${r.outputCount}</span>`
+      + `<span style="color:#ffd060;">${r.duration}s</span>`;
+    const btn = document.createElement('button');
+    btn.textContent = '冶炼';
+    btn.disabled = !ok || !!smeltMgr.job;
+    btn.style.cssText = 'padding:3px 12px;font:11px monospace;cursor:pointer;'
+      + 'background:' + (btn.disabled ? '#333' : '#5a3a18') + ';color:' + (btn.disabled ? '#777' : '#ffd060') + ';'
+      + 'border:1px solid ' + (btn.disabled ? '#444' : '#a06a20') + ';border-radius:3px;';
+    btn.addEventListener('click', () => {
+      if (smeltMgr.start(r.id, inv)) {
+        sfx.digHard();
+        buildFurnaceUI();
+      }
+    });
+    row.appendChild(btn);
+    list.appendChild(row);
+  }
+  panel.appendChild(list);
+
+  const tip = document.createElement('div');
+  tip.style.cssText = 'color:#aaa;margin-top:8px;';
+  tip.textContent = `燃料：余烬（${inv.count('ember_ash')} 个） · [L / ESC] 关闭`;
+  panel.appendChild(tip);
+
+  document.body.appendChild(panel);
+  furnacePanel = panel;
+}
+
+/** 每帧刷新熔炉进度显示（仅面板打开时） */
+function refreshFurnaceProgress() {
+  if (!furnacePanel) return;
+  if (furnaceStatusEl && furnaceProgressEl) {
+    if (smeltMgr.job) {
+      const r = SMELT_RECIPES.find(x => x.id === smeltMgr.job!.recipeId);
+      const pct = Math.floor(smeltMgr.progressRatio * 100);
+      furnaceStatusEl.textContent = `冶炼中：${r?.name ?? ''} ${pct}%`;
+      furnaceProgressEl.style.width = `${pct}%`;
+    } else {
+      furnaceStatusEl.textContent = '空闲 — 选择下方配方开始冶炼';
+      furnaceProgressEl.style.width = '0%';
+    }
+  }
+}
+
 // M24: 钓鱼 — 检测玩家附近是否有液态方块
 function findNearbyLiquid(): { tx: number; ty: number } | null {
   const ptx = Math.floor(player.x / TILE_SIZE);
@@ -725,8 +843,9 @@ function resize() {
 function bindInput() {
   window.addEventListener('keydown', e => {
     if (inputBlocked) {
-      if (e.code === 'Escape') { if (openChest) closeChestUI(); wb.close(); }
+      if (e.code === 'Escape') { if (openChest) closeChestUI(); if (furnacePanel) closeFurnaceUI(); wb.close(); }
       else if (e.code === 'KeyK' && openChest) closeChestUI();
+      else if (e.code === 'KeyL' && furnacePanel) closeFurnaceUI();
       else if (e.code === 'KeyC') wb.craftSelected(e.shiftKey);
       return;
     }
@@ -806,6 +925,11 @@ function bindInput() {
       case 'KeyK':
         if (openChest) closeChestUI();
         else openChestUI();
+        break;
+      // M28: 打开/关闭熔炉
+      case 'KeyL':
+        if (furnacePanel) closeFurnaceUI();
+        else openFurnaceUI();
         break;
       case 'KeyV':
         sfx.toggle();
@@ -1042,6 +1166,17 @@ function update(dt: number) {
     }
   }
   if (fishingMsgTimer > 0) { fishingMsgTimer -= dt; if (fishingMsgTimer <= 0) fishingMsg = ''; }
+
+  // M28: 熔炉冶炼推进
+  const smelted = smeltMgr.update(dt);
+  if (smelted) {
+    inv.add(smelted.blockId, smelted.count);
+    sfx.pickup();
+    fishingMsg = `冶炼完成：${BLOCKS[smelted.blockId]?.name ?? smelted.blockId} ×${smelted.count}`;
+    fishingMsgTimer = 3;
+    if (furnacePanel) buildFurnaceUI();
+  }
+  refreshFurnaceProgress();
 
   // M25: 宠物 AI 更新
   if (activePet) {

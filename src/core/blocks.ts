@@ -332,6 +332,19 @@ export const BLOCKS: Record<string, BlockDef> = {
     paletteId: 'rust03', variants: [],
     drops: [{ blockId: 'chest', chance: 1.0 }],
   },
+
+  // === M28: 熔炉 + 金属锭 ===
+  furnace: {
+    id: 'furnace', name: '熔炉', category: 'special',
+    hardness: 18, toolLevel: 1,
+    paletteId: 'ember02', variants: [],
+    emitsLight: 8,
+    drops: [{ blockId: 'furnace', chance: 1.0 }],
+  },
+  copper_bar: { id: 'copper_bar', name: '铜锭', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'rust03', variants: [], drops: [] },
+  iron_bar: { id: 'iron_bar', name: '铁锭', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'iron02', variants: [], drops: [] },
+  gold_bar: { id: 'gold_bar', name: '金锭', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'gold01', variants: [], drops: [] },
+  void_bar: { id: 'void_bar', name: '虚空锭', category: 'special', hardness: 0, toolLevel: 0, paletteId: 'void02', variants: [], drops: [] },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);

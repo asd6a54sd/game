@@ -96,6 +96,12 @@ export const RECIPES: Recipe[] = [
 
   // === M27: 宝箱 ===
   { resultBlockId: 'chest', resultCount: 1, ingredients: [{ blockId: 'wreck_scrap', count: 6 }, { blockId: 'ore_iron', count: 1 }], requiresWorkbench: true },
+
+  // === M28: 熔炉 + 锭锻造 ===
+  { resultBlockId: 'furnace', resultCount: 1, ingredients: [{ blockId: 'wreck_hull', count: 4 }, { blockId: 'ore_copper', count: 5 }, { blockId: 'ember_ash', count: 3 }], requiresWorkbench: true },
+  // 用锭锻造护甲（替代路径，与矿石配方并存）
+  { resultBlockId: 'ember_helm', resultCount: 1, ingredients: [{ blockId: 'gold_bar', count: 4 }, { blockId: 'iron_bar', count: 2 }], requiresWorkbench: true },
+  { resultBlockId: 'void_chest', resultCount: 1, ingredients: [{ blockId: 'void_bar', count: 5 }, { blockId: 'iron_bar', count: 4 }], requiresWorkbench: true },
 ];
 
 export function canCraft(recipe: Recipe, inv: Inventory, nearWorkbench: boolean): boolean {
