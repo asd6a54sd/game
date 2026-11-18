@@ -142,6 +142,22 @@ export const REGION_STORY: Record<string, StoryEntry> = {
       '岩浆湖红得发沉——它记得这座废墟熔化的样子。',
     ],
   },
+  rot_mire: {
+    id: 'region_rot_mire',
+    title: '腐蚀沼泽',
+    lines: [
+      '泥水没有流动的方向，只有孢子在空中慢慢亮起又熄灭。',
+      '每一步都像踩在别人的骨头上。',
+    ],
+  },
+  ashen_court: {
+    id: 'region_ashen_court',
+    title: '灰烬王庭',
+    lines: [
+      '地砖还剩一半，断柱间摆着早已冷透的火盆。',
+      '这里曾有人加冕，现在只有灰在加冕。',
+    ],
+  },
 };
 
 /** Boss 剧情（key 为自定义事件 id） */

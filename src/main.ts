@@ -1992,6 +1992,8 @@ const REGION_GUIDANCE: Record<string, { subtitle: string; goal: string; hint: st
   'underground_valley': { subtitle: '地底幽谷', goal: '暗能量结界 + 叛军据点', hint: '⚠ 靠近紫色暗能量区可召唤 Boss（按 R）' },
   'frozen_waste': { subtitle: '霜蚀冻原', goal: '冰层下的永冻土与冻岩', hint: '冰层较硬，建议带镐 II 再向下挖' },
   'ash_volcano': { subtitle: '熔渣火山', goal: '余烬矿脉与火山锥深处', hint: '岩浆可游泳穿越（与液态金属相同），不会溺水' },
+  'rot_mire': { subtitle: '腐蚀沼泽', goal: '泥炭、枯骨与发光孢子', hint: '毒沼水可游过；孢子会发光，适合夜间探路' },
+  'ashen_court': { subtitle: '灰烬王庭', goal: '王庭砖石与断柱遗迹', hint: '石柱与火盆只有 1 格高，可直接跨过' },
 };
 
 function initStoryGuides() {
@@ -2528,6 +2530,8 @@ function updateBossesSystem(dt: number) {
         underground_valley: 'shadow_lich',
         frozen_waste: 'frost_kraken',
         ash_volcano: 'magma_golem',
+        rot_mire: 'hive_overlord',
+        ashen_court: 'magma_golem',
       };
       const bossId = NIGHT_BOSS_MAP[region];
       if (bossId) {
@@ -2729,6 +2733,8 @@ function initCompanions() {
     underground_valley: ['iron_guard', 'ember_mage', 'cold_engineer'],
     frozen_waste: ['cold_engineer', 'rust_archer'],
     ash_volcano: ['ember_mage', 'iron_guard'],
+    rot_mire: ['bone_scout', 'cold_engineer'],
+    ashen_court: ['ember_mage', 'iron_guard'],
   };
 
   // 每个 hut/camp 门口放 1 个 civilian

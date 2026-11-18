@@ -35,6 +35,8 @@ const saltSurfaces = new Set([
   'liquid_metal', 'metal_float', 'rebel_brick', 'void_barrier',
   'frost_snow', 'ice_layer', 'permafrost', 'frost_rock',
   'ash_ground', 'basalt', 'obsidian', 'magma_lava',
+  'swamp_mud', 'murk_water', 'rot_peat', 'rot_bone', 'fen_rock', 'spore_glow',
+  'court_tile', 'court_rubble', 'court_brick', 'court_deep', 'court_column', 'court_brazier',
 ]);
 
 
@@ -299,8 +301,11 @@ export class Renderer {
         const above = sy - 1 >= 0 ? biToBlock(tiles[(sy - 1) * MAP_WIDTH + x]) : 'empty';
         if (!BLOCKS[above]?.liquid) {
           const wave = Math.sin(time * 2 + x * 0.7) * 1.5;
+          // 波光颜色跟随液体：液态金属冷青、岩浆橙金、毒沼浑黄
           ctx.globalAlpha = 0.55;
-          ctx.fillStyle = '#cfefff';
+          ctx.fillStyle = surf === 'magma_lava' ? '#ffc85a'
+            : surf === 'murk_water' ? '#b8a888'
+            : '#cfefff';
           ctx.fillRect(sx, gy - 2 + wave, TILE_SIZE, 1);
           if (this.decorRand(x, 3) > 0.6) {
             ctx.globalAlpha = 0.85;
@@ -346,6 +351,36 @@ export class Renderer {
         ctx.fillStyle = '#3a3138';
         ctx.fillRect(sx + 8, gy - h, 2, h);
         ctx.fillRect(sx + 8, gy - h, 5, 2);
+        ctx.globalAlpha = 1;
+      }
+
+      // 霜蚀冻原：雪面反光
+      if (surf === 'frost_snow' && this.decorRand(x, 21) > 0.6) {
+        ctx.globalAlpha = 0.35 + 0.35 * Math.sin(time * 1.6 + x * 0.9);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(sx + 3 + Math.floor(this.decorRand(x, 22) * 10), gy - 2, 2, 1);
+        ctx.globalAlpha = 1;
+      }
+      // 熔渣火山：灰面余火
+      if (surf === 'ash_ground' && this.decorRand(x, 23) > 0.88) {
+        ctx.globalAlpha = 0.35 + 0.35 * Math.sin(time * 3 + x);
+        ctx.fillStyle = '#e89430';
+        ctx.fillRect(sx + 6, gy - 2, 2, 2);
+        ctx.globalAlpha = 1;
+      }
+      // 腐蚀沼泽：泥沼气泡
+      if (surf === 'swamp_mud' && this.decorRand(x, 24) > 0.75) {
+        const bub = (time * 8 + x) % 10;
+        ctx.globalAlpha = 0.4;
+        ctx.fillStyle = '#706050';
+        ctx.fillRect(sx + 5, gy - 2 - bub, 2, 2);
+        ctx.globalAlpha = 1;
+      }
+      // 灰烬王庭：地砖反光
+      if (surf === 'court_tile' && this.decorRand(x, 25) > 0.7) {
+        ctx.globalAlpha = 0.25;
+        ctx.fillStyle = '#fff8e8';
+        ctx.fillRect(sx + 2, gy - 1, 5, 1);
         ctx.globalAlpha = 1;
       }
     }

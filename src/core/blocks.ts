@@ -479,6 +479,85 @@ export const BLOCKS: Record<string, BlockDef> = {
     emitsLight: 12,
     drops: [],
   },
+
+  // === 大框架: 腐蚀沼泽 / 灰烬王庭 ===
+  // 追加在末尾，保持已有方块索引不变（旧存档兼容）
+  swamp_mud: {
+    id: 'swamp_mud', name: '沼泽淤泥', category: 'shallow',
+    hardness: 0.9, toolLevel: 0,
+    paletteId: 'bone04', variants: ['bone03', 'bone04', 'rust05'],
+    drops: [{ blockId: 'swamp_mud', chance: 1.0 }],
+  },
+  murk_water: {
+    id: 'murk_water', name: '毒沼水', category: 'liquid',
+    hardness: 0, toolLevel: 0,
+    paletteId: 'rust05', variants: ['rust04', 'rust05', 'bone04'],
+    liquid: true,
+    drops: [],
+  },
+  rot_peat: {
+    id: 'rot_peat', name: '腐殖泥炭', category: 'mid',
+    hardness: 12, toolLevel: 1,
+    paletteId: 'rust05', variants: ['rust04', 'rust05', 'bone05'],
+    drops: [{ blockId: 'rot_peat', chance: 1.0 }],
+  },
+  rot_bone: {
+    id: 'rot_bone', name: '枯骨层', category: 'mid',
+    hardness: 8, toolLevel: 1,
+    paletteId: 'bone02', variants: ['bone02', 'bone03', 'bone04'],
+    drops: [{ blockId: 'rot_bone', chance: 1.0 }],
+  },
+  fen_rock: {
+    id: 'fen_rock', name: '沼底岩', category: 'deep',
+    hardness: 48, toolLevel: 2,
+    paletteId: 'iron04', variants: ['iron04', 'bone05', 'cold04'],
+    drops: [{ blockId: 'fen_rock', chance: 1.0 }],
+  },
+  spore_glow: {
+    id: 'spore_glow', name: '发光孢子', category: 'special',
+    hardness: 6, toolLevel: 1,
+    paletteId: 'void02', variants: ['void01', 'void02'],
+    emitsLight: 9,
+    drops: [{ blockId: 'spore_glow', chance: 1.0 }],
+  },
+
+  court_tile: {
+    id: 'court_tile', name: '王庭地砖', category: 'shallow',
+    hardness: 1.2, toolLevel: 0,
+    paletteId: 'bone03', variants: ['bone02', 'bone03', 'bone04'],
+    drops: [{ blockId: 'court_tile', chance: 1.0 }],
+  },
+  court_rubble: {
+    id: 'court_rubble', name: '碎砖堆', category: 'mid',
+    hardness: 18, toolLevel: 1,
+    paletteId: 'bone04', variants: ['bone03', 'bone04', 'iron03'],
+    drops: [{ blockId: 'court_rubble', chance: 1.0 }],
+  },
+  court_brick: {
+    id: 'court_brick', name: '王庭砖', category: 'mid',
+    hardness: 26, toolLevel: 2,
+    paletteId: 'bone05', variants: ['bone04', 'bone05', 'iron04'],
+    drops: [{ blockId: 'court_brick', chance: 1.0 }],
+  },
+  court_deep: {
+    id: 'court_deep', name: '王庭基石', category: 'deep',
+    hardness: 52, toolLevel: 2,
+    paletteId: 'iron05', variants: ['iron05', 'void04'],
+    drops: [{ blockId: 'court_deep', chance: 1.0 }],
+  },
+  court_column: {
+    id: 'court_column', name: '断裂石柱', category: 'special',
+    hardness: 60, toolLevel: 2,
+    paletteId: 'bone02', variants: ['bone01', 'bone02', 'bone03'],
+    drops: [{ blockId: 'court_column', chance: 1.0 }],
+  },
+  court_brazier: {
+    id: 'court_brazier', name: '王庭火盆', category: 'special',
+    hardness: 0, toolLevel: 0,
+    paletteId: 'ember02', variants: ['ember01', 'ember02'],
+    emitsLight: 10,
+    drops: [],
+  },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);

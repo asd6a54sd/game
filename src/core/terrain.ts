@@ -1,6 +1,6 @@
 /**
  * 烬海纪元 · 地形生成器
- * 第一幕《特恩无人区》横向剖面 — 8 区块 × 3 地层
+ * 第一幕《特恩无人区》横向剖面 — 10 区块 × 3 地层
  */
 import { BLOCKS, isSolid, isLiquid } from './blocks.js';
 
@@ -12,7 +12,9 @@ export type RegionId =
   | 'beast_hive'
   | 'underground_valley'
   | 'frozen_waste'
-  | 'ash_volcano';
+  | 'ash_volcano'
+  | 'rot_mire'
+  | 'ashen_court';
 
 export interface Region {
   id: RegionId;
@@ -23,7 +25,7 @@ export interface Region {
   description: string;
 }
 
-export const MAP_WIDTH = 480;
+export const MAP_WIDTH = 600;
 export const MAP_HEIGHT = 180;
 export const TILE_SIZE = 16;
 
@@ -36,6 +38,8 @@ export const REGIONS: Region[] = [
   { id: 'underground_valley', name: '地底幽谷', startCol: 300, endCol: 360, palette: ['void', 'iron'], description: '叛军据点与暗能量结界' },
   { id: 'frozen_waste',  name: '霜蚀冻原',   startCol: 360, endCol: 420, palette: ['cold', 'bone', 'iron'], description: '冰层、永冻土与冷色雪原' },
   { id: 'ash_volcano',   name: '熔渣火山',   startCol: 420, endCol: 480, palette: ['ember', 'rust', 'iron'], description: '火山锥、玄武岩与岩浆湖' },
+  { id: 'rot_mire',      name: '腐蚀沼泽',   startCol: 480, endCol: 540, palette: ['rust', 'bone', 'void'], description: '淤泥、毒沼与发光孢子' },
+  { id: 'ashen_court',   name: '灰烬王庭',   startCol: 540, endCol: 600, palette: ['bone', 'iron', 'ember'], description: '废都地砖、断柱与王庭火盆' },
 ];
 
 // ========== 噪声 ==========
@@ -146,6 +150,12 @@ export function generateTerrain(seed = 20261116): TerrainData {
     } else if (r.id === 'ash_volcano') {
       base = 58;
       v = Math.floor((n1.fbm(x * 0.02, 0, 2) - 0.5) * 18);
+    } else if (r.id === 'rot_mire') {
+      base = 66;
+      v = Math.floor((n1.fbm(x * 0.03, 0, 2) - 0.5) * 8);
+    } else if (r.id === 'ashen_court') {
+      base = 62;
+      v = Math.floor((n2.noise2D(x * 0.028, 0) - 0.5) * 10);
     }
 
     heightMap[x] = Math.max(45, Math.min(95, base + v));
@@ -162,6 +172,8 @@ export function generateTerrain(seed = 20261116): TerrainData {
     else if (r.id === 'underground_valley') add = Math.floor(add * 0.4);
     else if (r.id === 'ash_volcano') add = Math.floor(add * 0.6);
     else if (r.id === 'frozen_waste') add = Math.floor(add * 0.5);
+    else if (r.id === 'rot_mire') add = Math.floor(add * 0.15);
+    else if (r.id === 'ashen_court') add = Math.floor(add * 0.35);
     heightMap[x] = Math.max(45, Math.min(95, heightMap[x] + add));
   }
 
@@ -262,6 +274,16 @@ export function generateTerrain(seed = 20261116): TerrainData {
     }
   }
 
+  // 腐蚀沼泽：两片毒沼水洼（同样 3 格深，可游泳）
+  for (const [a, b] of [[492, 502], [518, 530]] as const) {
+    for (let x = a; x <= b; x++) {
+      const sy = heightMap[x];
+      for (let y = sy; y < Math.min(height, sy + 3); y++) {
+        tiles[y * width + x] = bi('murk_water');
+      }
+    }
+  }
+
   carveStructures(tiles, heightMap, rng);
   const structures = buildStructures(tiles, heightMap, rng);
 
@@ -309,6 +331,12 @@ function surfaceBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: Val
     case 'ash_volcano':
       if (n2.noise2D(x * 0.1, y * 0.1) > 0.82) return bi('basalt');
       return bi('ash_ground');
+    case 'rot_mire':
+      if (n2.noise2D(x * 0.12, y * 0.12) > 0.8) return bi('rot_peat');
+      return bi('swamp_mud');
+    case 'ashen_court':
+      if (n2.noise2D(x * 0.11, y * 0.11) > 0.78) return bi('court_rubble');
+      return bi('court_tile');
   }
 }
 
@@ -341,6 +369,14 @@ function shallowBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: Val
       if (noise > 0.78) return bi('obsidian');
       if (noise < 0.25) return bi('ash_ground');
       return bi('basalt');
+    case 'rot_mire':
+      if (noise > 0.72) return bi('rot_peat');
+      if (noise < 0.3) return bi('rot_bone');
+      return bi('swamp_mud');
+    case 'ashen_court':
+      if (noise > 0.76) return bi('court_brick');
+      if (noise < 0.28) return bi('court_rubble');
+      return bi('court_tile');
   }
 }
 
@@ -363,6 +399,17 @@ function midBlock(r: RegionId, x: number, y: number, _n1: ValueNoise, n2: ValueN
     if (oreNoise > 0.82) return bi('ember_vein');
     if (oreNoise < 0.22) return bi('obsidian');
     return bi('basalt');
+  }
+
+  if (r === 'rot_mire') {
+    if (n3.noise2D(x * 0.12, y * 0.12) > 0.86) return bi('spore_glow');
+    if (oreNoise > 0.8) return bi('rot_peat');
+    return bi('rot_bone');
+  }
+
+  if (r === 'ashen_court') {
+    if (oreNoise > 0.85) return bi('court_brick');
+    return bi('court_rubble');
   }
 
   // 三层矿带
@@ -397,14 +444,26 @@ function deepBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: ValueN
     return bi('deep_rock');
   }
 
+  if (r === 'rot_mire') {
+    if (voidNoise > 0.82) return bi('spore_glow');
+    if (crystalNoise > 0.86) return bi('crystal_glow');
+    return bi('fen_rock');
+  }
+
+  if (r === 'ashen_court') {
+    if (crystalNoise > 0.88) return bi('crystal_glow');
+    return bi('court_deep');
+  }
+
   if (crystalNoise > 0.88) return bi('crystal_glow');
   if (noise < 0.25) return bi('crystal_glow');
   return bi('deep_rock');
 }
 
 function carveStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => number) {
-  // 1. 洞穴空洞
-  for (let i = 0; i < 18; i++) {
+  // 1. 洞穴空洞（数量随地图宽度扩展）
+  const caveCount = Math.max(18, Math.floor(MAP_WIDTH / 26));
+  for (let i = 0; i < caveCount; i++) {
     const rx = 30 + Math.floor(rng() * (MAP_WIDTH - 60));
     const ry = 85 + Math.floor(rng() * 60);
     const rad = 3 + Math.floor(rng() * 6);
@@ -451,6 +510,20 @@ function carveStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
     if (sy - 1 < 0) continue;
     tiles[(sy - 1) * MAP_WIDTH + x] = bi('chitin_hive');
   }
+
+  // 5. 腐蚀沼泽：地表发光孢子（1 格高，可跨过）
+  for (let x = 484; x < 536; x += 5 + Math.floor(rng() * 6)) {
+    const sy = heightMap[x];
+    if (sy - 1 < 0) continue;
+    tiles[(sy - 1) * MAP_WIDTH + x] = bi('spore_glow');
+  }
+
+  // 6. 灰烬王庭：断裂石柱与王庭火盆（均 1 格高，可跨过）
+  for (let x = 548; x < 594; x += 4 + Math.floor(rng() * 5)) {
+    const sy = heightMap[x];
+    if (sy - 1 < 0) continue;
+    tiles[(sy - 1) * MAP_WIDTH + x] = rng() < 0.6 ? bi('court_column') : bi('court_brazier');
+  }
 }
 
 export function regionNameAt(col: number): string {
@@ -468,7 +541,7 @@ export function regionIdAt(col: number): RegionId {
 function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => number): RegionStructure[] {
   const structures: RegionStructure[] = [];
 
-  // 在 6 个区块各放一个结构（避开 underground_valley 的暗能量紫柱区）
+  // 每个区块各放一个小屋 / 营地（避开 underground_valley 的暗能量紫柱区）
   const hutPositions: { regionCol: [number, number]; kind: RegionStructure['kind']; name: RegionId }[] = [
     { regionCol: [30, 50],  kind: 'hut', name: 'wreck_zone' },
     { regionCol: [80, 100], kind: 'hut', name: 'crack_waste' },
@@ -478,6 +551,8 @@ function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
     { regionCol: [305, 320], kind: 'camp', name: 'underground_valley' },
     { regionCol: [380, 400], kind: 'camp', name: 'frozen_waste' },
     { regionCol: [425, 442], kind: 'camp', name: 'ash_volcano' },
+    { regionCol: [505, 514], kind: 'camp', name: 'rot_mire' },
+    { regionCol: [560, 578], kind: 'camp', name: 'ashen_court' },
   ];
 
   for (const hp of hutPositions) {
@@ -492,11 +567,14 @@ function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
     // 确保 hutX 范围合法
     if (hutX < 2 || hutX + hutW >= MAP_WIDTH - 2) continue;
 
-    // 清出内部空间
+    // 清出内部空间：按每一列自己的地表高度向上清，避免在坡地上削掉邻列地表
     for (let dx = 0; dx < hutW; dx++) {
+      const tx = hutX + dx;
+      if (tx < 0 || tx >= MAP_WIDTH) continue;
+      const colY = heightMap[tx];
       for (let dy = 0; dy < hutH; dy++) {
-        const tx = hutX + dx, ty = hutY + dy;
-        if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) continue;
+        const ty = colY - hutH + dy;
+        if (ty < 0 || ty >= MAP_HEIGHT) continue;
         tiles[ty * MAP_WIDTH + tx] = bi('empty');
       }
     }
