@@ -1994,6 +1994,8 @@ const REGION_GUIDANCE: Record<string, { subtitle: string; goal: string; hint: st
   'ash_volcano': { subtitle: '熔渣火山', goal: '余烬矿脉与火山锥深处', hint: '岩浆可游泳穿越（与液态金属相同），不会溺水' },
   'rot_mire': { subtitle: '腐蚀沼泽', goal: '泥炭、枯骨与发光孢子', hint: '毒沼水可游过；孢子会发光，适合夜间探路' },
   'ashen_court': { subtitle: '灰烬王庭', goal: '王庭砖石与断柱遗迹', hint: '石柱与火盆只有 1 格高，可直接跨过' },
+  'storm_rift': { subtitle: '雷鸣裂谷', goal: '雷晶与导电岩层', hint: '雷晶会发光，适合当作天然路标' },
+  'ember_sanctum': { subtitle: '余烬圣所', goal: '圣所砖石与长明圣火', hint: '圣火是免费光源，可在其旁扎营' },
 };
 
 function initStoryGuides() {
@@ -2532,6 +2534,8 @@ function updateBossesSystem(dt: number) {
         ash_volcano: 'magma_golem',
         rot_mire: 'hive_overlord',
         ashen_court: 'magma_golem',
+        storm_rift: 'storm_titan',
+        ember_sanctum: 'shadow_lich',
       };
       const bossId = NIGHT_BOSS_MAP[region];
       if (bossId) {
@@ -2735,6 +2739,8 @@ function initCompanions() {
     ash_volcano: ['ember_mage', 'iron_guard'],
     rot_mire: ['bone_scout', 'cold_engineer'],
     ashen_court: ['ember_mage', 'iron_guard'],
+    storm_rift: ['cold_engineer', 'bone_scout'],
+    ember_sanctum: ['ember_mage', 'iron_guard'],
   };
 
   // 每个 hut/camp 门口放 1 个 civilian

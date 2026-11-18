@@ -158,6 +158,22 @@ export const REGION_STORY: Record<string, StoryEntry> = {
       '这里曾有人加冕，现在只有灰在加冕。',
     ],
   },
+  storm_rift: {
+    id: 'region_storm_rift',
+    title: '雷鸣裂谷',
+    lines: [
+      '雷不落向地面，而是沿着岩层里的雷晶一路奔跑。',
+      '你听见脚下有电流在数你的脚步。',
+    ],
+  },
+  ember_sanctum: {
+    id: 'region_ember_sanctum',
+    title: '余烬圣所',
+    lines: [
+      '青铜墙被烧成暖色，圣火却一盏都没熄。',
+      '有人相信只要火还亮着，烬海就还没真正结束。',
+    ],
+  },
 };
 
 /** Boss 剧情（key 为自定义事件 id） */

@@ -37,6 +37,8 @@ const saltSurfaces = new Set([
   'ash_ground', 'basalt', 'obsidian', 'magma_lava',
   'swamp_mud', 'murk_water', 'rot_peat', 'rot_bone', 'fen_rock', 'spore_glow',
   'court_tile', 'court_rubble', 'court_brick', 'court_deep', 'court_column', 'court_brazier',
+  'storm_scorch', 'charged_rock', 'thunder_crystal', 'storm_spire',
+  'sanctum_tile', 'sanctum_bronze', 'sanctum_stone',
 ]);
 
 
@@ -381,6 +383,24 @@ export class Renderer {
         ctx.globalAlpha = 0.25;
         ctx.fillStyle = '#fff8e8';
         ctx.fillRect(sx + 2, gy - 1, 5, 1);
+        ctx.globalAlpha = 1;
+      }
+      // 雷鸣裂谷：焦土上的电弧闪烁
+      if (surf === 'storm_scorch' && this.decorRand(x, 26) > 0.9) {
+        const f = Math.sin(time * 9 + x * 2.3);
+        if (f > 0.6) {
+          ctx.globalAlpha = 0.7;
+          ctx.fillStyle = '#d4f4ff';
+          ctx.fillRect(sx + 4 + Math.floor(this.decorRand(x, 27) * 8), gy - 4, 1, 4);
+          ctx.fillRect(sx + 5, gy - 3, 2, 1);
+          ctx.globalAlpha = 1;
+        }
+      }
+      // 余烬圣所：地砖暖光
+      if (surf === 'sanctum_tile' && this.decorRand(x, 28) > 0.72) {
+        ctx.globalAlpha = 0.22 + 0.1 * Math.sin(time * 2 + x * 0.6);
+        ctx.fillStyle = '#ffc85a';
+        ctx.fillRect(sx + 2, gy - 1, 6, 1);
         ctx.globalAlpha = 1;
       }
     }

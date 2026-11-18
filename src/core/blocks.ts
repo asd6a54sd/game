@@ -558,6 +558,62 @@ export const BLOCKS: Record<string, BlockDef> = {
     emitsLight: 10,
     drops: [],
   },
+
+  // === 大框架: 雷鸣裂谷 / 余烬圣所 ===
+  // 追加在末尾，保持已有方块索引不变（旧存档兼容）
+  storm_scorch: {
+    id: 'storm_scorch', name: '雷击焦土', category: 'shallow',
+    hardness: 0.8, toolLevel: 0,
+    paletteId: 'iron05', variants: ['iron04', 'iron05', 'bone05'],
+    drops: [{ blockId: 'storm_scorch', chance: 1.0 }],
+  },
+  charged_rock: {
+    id: 'charged_rock', name: '导电岩', category: 'mid',
+    hardness: 20, toolLevel: 1,
+    paletteId: 'iron04', variants: ['iron04', 'cold03', 'iron03'],
+    emitsLight: 2,
+    drops: [{ blockId: 'charged_rock', chance: 1.0 }],
+  },
+  thunder_crystal: {
+    id: 'thunder_crystal', name: '雷晶', category: 'ore',
+    hardness: 34, toolLevel: 2,
+    paletteId: 'cold01', variants: ['cold01', 'cold02', 'cold03'],
+    emitsLight: 10,
+    drops: [{ blockId: 'thunder_crystal', chance: 1.0 }],
+  },
+  storm_spire: {
+    id: 'storm_spire', name: '导电尖峰', category: 'special',
+    hardness: 40, toolLevel: 2,
+    paletteId: 'cold03', variants: ['cold02', 'cold03', 'iron03'],
+    emitsLight: 5,
+    drops: [{ blockId: 'thunder_crystal', chance: 0.6 }],
+  },
+
+  sanctum_tile: {
+    id: 'sanctum_tile', name: '圣所地砖', category: 'shallow',
+    hardness: 1.4, toolLevel: 0,
+    paletteId: 'bone02', variants: ['bone01', 'bone02', 'bone03'],
+    drops: [{ blockId: 'sanctum_tile', chance: 1.0 }],
+  },
+  sanctum_bronze: {
+    id: 'sanctum_bronze', name: '青铜墙', category: 'mid',
+    hardness: 30, toolLevel: 2,
+    paletteId: 'rust03', variants: ['rust02', 'rust03', 'ember04'],
+    drops: [{ blockId: 'sanctum_bronze', chance: 1.0 }],
+  },
+  sanctum_stone: {
+    id: 'sanctum_stone', name: '祭坛石', category: 'deep',
+    hardness: 54, toolLevel: 3,
+    paletteId: 'iron05', variants: ['iron05', 'void04', 'bone05'],
+    drops: [{ blockId: 'sanctum_stone', chance: 1.0 }],
+  },
+  sanctum_flame: {
+    id: 'sanctum_flame', name: '长明圣火', category: 'special',
+    hardness: 0, toolLevel: 0,
+    paletteId: 'ember01', variants: ['ember01', 'ember02'],
+    emitsLight: 14,
+    drops: [],
+  },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);
