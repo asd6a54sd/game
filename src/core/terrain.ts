@@ -297,6 +297,7 @@ export function generateTerrain(seed = 20261116): TerrainData {
   }
 
   carveStructures(tiles, heightMap, rng);
+  buildLandmarks(tiles, heightMap);
   const structures = buildStructures(tiles, heightMap, rng);
 
   // 最终保险：地表必须是实心方块或液体，杜绝任何结构/装饰留下让玩家掉下去的破洞
@@ -583,6 +584,37 @@ function carveStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
     if (sy - 1 < 0) continue;
     tiles[(sy - 1) * MAP_WIDTH + x] = bi('sanctum_flame');
   }
+}
+
+/**
+ * 新区域地标：每区一座 1~3 格高的装饰性拱门 / 遗迹
+ * 中间至少留 3 格通行宽度，柱体本身可跨过，不会把玩家挡在外面
+ */
+function buildLandmarks(tiles: Uint8Array, heightMap: Uint8Array) {
+  const set = (tx: number, ty: number, id: string) => {
+    if (tx < 0 || tx >= MAP_WIDTH || ty < 0 || ty >= MAP_HEIGHT) return;
+    tiles[ty * MAP_WIDTH + tx] = bi(id);
+  };
+  // 双柱拱门：两柱各 2 格高 + 顶端 1 格发光/材质点缀，中间 3 格可通行
+  const arch = (cx: number, pillar: string, cap: string) => {
+    for (const dx of [-2, 2]) {
+      const x = cx + dx;
+      const sy = heightMap[x];
+      set(x, sy - 1, pillar);
+      set(x, sy - 2, pillar);
+      set(x, sy - 3, cap);
+    }
+  };
+  arch(410, 'ice_layer', 'crystal_glow');        // 霜蚀冻原 · 冰晶拱门
+  arch(462, 'basalt', 'ember_vein');             // 熔渣火山 · 玄武岩门
+  arch(536, 'rot_bone', 'spore_glow');           // 腐蚀沼泽 · 枯骨拱门
+  arch(588, 'court_column', 'court_brazier');    // 灰烬王庭 · 断柱门
+  arch(645, 'charged_rock', 'thunder_crystal');  // 雷鸣裂谷 · 导电尖峰门
+  arch(712, 'sanctum_bronze', 'sanctum_flame');  // 余烬圣所 · 圣火拱门
+
+  // 灰烬王庭 · 残王座：中央火盆仅 1 格高，可直接跨过
+  const throneY = heightMap[588];
+  set(588, throneY - 1, 'court_brazier');
 }
 
 export function regionNameAt(col: number): string {
