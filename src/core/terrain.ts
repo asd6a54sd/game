@@ -1,6 +1,6 @@
 /**
  * 烬海纪元 · 地形生成器
- * 第一幕《特恩无人区》横向剖面 — 6 区块 × 3 地层
+ * 第一幕《特恩无人区》横向剖面 — 8 区块 × 3 地层
  */
 import { BLOCKS, isSolid, isLiquid } from './blocks.js';
 
@@ -10,7 +10,9 @@ export type RegionId =
   | 'gobi_mine'
   | 'silent_sea'
   | 'beast_hive'
-  | 'underground_valley';
+  | 'underground_valley'
+  | 'frozen_waste'
+  | 'ash_volcano';
 
 export interface Region {
   id: RegionId;
@@ -21,7 +23,7 @@ export interface Region {
   description: string;
 }
 
-export const MAP_WIDTH = 360;
+export const MAP_WIDTH = 480;
 export const MAP_HEIGHT = 180;
 export const TILE_SIZE = 16;
 
@@ -32,6 +34,8 @@ export const REGIONS: Region[] = [
   { id: 'silent_sea',  name: '无声海',     startCol: 180, endCol: 240, palette: ['cold', 'iron'],          description: '液态金属湖与浮游金属体' },
   { id: 'beast_hive',  name: '异兽巢穴',   startCol: 240, endCol: 300, palette: ['bone', 'void'],          description: '甲壳蜂巢与幽蓝荧光' },
   { id: 'underground_valley', name: '地底幽谷', startCol: 300, endCol: 360, palette: ['void', 'iron'], description: '叛军据点与暗能量结界' },
+  { id: 'frozen_waste',  name: '霜蚀冻原',   startCol: 360, endCol: 420, palette: ['cold', 'bone', 'iron'], description: '冰层、永冻土与冷色雪原' },
+  { id: 'ash_volcano',   name: '熔渣火山',   startCol: 420, endCol: 480, palette: ['ember', 'rust', 'iron'], description: '火山锥、玄武岩与岩浆湖' },
 ];
 
 // ========== 噪声 ==========
@@ -136,6 +140,12 @@ export function generateTerrain(seed = 20261116): TerrainData {
       v = Math.floor((n1.fbm(x * 0.03, 0, 2) - 0.5) * 14);
     } else if (r.id === 'underground_valley') {
       v = Math.floor((n1.noise2D(x * 0.03, 0) - 0.5) * 8);
+    } else if (r.id === 'frozen_waste') {
+      base = 58;
+      v = Math.floor((n1.fbm(x * 0.022, 0, 2) - 0.5) * 14);
+    } else if (r.id === 'ash_volcano') {
+      base = 58;
+      v = Math.floor((n1.fbm(x * 0.02, 0, 2) - 0.5) * 18);
     }
 
     heightMap[x] = Math.max(45, Math.min(95, base + v));
@@ -150,6 +160,8 @@ export function generateTerrain(seed = 20261116): TerrainData {
     // 平原与谷地削弱山脊
     if (r.id === 'silent_sea') add = Math.floor(add * 0.25);
     else if (r.id === 'underground_valley') add = Math.floor(add * 0.4);
+    else if (r.id === 'ash_volcano') add = Math.floor(add * 0.6);
+    else if (r.id === 'frozen_waste') add = Math.floor(add * 0.5);
     heightMap[x] = Math.max(45, Math.min(95, heightMap[x] + add));
   }
 
@@ -191,6 +203,13 @@ export function generateTerrain(seed = 20261116): TerrainData {
       heightMap[xx] = Math.max(45, Math.min(95, heightMap[xx] + Math.round(dir * total * k)));
     }
     x += 70 + Math.floor(cliffRng() * 60);
+  }
+
+  // 熔渣火山：中段隆起成火山锥（宽而缓，随后限幅保证每列 ≤1 格可攀爬）
+  for (let x = 424; x <= 474; x++) {
+    const k = Math.abs((x - 449) / 25);       // 0 = 锥顶, 1 = 山脚
+    const cone = Math.round(Math.max(0, 1 - k) * 16);
+    heightMap[x] = Math.max(45, Math.min(95, heightMap[x] + cone));
   }
 
   // 最终再限幅一次，确保任何位置落差都不超过 2 格（可跳过）
@@ -235,6 +254,14 @@ export function generateTerrain(seed = 20261116): TerrainData {
     }
   }
 
+  // 熔渣火山：山脚岩浆湖（湖面 3 格深，可游泳穿越；湖底仍是实心岩层）
+  for (let x = 446; x <= 458; x++) {
+    const sy = heightMap[x];
+    for (let y = sy; y < Math.min(height, sy + 3); y++) {
+      tiles[y * width + x] = bi('magma_lava');
+    }
+  }
+
   carveStructures(tiles, heightMap, rng);
   const structures = buildStructures(tiles, heightMap, rng);
 
@@ -276,6 +303,12 @@ function surfaceBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: Val
     case 'underground_valley':
       if (y < 70) return bi('rebel_brick');
       return bi('cracked_ground');
+    case 'frozen_waste':
+      if (n2.noise2D(x * 0.12, y * 0.12) > 0.72) return bi('ice_layer');
+      return bi('frost_snow');
+    case 'ash_volcano':
+      if (n2.noise2D(x * 0.1, y * 0.1) > 0.82) return bi('basalt');
+      return bi('ash_ground');
   }
 }
 
@@ -300,6 +333,14 @@ function shallowBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: Val
       if (n2.noise2D(x * 0.15, y * 0.15) > 0.85) return bi('bio_glow');
       return bi('cracked_ground');
     case 'underground_valley': return bi('cracked_ground');
+    case 'frozen_waste':
+      if (noise > 0.68) return bi('ice_layer');
+      if (noise < 0.3) return bi('frost_snow');
+      return bi('permafrost');
+    case 'ash_volcano':
+      if (noise > 0.78) return bi('obsidian');
+      if (noise < 0.25) return bi('ash_ground');
+      return bi('basalt');
   }
 }
 
@@ -311,6 +352,17 @@ function midBlock(r: RegionId, x: number, y: number, _n1: ValueNoise, n2: ValueN
     if (n3.noise2D(x * 0.12, y * 0.12) > 0.45) return bi('rebel_brick');
     if (oreNoise > 0.85) return bi('void_crystal');
     return bi('ore_rock');
+  }
+
+  if (r === 'frozen_waste') {
+    if (n3.noise2D(x * 0.12, y * 0.12) > 0.84) return bi('crystal_glow');
+    return bi('permafrost');
+  }
+
+  if (r === 'ash_volcano') {
+    if (oreNoise > 0.82) return bi('ember_vein');
+    if (oreNoise < 0.22) return bi('obsidian');
+    return bi('basalt');
   }
 
   // 三层矿带
@@ -332,6 +384,16 @@ function deepBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: ValueN
   if (r === 'underground_valley') {
     if (voidNoise > 0.7) return bi('void_barrier');
     if (crystalNoise > 0.8) return bi('void_crystal');
+    return bi('deep_rock');
+  }
+
+  if (r === 'frozen_waste') {
+    if (crystalNoise > 0.82) return bi('crystal_glow');
+    return bi('frost_rock');
+  }
+
+  if (r === 'ash_volcano') {
+    if (voidNoise > 0.84) return bi('ember_vein');
     return bi('deep_rock');
   }
 
@@ -414,6 +476,8 @@ function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
     { regionCol: [200, 220], kind: 'camp', name: 'silent_sea' },
     { regionCol: [260, 280], kind: 'hut', name: 'beast_hive' },
     { regionCol: [305, 320], kind: 'camp', name: 'underground_valley' },
+    { regionCol: [380, 400], kind: 'camp', name: 'frozen_waste' },
+    { regionCol: [425, 442], kind: 'camp', name: 'ash_volcano' },
   ];
 
   for (const hp of hutPositions) {
@@ -621,6 +685,27 @@ function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
   }
 
   return structures;
+}
+
+/**
+ * 旧存档地形迁移：把旧宽度存档按行拷贝进新地图的前 N 列
+ * —— 保留玩家原有挖掘/建筑，右侧新扩展的列使用本次生成的地形
+ */
+export function importSavedColumns(data: TerrainData, savedTiles: Uint8Array, savedHeight: Uint8Array): boolean {
+  const oldWidth = Math.floor(savedTiles.length / MAP_HEIGHT);
+  if (oldWidth <= 0 || savedTiles.length % MAP_HEIGHT !== 0) return false;
+  if (savedHeight.length !== oldWidth) return false;
+  if (oldWidth > data.width) return false;
+  if (oldWidth === data.width) {
+    data.tiles = savedTiles;
+    data.heightMap = savedHeight;
+    return true;
+  }
+  for (let y = 0; y < MAP_HEIGHT; y++) {
+    data.tiles.set(savedTiles.subarray(y * oldWidth, (y + 1) * oldWidth), y * data.width);
+  }
+  data.heightMap.set(savedHeight);
+  return true;
 }
 
 /**

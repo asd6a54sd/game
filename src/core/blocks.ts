@@ -417,6 +417,68 @@ export const BLOCKS: Record<string, BlockDef> = {
     emitsLight: 9,
     drops: [{ blockId: 'mana_crystal', chance: 1.0 }],
   },
+
+  // === 大框架: 霜蚀冻原（冷色雪原）===
+  // 追加在末尾，保持已有方块索引不变（旧存档兼容）
+  frost_snow: {
+    id: 'frost_snow', name: '霜雪地表', category: 'shallow',
+    hardness: 0.5, toolLevel: 0,
+    paletteId: 'bone01', variants: ['bone01', 'bone02', 'cold01'],
+    drops: [{ blockId: 'frost_snow', chance: 1.0 }],
+  },
+  ice_layer: {
+    id: 'ice_layer', name: '冰层', category: 'shallow',
+    hardness: 4, toolLevel: 1,
+    paletteId: 'cold01', variants: ['cold01', 'cold02', 'cold03'],
+    drops: [{ blockId: 'ice_layer', chance: 1.0 }],
+  },
+  permafrost: {
+    id: 'permafrost', name: '永冻土', category: 'mid',
+    hardness: 16, toolLevel: 1,
+    paletteId: 'cold03', variants: ['cold03', 'cold04', 'iron03'],
+    drops: [{ blockId: 'permafrost', chance: 1.0 }],
+  },
+  frost_rock: {
+    id: 'frost_rock', name: '冻岩', category: 'deep',
+    hardness: 46, toolLevel: 2,
+    paletteId: 'iron05', variants: ['iron04', 'iron05', 'cold04'],
+    drops: [{ blockId: 'frost_rock', chance: 1.0 }],
+  },
+
+  // === 大框架: 熔渣火山（火山灰 / 玄武岩 / 岩浆）===
+  ash_ground: {
+    id: 'ash_ground', name: '火山灰', category: 'shallow',
+    hardness: 0.6, toolLevel: 0,
+    paletteId: 'iron03', variants: ['iron03', 'bone05', 'ember05'],
+    drops: [{ blockId: 'ash_ground', chance: 1.0 }],
+  },
+  basalt: {
+    id: 'basalt', name: '玄武岩', category: 'shallow',
+    hardness: 2, toolLevel: 1,
+    paletteId: 'iron04', variants: ['iron04', 'iron05'],
+    drops: [{ blockId: 'basalt', chance: 1.0 }],
+  },
+  obsidian: {
+    id: 'obsidian', name: '黑曜岩', category: 'mid',
+    hardness: 32, toolLevel: 2,
+    paletteId: 'iron05', variants: ['iron05', 'void04'],
+    drops: [{ blockId: 'obsidian', chance: 1.0 }],
+  },
+  ember_vein: {
+    id: 'ember_vein', name: '余烬矿脉', category: 'ore',
+    hardness: 24, toolLevel: 2,
+    paletteId: 'ember03', variants: ['ember02', 'ember03', 'ember04'],
+    emitsLight: 4,
+    drops: [{ blockId: 'ember_vein', chance: 1.0 }],
+  },
+  magma_lava: {
+    id: 'magma_lava', name: '岩浆', category: 'liquid',
+    hardness: 0, toolLevel: 0,
+    paletteId: 'ember02', variants: ['ember01', 'ember02', 'ember03'],
+    liquid: true,
+    emitsLight: 12,
+    drops: [],
+  },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);

@@ -3,7 +3,7 @@
  * M0-M3: 工程骨架 + 破坏 + 背包 + 放置 + 工具 + 合成 + 敌人 AI + 躯壳切换
  */
 import './style.css';
-import { generateTerrain, patchSealedMap, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, biToBlock, regionNameAt, regionIdAt } from './core/terrain.js';
+import { generateTerrain, patchSealedMap, importSavedColumns, MAP_WIDTH, MAP_HEIGHT, TILE_SIZE, biToBlock, regionNameAt, regionIdAt } from './core/terrain.js';
 import { BLOCKS, isSolid, isLiquid } from './core/blocks.js';
 import { createCamera, follow, shake, updateShake, getShakeOffset } from './core/camera.js';
 import { createPlayer, updatePlayer, placePlayerOnGround, playerOverlapsTile, isPlayerEmbedded, Player } from './core/player.js';
@@ -778,9 +778,14 @@ function doSave(silent = false): boolean {
 }
 
 function applySaveData(save: SaveData) {
-  // 世界
-  terrain.tiles = b64ToU8(save.tiles);
-  terrain.heightMap = b64ToU8(save.heightMap);
+  // 世界：兼容旧宽度存档（按行拷入新地图前 N 列，保留原有挖掘/建筑）
+  const savedTiles = b64ToU8(save.tiles);
+  const savedHeight = b64ToU8(save.heightMap);
+  if (!importSavedColumns(terrain, savedTiles, savedHeight)) {
+    console.warn('[地图] 存档维度不匹配，已改用新生成的地图');
+  } else if (savedTiles.length !== MAP_WIDTH * MAP_HEIGHT) {
+    console.log(`[地图] 旧存档已横向扩展为 ${MAP_WIDTH} 列，原有地形与建筑保持不变`);
+  }
   // 旧存档地图修补：拆除封闭小屋、加宽地牢竖井（只执行一次，避免误删玩家自建墙）
   if ((save.mapPatch ?? 0) < 5) {
     const fixed = patchSealedMap(terrain);
@@ -1350,14 +1355,8 @@ function update(dt: number) {
   const playerColForEvent = Math.floor(player.x / TILE_SIZE);
   ev.update(dt, renderer.timeOfDay, playerColForEvent);
 
-  // M17: 任务 — 区块变化检测
-  let curRegion = 'wreck_zone';
-  if (playerColForEvent < 60) curRegion = 'wreck_zone';
-  else if (playerColForEvent < 120) curRegion = 'crack_waste';
-  else if (playerColForEvent < 180) curRegion = 'gobi_mine';
-  else if (playerColForEvent < 240) curRegion = 'silent_sea';
-  else if (playerColForEvent < 300) curRegion = 'beast_hive';
-  else curRegion = 'underground_valley';
+  // M17: 任务 — 区块变化检测（按 REGIONS 配置自动判定，新增区块无需再改阈值）
+  const curRegion = regionIdAt(playerColForEvent);
   if (curRegion !== lastRegion) {
     lastRegion = curRegion;
     tasks.onEnterRegion(curRegion);
@@ -1991,6 +1990,8 @@ const REGION_GUIDANCE: Record<string, { subtitle: string; goal: string; hint: st
   'silent_sea': { subtitle: '无声海', goal: '金属湖上的浮游金属体', hint: '液态金属可从上方穿越（不造成伤害）' },
   'beast_hive': { subtitle: '异兽巢穴', goal: '甲壳蜂巢与幽蓝荧光囊', hint: 'chitin_hive 可招募骸兵队友' },
   'underground_valley': { subtitle: '地底幽谷', goal: '暗能量结界 + 叛军据点', hint: '⚠ 靠近紫色暗能量区可召唤 Boss（按 R）' },
+  'frozen_waste': { subtitle: '霜蚀冻原', goal: '冰层下的永冻土与冻岩', hint: '冰层较硬，建议带镐 II 再向下挖' },
+  'ash_volcano': { subtitle: '熔渣火山', goal: '余烬矿脉与火山锥深处', hint: '岩浆可游泳穿越（与液态金属相同），不会溺水' },
 };
 
 function initStoryGuides() {
@@ -2016,12 +2017,7 @@ function initStoryGuides() {
 }
 
 function getRegionGuidance(playerCol: number): { subtitle: string; goal: string; hint: string; bossHint: string } {
-  let region = 'wreck_zone';
-  if (playerCol >= 120 && playerCol < 180) region = 'gobi_mine';
-  else if (playerCol >= 60 && playerCol < 120) region = 'crack_waste';
-  else if (playerCol >= 180 && playerCol < 240) region = 'silent_sea';
-  else if (playerCol >= 240 && playerCol < 300) region = 'beast_hive';
-  else if (playerCol >= 300) region = 'underground_valley';
+  const region = regionIdAt(playerCol);
   const g = REGION_GUIDANCE[region] ?? REGION_GUIDANCE['wreck_zone'];
 
   // Boss 召唤提示（按距离最近优先）
@@ -2516,13 +2512,7 @@ function updateBossesSystem(dt: number) {
     nightBossSpawnCooldown = 8 + Math.random() * 7; // 8-15 秒
     // 找区块对应夜间 Boss
     const playerCol = Math.floor(player.x / TILE_SIZE);
-    let region = 'wreck_zone';
-    if (playerCol < 60) region = 'wreck_zone';
-    else if (playerCol < 120) region = 'crack_waste';
-    else if (playerCol < 180) region = 'gobi_mine';
-    else if (playerCol < 240) region = 'silent_sea';
-    else if (playerCol < 300) region = 'beast_hive';
-    else region = 'underground_valley';
+    const region = regionIdAt(playerCol);
     if (nightBossSpawnedRegions.has(region)) return; // 本夜已刷过
     // M15: 血月 ×2；沙暴/幽光潮/虚空裂隙 ×1.5
     let spawnChance = 0.05;
@@ -2536,6 +2526,8 @@ function updateBossesSystem(dt: number) {
         silent_sea: 'frost_kraken',
         beast_hive: 'hive_overlord',
         underground_valley: 'shadow_lich',
+        frozen_waste: 'frost_kraken',
+        ash_volcano: 'magma_golem',
       };
       const bossId = NIGHT_BOSS_MAP[region];
       if (bossId) {
@@ -2735,6 +2727,8 @@ function initCompanions() {
     silent_sea: ['cold_engineer', 'ember_mage'],
     beast_hive: ['bone_scout'],
     underground_valley: ['iron_guard', 'ember_mage', 'cold_engineer'],
+    frozen_waste: ['cold_engineer', 'rust_archer'],
+    ash_volcano: ['ember_mage', 'iron_guard'],
   };
 
   // 每个 hut/camp 门口放 1 个 civilian

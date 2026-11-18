@@ -126,6 +126,22 @@ export const REGION_STORY: Record<string, StoryEntry> = {
       '他们不信地面上的人，但愿意用金币说话。',
     ],
   },
+  frozen_waste: {
+    id: 'region_frozen_waste',
+    title: '霜蚀冻原',
+    lines: [
+      '风在这里结成霜，落在锈上，像给废土盖了一层薄薄的白布。',
+      '冰层下面的永冻土，封存着比无人区更早的脚印。',
+    ],
+  },
+  ash_volcano: {
+    id: 'region_ash_volcano',
+    title: '熔渣火山',
+    lines: [
+      '火山锥还在呼吸，每一次喷气都把新的灰撒向山脚。',
+      '岩浆湖红得发沉——它记得这座废墟熔化的样子。',
+    ],
+  },
 };
 
 /** Boss 剧情（key 为自定义事件 id） */

@@ -30,8 +30,12 @@ import { PET_DEFS, Pet } from './pets.js';
 import { drawCharacter, makeModel, NPC_MODELS, CharKind } from './sprites.js';
 import type { CharAnim } from './sprites.js';
 
-/** 不生长地表植被的方块（液态金属 / 废墟结构 / 结界） */
-const saltSurfaces = new Set(['liquid_metal', 'metal_float', 'rebel_brick', 'void_barrier']);
+/** 不生长地表植被的方块（液态金属 / 废墟结构 / 结界 / 雪原与火山） */
+const saltSurfaces = new Set([
+  'liquid_metal', 'metal_float', 'rebel_brick', 'void_barrier',
+  'frost_snow', 'ice_layer', 'permafrost', 'frost_rock',
+  'ash_ground', 'basalt', 'obsidian', 'magma_lava',
+]);
 
 
 export class Renderer {
@@ -308,6 +312,8 @@ export class Renderer {
         continue; // 水面上不放草
       }
       if (!BLOCKS[surf] || /door|altar|npc|crystal|chest/.test(surf)) continue;
+      // 雪原 / 火山地表不长草，避免绿色植被出现在冷色与灰烬地貌上
+      if (saltSurfaces.has(surf)) continue;
 
       // 草丛（约 45% 的列）
       if (this.decorRand(x, 1) > 0.55) {

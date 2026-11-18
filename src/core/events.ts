@@ -93,7 +93,9 @@ export class WorldEventManager {
     else if (playerCol < 180) region = 'gobi_mine';
     else if (playerCol < 240) region = 'silent_sea';
     else if (playerCol < 300) region = 'beast_hive';
-    else region = 'underground_valley';
+    else if (playerCol < 360) region = 'underground_valley';
+    else if (playerCol < 420) region = 'frozen_waste';
+    else region = 'ash_volcano';
 
     // 筛选当前时刻 + 区块匹配的事件
     const candidates = WORLD_EVENT_DEFS.filter(def => {
