@@ -125,6 +125,8 @@ const REGION_ENEMY_POOL: Record<string, { day: string[]; night: string[]; elite:
   void_frontier: { day: ['void_flyer'], night: ['void_wraith', 'void_flyer'], elite: ['elite_void_ravager'] },
   abyss_trench: { day: ['metal_serpent', 'cold_hunter'], night: ['void_wraith', 'metal_serpent'], elite: ['elite_void_ravager'] },
   starfall_plain: { day: ['rock_golem', 'gem_eye'], night: ['dust_wraith', 'gem_eye'], elite: ['elite_iron_tyrant'] },
+  mirror_salt: { day: ['gem_eye', 'metal_serpent'], night: ['cold_hunter', 'dust_wraith'], elite: ['elite_iron_tyrant'] },
+  blood_grove: { day: ['hive_stalker', 'chitin_beetle'], night: ['hive_stalker', 'void_wraith'], elite: ['elite_chitin_queen'] },
 };
 
 function regionColToRegion(pxCol: number): string {
@@ -144,7 +146,9 @@ function regionColToRegion(pxCol: number): string {
   if (pxCol < 780) return 'crystal_highland';
   if (pxCol < 840) return 'void_frontier';
   if (pxCol < 900) return 'abyss_trench';
-  return 'starfall_plain';
+  if (pxCol < 960) return 'starfall_plain';
+  if (pxCol < 1020) return 'mirror_salt';
+  return 'blood_grove';
 }
 
 export function trySpawnEnemy(existing: Enemy[], _count: number, player: { x: number; y: number }, params: SpawnParams): Enemy[] {

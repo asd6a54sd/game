@@ -20,7 +20,9 @@ export type RegionId =
   | 'crystal_highland'
   | 'void_frontier'
   | 'abyss_trench'
-  | 'starfall_plain';
+  | 'starfall_plain'
+  | 'mirror_salt'
+  | 'blood_grove';
 
 export interface Region {
   id: RegionId;
@@ -31,7 +33,7 @@ export interface Region {
   description: string;
 }
 
-export const MAP_WIDTH = 960;
+export const MAP_WIDTH = 1080;
 export const MAP_HEIGHT = 180;
 export const TILE_SIZE = 16;
 
@@ -52,6 +54,8 @@ export const REGIONS: Region[] = [
   { id: 'void_frontier',    name: '黑雾边陲', startCol: 780, endCol: 840, palette: ['void', 'iron', 'cold'], description: '黑雾地表、虚空玄武岩与暗能信标' },
   { id: 'abyss_trench',     name: '幽渊海沟', startCol: 840, endCol: 900, palette: ['void', 'cold', 'bone'], description: '渊水洼地、贝壳层与幽光珊瑚' },
   { id: 'starfall_plain',   name: '星陨平原', startCol: 900, endCol: 960, palette: ['iron', 'ember', 'gold'], description: '陨坑、星陨土与星辉金属' },
+  { id: 'mirror_salt',      name: '镜盐盆地', startCol: 960, endCol: 1020, palette: ['cold', 'bone', 'iron'], description: '盐壳平原、镜晶与刺眼反光' },
+  { id: 'blood_grove',      name: '血棘林地', startCol: 1020, endCol: 1080, palette: ['rust', 'ember', 'bone'], description: '血棘枝干、琥珀矿脉与猩红孢子' },
 ];
 
 // ========== 噪声 ==========
@@ -187,6 +191,12 @@ export function generateTerrain(seed = 20261116): TerrainData {
       base = 60;
       // 陨坑：低频噪声的低谷形成浅凹地
       v = Math.floor((n1.fbm(x * 0.021, 0, 2) - 0.5) * 14);
+    } else if (r.id === 'mirror_salt') {
+      base = 58;
+      v = Math.floor((n1.noise2D(x * 0.025, 0) - 0.5) * 4);
+    } else if (r.id === 'blood_grove') {
+      base = 62;
+      v = Math.floor((n1.fbm(x * 0.023, 0, 2) - 0.5) * 12);
     }
 
     heightMap[x] = Math.max(45, Math.min(95, base + v));
@@ -211,6 +221,8 @@ export function generateTerrain(seed = 20261116): TerrainData {
     else if (r.id === 'void_frontier') add = Math.floor(add * 0.45);
     else if (r.id === 'abyss_trench') add = Math.floor(add * 0.15);
     else if (r.id === 'starfall_plain') add = Math.floor(add * 0.5);
+    else if (r.id === 'mirror_salt') add = Math.floor(add * 0.2);
+    else if (r.id === 'blood_grove') add = Math.floor(add * 0.55);
     heightMap[x] = Math.max(45, Math.min(95, heightMap[x] + add));
   }
 
@@ -403,6 +415,12 @@ function surfaceBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: Val
     case 'starfall_plain':
       if (n2.noise2D(x * 0.12, y * 0.12) > 0.78) return bi('starfall_crust');
       return bi('starfall_soil');
+    case 'mirror_salt':
+      if (n2.noise2D(x * 0.12, y * 0.12) > 0.84) return bi('mirror_crystal');
+      return bi('salt_crust');
+    case 'blood_grove':
+      if (n2.noise2D(x * 0.12, y * 0.12) > 0.76) return bi('thorn_bark');
+      return bi('thorn_soil');
   }
 }
 
@@ -466,6 +484,13 @@ function shallowBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: Val
       if (noise > 0.74) return bi('starfall_crust');
       if (noise < 0.22) return bi('star_metal');
       return bi('starfall_soil');
+    case 'mirror_salt':
+      if (noise > 0.72) return bi('salt_layer');
+      if (noise < 0.24) return bi('mirror_crystal');
+      return bi('salt_crust');
+    case 'blood_grove':
+      if (noise > 0.72) return bi('thorn_bark');
+      return bi('thorn_soil');
   }
 }
 
@@ -532,6 +557,18 @@ function midBlock(r: RegionId, x: number, y: number, _n1: ValueNoise, n2: ValueN
     if (n3.noise2D(x * 0.13, y * 0.13) > 0.84) return bi('star_metal');
     if (oreNoise > 0.74) return bi('starfall_crust');
     return bi('starfall_soil');
+  }
+
+  if (r === 'mirror_salt') {
+    if (n3.noise2D(x * 0.13, y * 0.13) > 0.86) return bi('mirror_crystal');
+    if (oreNoise > 0.76) return bi('salt_layer');
+    return bi('salt_crust');
+  }
+
+  if (r === 'blood_grove') {
+    if (n3.noise2D(x * 0.13, y * 0.13) > 0.84) return bi('blood_amber');
+    if (oreNoise > 0.72) return bi('thorn_bark');
+    return bi('thorn_soil');
   }
 
   // 三层矿带
@@ -605,6 +642,16 @@ function deepBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: ValueN
   if (r === 'starfall_plain') {
     if (voidNoise > 0.8) return bi('star_metal');
     return bi('starfall_basalt');
+  }
+
+  if (r === 'mirror_salt') {
+    if (crystalNoise > 0.84) return bi('mirror_crystal');
+    return bi('salt_glass');
+  }
+
+  if (r === 'blood_grove') {
+    if (voidNoise > 0.82) return bi('blood_amber');
+    return bi('thorn_heart');
   }
 
   if (crystalNoise > 0.88) return bi('crystal_glow');
@@ -718,6 +765,20 @@ function carveStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
     if (sy - 1 < 0) continue;
     tiles[(sy - 1) * MAP_WIDTH + x] = bi('star_shard');
   }
+
+  // 13. 镜盐盆地：盐花（非固体装饰，可穿行）
+  for (let x = 966; x < 1014; x += 6 + Math.floor(rng() * 7)) {
+    const sy = heightMap[x];
+    if (sy - 1 < 0) continue;
+    tiles[(sy - 1) * MAP_WIDTH + x] = bi('salt_bloom');
+  }
+
+  // 14. 血棘林地：血棘丛（1 格高，可跨过）
+  for (let x = 1026; x < 1074; x += 5 + Math.floor(rng() * 6)) {
+    const sy = heightMap[x];
+    if (sy - 1 < 0) continue;
+    tiles[(sy - 1) * MAP_WIDTH + x] = bi('thorn_bramble');
+  }
 }
 
 /**
@@ -749,6 +810,8 @@ function buildLandmarks(tiles: Uint8Array, heightMap: Uint8Array) {
   arch(820, 'void_crust', 'void_beacon');        // 黑雾边陲 · 黑雾门
   arch(870, 'abyss_shell', 'lumen_coral');       // 幽渊海沟 · 珊瑚拱门
   arch(930, 'starfall_crust', 'star_metal');     // 星陨平原 · 星辉门
+  arch(990, 'salt_layer', 'mirror_crystal');     // 镜盐盆地 · 镜晶门
+  arch(1050, 'thorn_bark', 'blood_amber');       // 血棘林地 · 血棘拱门
 
   // 灰烬王庭 · 残王座：中央火盆仅 1 格高，可直接跨过
   const throneY = heightMap[588];
@@ -788,6 +851,8 @@ function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
     { regionCol: [792, 812], kind: 'camp', name: 'void_frontier' },
     { regionCol: [866, 874], kind: 'camp', name: 'abyss_trench' },
     { regionCol: [912, 932], kind: 'camp', name: 'starfall_plain' },
+    { regionCol: [972, 992], kind: 'camp', name: 'mirror_salt' },
+    { regionCol: [1032, 1052], kind: 'camp', name: 'blood_grove' },
   ];
 
   for (const hp of hutPositions) {

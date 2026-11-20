@@ -206,6 +206,22 @@ export const REGION_STORY: Record<string, StoryEntry> = {
       '星辉金属会自己发亮——像是天上掉下来的东西还没死透。',
     ],
   },
+  mirror_salt: {
+    id: 'region_mirror_salt',
+    title: '镜盐盆地',
+    lines: [
+      '盐壳平得不像自然形成的，倒影里的天比头顶更亮。',
+      '镜晶把阳光切成细线，踩上去时会听见盐在碎。',
+    ],
+  },
+  blood_grove: {
+    id: 'region_blood_grove',
+    title: '血棘林地',
+    lines: [
+      '荆棘不是长出来的，是从地里的琥珀里抽出来的。',
+      '风一过，猩红的孢子像雪一样落下来，落进伤口里会发烫。',
+    ],
+  },
 };
 
 /** Boss 剧情（key 为自定义事件 id） */

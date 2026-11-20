@@ -2000,6 +2000,8 @@ const REGION_GUIDANCE: Record<string, { subtitle: string; goal: string; hint: st
   'void_frontier': { subtitle: '黑雾边陲', goal: '虚空玄武岩与暗能信标', hint: '信标是免费冷光路标，夜间也清晰可见' },
   'abyss_trench': { subtitle: '幽渊海沟', goal: '渊底岩、贝壳层与幽光珊瑚', hint: '渊水可游泳穿越，珊瑚会发光' },
   'starfall_plain': { subtitle: '星陨平原', goal: '星陨土与星辉金属', hint: '陨坑底部矿脉更密，星辉金属自带微光' },
+  'mirror_salt': { subtitle: '镜盐盆地', goal: '盐壳、盐玻璃岩与镜晶', hint: '盐层较脆，镜晶会反光，可当天然光源' },
+  'blood_grove': { subtitle: '血棘林地', goal: '血棘枝干与血琥珀', hint: '血棘丛只有 1 格高可跨过；琥珀会发暗红微光' },
 };
 
 function initStoryGuides() {
@@ -2544,6 +2546,8 @@ function updateBossesSystem(dt: number) {
         void_frontier: 'void_assimilator',
         abyss_trench: 'frost_kraken',
         starfall_plain: 'storm_titan',
+        mirror_salt: 'frost_kraken',
+        blood_grove: 'hive_overlord',
       };
       const bossId = NIGHT_BOSS_MAP[region];
       if (bossId) {
@@ -2753,6 +2757,8 @@ function initCompanions() {
     void_frontier: ['iron_guard', 'bone_scout'],
     abyss_trench: ['cold_engineer', 'bone_scout'],
     starfall_plain: ['iron_guard', 'ember_mage'],
+    mirror_salt: ['cold_engineer', 'iron_guard'],
+    blood_grove: ['bone_scout', 'ember_mage'],
   };
 
   // 每个 hut/camp 门口放 1 个 civilian

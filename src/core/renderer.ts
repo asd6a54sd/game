@@ -43,6 +43,8 @@ const saltSurfaces = new Set([
   'void_soil', 'void_crust', 'void_basalt', 'void_beacon',
   'abyss_silt', 'abyss_shell', 'abyss_rock', 'lumen_coral', 'abyss_water', 'abyss_lure',
   'starfall_soil', 'starfall_crust', 'starfall_basalt', 'star_metal', 'star_shard',
+  'salt_crust', 'salt_layer', 'salt_glass', 'mirror_crystal', 'salt_bloom',
+  'thorn_soil', 'thorn_bark', 'thorn_heart', 'blood_amber', 'thorn_bramble',
 ]);
 
 
@@ -444,6 +446,21 @@ export class Renderer {
           ctx.fillRect(sx + 8, gy - 1, 2, 1);
           ctx.globalAlpha = 1;
         }
+      }
+      // 镜盐盆地：盐面镜光
+      if (surf === 'salt_crust' && this.decorRand(x, 38) > 0.62) {
+        ctx.globalAlpha = 0.25 + 0.3 * Math.max(0, Math.sin(time * 0.9 + x * 0.5));
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(sx + 2, gy - 1, 8, 1);
+        ctx.globalAlpha = 1;
+      }
+      // 血棘林地：飘落的猩红孢子
+      if (surf === 'thorn_soil' && this.decorRand(x, 39) > 0.7) {
+        const fall = ((time * 6 + x * 1.9) % 12);
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = '#d04050';
+        ctx.fillRect(sx + 4 + Math.floor(this.decorRand(x, 40) * 8), gy - 10 + fall, 2, 2);
+        ctx.globalAlpha = 1;
       }
     }
 

@@ -744,6 +744,73 @@ export const BLOCKS: Record<string, BlockDef> = {
     emitsLight: 9,
     drops: [{ blockId: 'star_metal', chance: 0.5 }],
   },
+
+  // === 大框架: 镜盐盆地 / 血棘林地 ===
+  // 追加在末尾，保持已有方块索引不变（旧存档兼容）
+  salt_crust: {
+    id: 'salt_crust', name: '盐壳', category: 'shallow',
+    hardness: 0.8, toolLevel: 0,
+    paletteId: 'cold02', variants: ['cold01', 'cold02', 'bone01'],
+    drops: [{ blockId: 'salt_crust', chance: 1.0 }],
+  },
+  salt_layer: {
+    id: 'salt_layer', name: '盐岩层', category: 'mid',
+    hardness: 10, toolLevel: 1,
+    paletteId: 'bone01', variants: ['bone01', 'bone02', 'cold02'],
+    drops: [{ blockId: 'salt_layer', chance: 1.0 }],
+  },
+  salt_glass: {
+    id: 'salt_glass', name: '盐玻璃岩', category: 'deep',
+    hardness: 50, toolLevel: 3,
+    paletteId: 'cold01', variants: ['cold01', 'cold02', 'cold03'],
+    drops: [{ blockId: 'salt_glass', chance: 1.0 }],
+  },
+  mirror_crystal: {
+    id: 'mirror_crystal', name: '镜晶', category: 'ore',
+    hardness: 34, toolLevel: 2,
+    paletteId: 'cold01', variants: ['cold01', 'cold03', 'bone01'],
+    emitsLight: 11,
+    drops: [{ blockId: 'mirror_crystal', chance: 1.0 }],
+  },
+  salt_bloom: {
+    id: 'salt_bloom', name: '盐花', category: 'special',
+    hardness: 0, toolLevel: 0,
+    paletteId: 'bone01', variants: ['bone01', 'cold02'],
+    emitsLight: 8,
+    drops: [],
+  },
+  thorn_soil: {
+    id: 'thorn_soil', name: '荆棘土', category: 'shallow',
+    hardness: 1.2, toolLevel: 0,
+    paletteId: 'rust04', variants: ['rust03', 'rust04', 'rust05'],
+    drops: [{ blockId: 'thorn_soil', chance: 1.0 }],
+  },
+  thorn_bark: {
+    id: 'thorn_bark', name: '血棘枝干', category: 'mid',
+    hardness: 18, toolLevel: 1,
+    paletteId: 'rust03', variants: ['rust02', 'rust03', 'ember04'],
+    drops: [{ blockId: 'thorn_bark', chance: 1.0 }],
+  },
+  thorn_heart: {
+    id: 'thorn_heart', name: '棘心木', category: 'deep',
+    hardness: 52, toolLevel: 3,
+    paletteId: 'red01', variants: ['red01', 'red02', 'rust05'],
+    drops: [{ blockId: 'thorn_heart', chance: 1.0 }],
+  },
+  blood_amber: {
+    id: 'blood_amber', name: '血琥珀', category: 'ore',
+    hardness: 30, toolLevel: 2,
+    paletteId: 'red02', variants: ['red01', 'red02', 'ember03'],
+    emitsLight: 6,
+    drops: [{ blockId: 'blood_amber', chance: 1.0 }],
+  },
+  thorn_bramble: {
+    id: 'thorn_bramble', name: '血棘丛', category: 'special',
+    hardness: 26, toolLevel: 2,
+    paletteId: 'rust02', variants: ['rust02', 'rust03'],
+    emitsLight: 4,
+    drops: [{ blockId: 'blood_amber', chance: 0.4 }],
+  },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);

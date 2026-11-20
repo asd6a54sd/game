@@ -126,8 +126,8 @@ export const ACHIEVEMENT_DEFS: AchievementDef[] = [
   },
   {
     id: 'explore_all', name: '探险家', emoji: '🗺',
-    desc: '探索所有 16 个区块',
-    goal: 16,
+    desc: '探索所有 18 个区块',
+    goal: 18,
     reward: { moveSpeedMult: 1.10 },
   },
   {
