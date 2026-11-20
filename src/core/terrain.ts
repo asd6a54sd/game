@@ -16,7 +16,9 @@ export type RegionId =
   | 'rot_mire'
   | 'ashen_court'
   | 'storm_rift'
-  | 'ember_sanctum';
+  | 'ember_sanctum'
+  | 'crystal_highland'
+  | 'void_frontier';
 
 export interface Region {
   id: RegionId;
@@ -27,7 +29,7 @@ export interface Region {
   description: string;
 }
 
-export const MAP_WIDTH = 720;
+export const MAP_WIDTH = 840;
 export const MAP_HEIGHT = 180;
 export const TILE_SIZE = 16;
 
@@ -44,6 +46,8 @@ export const REGIONS: Region[] = [
   { id: 'ashen_court',   name: '灰烬王庭',   startCol: 540, endCol: 600, palette: ['bone', 'iron', 'ember'], description: '废都地砖、断柱与王庭火盆' },
   { id: 'storm_rift',    name: '雷鸣裂谷',   startCol: 600, endCol: 660, palette: ['iron', 'cold', 'rust'], description: '焦土、导电岩与雷晶尖峰' },
   { id: 'ember_sanctum', name: '余烬圣所',   startCol: 660, endCol: 720, palette: ['bone', 'ember', 'rust'], description: '圣所地砖、青铜墙与长明圣火' },
+  { id: 'crystal_highland', name: '晶簇高原', startCol: 720, endCol: 780, palette: ['cold', 'iron', 'void'], description: '棱岩台地、晶簇矿脉与镜面反光' },
+  { id: 'void_frontier',    name: '黑雾边陲', startCol: 780, endCol: 840, palette: ['void', 'iron', 'cold'], description: '黑雾地表、虚空玄武岩与暗能信标' },
 ];
 
 // ========== 噪声 ==========
@@ -166,6 +170,12 @@ export function generateTerrain(seed = 20261116): TerrainData {
     } else if (r.id === 'ember_sanctum') {
       base = 55;
       v = Math.floor((n1.noise2D(x * 0.03, 0) - 0.5) * 6);
+    } else if (r.id === 'crystal_highland') {
+      base = 58;
+      v = Math.floor((n1.fbm(x * 0.024, 0, 2) - 0.5) * 12);
+    } else if (r.id === 'void_frontier') {
+      base = 64;
+      v = Math.floor((n2.noise2D(x * 0.026, 0) - 0.5) * 8);
     }
 
     heightMap[x] = Math.max(45, Math.min(95, base + v));
@@ -186,6 +196,8 @@ export function generateTerrain(seed = 20261116): TerrainData {
     else if (r.id === 'ashen_court') add = Math.floor(add * 0.35);
     else if (r.id === 'storm_rift') add = Math.floor(add * 0.75);
     else if (r.id === 'ember_sanctum') add = Math.floor(add * 0.1);
+    else if (r.id === 'crystal_highland') add = Math.floor(add * 0.7);
+    else if (r.id === 'void_frontier') add = Math.floor(add * 0.45);
     heightMap[x] = Math.max(45, Math.min(95, heightMap[x] + add));
   }
 
@@ -356,6 +368,12 @@ function surfaceBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: Val
     case 'ember_sanctum':
       if (n2.noise2D(x * 0.1, y * 0.1) > 0.8) return bi('sanctum_bronze');
       return bi('sanctum_tile');
+    case 'crystal_highland':
+      if (n2.noise2D(x * 0.12, y * 0.12) > 0.76) return bi('prism_rock');
+      return bi('crystal_crust');
+    case 'void_frontier':
+      if (n2.noise2D(x * 0.11, y * 0.11) > 0.74) return bi('void_crust');
+      return bi('void_soil');
   }
 }
 
@@ -403,6 +421,14 @@ function shallowBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: Val
     case 'ember_sanctum':
       if (noise > 0.74) return bi('sanctum_bronze');
       return bi('sanctum_tile');
+    case 'crystal_highland':
+      if (noise > 0.72) return bi('prism_rock');
+      if (noise < 0.26) return bi('geode');
+      return bi('crystal_crust');
+    case 'void_frontier':
+      if (noise > 0.7) return bi('void_crust');
+      if (noise < 0.24) return bi('void_basalt');
+      return bi('void_soil');
   }
 }
 
@@ -446,6 +472,17 @@ function midBlock(r: RegionId, x: number, y: number, _n1: ValueNoise, n2: ValueN
   if (r === 'ember_sanctum') {
     if (oreNoise > 0.82) return bi('sanctum_bronze');
     return bi('sanctum_stone');
+  }
+
+  if (r === 'crystal_highland') {
+    if (n3.noise2D(x * 0.13, y * 0.13) > 0.8) return bi('geode');
+    if (oreNoise > 0.72) return bi('prism_rock');
+    return bi('crystal_crust');
+  }
+
+  if (r === 'void_frontier') {
+    if (n3.noise2D(x * 0.13, y * 0.13) > 0.82) return bi('void_basalt');
+    return bi('void_crust');
   }
 
   // 三层矿带
@@ -499,6 +536,16 @@ function deepBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: ValueN
   if (r === 'ember_sanctum') {
     if (crystalNoise > 0.86) return bi('crystal_glow');
     return bi('sanctum_stone');
+  }
+
+  if (r === 'crystal_highland') {
+    if (crystalNoise > 0.84) return bi('crystal_glow');
+    return bi('prism_rock');
+  }
+
+  if (r === 'void_frontier') {
+    if (voidNoise > 0.78) return bi('void_crystal');
+    return bi('void_basalt');
   }
 
   if (crystalNoise > 0.88) return bi('crystal_glow');
@@ -584,6 +631,20 @@ function carveStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
     if (sy - 1 < 0) continue;
     tiles[(sy - 1) * MAP_WIDTH + x] = bi('sanctum_flame');
   }
+
+  // 9. 晶簇高原：棱晶簇（1 格高，可跨过）
+  for (let x = 726; x < 774; x += 5 + Math.floor(rng() * 6)) {
+    const sy = heightMap[x];
+    if (sy - 1 < 0) continue;
+    tiles[(sy - 1) * MAP_WIDTH + x] = bi('crystal_shard');
+  }
+
+  // 10. 黑雾边陲：暗能信标（非固体装饰，可穿行，作夜间路标）
+  for (let x = 786; x < 834; x += 8 + Math.floor(rng() * 8)) {
+    const sy = heightMap[x];
+    if (sy - 1 < 0) continue;
+    tiles[(sy - 1) * MAP_WIDTH + x] = bi('void_beacon');
+  }
 }
 
 /**
@@ -611,6 +672,8 @@ function buildLandmarks(tiles: Uint8Array, heightMap: Uint8Array) {
   arch(588, 'court_column', 'court_brazier');    // 灰烬王庭 · 断柱门
   arch(645, 'charged_rock', 'thunder_crystal');  // 雷鸣裂谷 · 导电尖峰门
   arch(712, 'sanctum_bronze', 'sanctum_flame');  // 余烬圣所 · 圣火拱门
+  arch(760, 'prism_rock', 'crystal_glow');       // 晶簇高原 · 棱晶拱门
+  arch(820, 'void_crust', 'void_beacon');        // 黑雾边陲 · 黑雾门
 
   // 灰烬王庭 · 残王座：中央火盆仅 1 格高，可直接跨过
   const throneY = heightMap[588];
@@ -646,6 +709,8 @@ function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
     { regionCol: [560, 578], kind: 'camp', name: 'ashen_court' },
     { regionCol: [615, 632], kind: 'camp', name: 'storm_rift' },
     { regionCol: [675, 700], kind: 'camp', name: 'ember_sanctum' },
+    { regionCol: [732, 752], kind: 'camp', name: 'crystal_highland' },
+    { regionCol: [792, 812], kind: 'camp', name: 'void_frontier' },
   ];
 
   for (const hp of hutPositions) {

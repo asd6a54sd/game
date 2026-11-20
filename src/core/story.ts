@@ -174,6 +174,22 @@ export const REGION_STORY: Record<string, StoryEntry> = {
       '有人相信只要火还亮着，烬海就还没真正结束。',
     ],
   },
+  crystal_highland: {
+    id: 'region_crystal_highland',
+    title: '晶簇高原',
+    lines: [
+      '整片台地都在反光，像是大地自己在结霜。',
+      '棱岩下面埋着成片的晶洞——敲开一个，光会先涌出来。',
+    ],
+  },
+  void_frontier: {
+    id: 'region_void_frontier',
+    title: '黑雾边陲',
+    lines: [
+      '这里的地表是黑色的，踩下去会留下很浅的雾痕。',
+      '远处有信标在亮——不是给你指路，是在给黑雾指路。',
+    ],
+  },
 };
 
 /** Boss 剧情（key 为自定义事件 id） */

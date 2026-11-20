@@ -614,6 +614,60 @@ export const BLOCKS: Record<string, BlockDef> = {
     emitsLight: 14,
     drops: [],
   },
+
+  // === 大框架: 晶簇高原 / 黑雾边陲 ===
+  // 追加在末尾，保持已有方块索引不变（旧存档兼容）
+  crystal_crust: {
+    id: 'crystal_crust', name: '晶簇地壳', category: 'shallow',
+    hardness: 1.6, toolLevel: 1,
+    paletteId: 'cold02', variants: ['cold01', 'cold02', 'cold03'],
+    drops: [{ blockId: 'crystal_crust', chance: 1.0 }],
+  },
+  prism_rock: {
+    id: 'prism_rock', name: '棱岩', category: 'mid',
+    hardness: 20, toolLevel: 1,
+    paletteId: 'cold03', variants: ['cold03', 'cold04', 'iron04'],
+    drops: [{ blockId: 'prism_rock', chance: 1.0 }],
+  },
+  geode: {
+    id: 'geode', name: '晶洞结核', category: 'ore',
+    hardness: 36, toolLevel: 2,
+    paletteId: 'cold01', variants: ['cold01', 'cold02', 'void02'],
+    emitsLight: 10,
+    drops: [{ blockId: 'geode', chance: 1.0 }],
+  },
+  crystal_shard: {
+    id: 'crystal_shard', name: '棱晶簇', category: 'special',
+    hardness: 30, toolLevel: 2,
+    paletteId: 'cold01', variants: ['cold01', 'cold02'],
+    emitsLight: 8,
+    drops: [{ blockId: 'geode', chance: 0.5 }],
+  },
+  void_soil: {
+    id: 'void_soil', name: '黑雾土', category: 'shallow',
+    hardness: 1, toolLevel: 0,
+    paletteId: 'void02', variants: ['void01', 'void02', 'void03'],
+    drops: [{ blockId: 'void_soil', chance: 1.0 }],
+  },
+  void_crust: {
+    id: 'void_crust', name: '虚空结壳', category: 'mid',
+    hardness: 24, toolLevel: 1,
+    paletteId: 'void03', variants: ['void02', 'void03', 'void04'],
+    drops: [{ blockId: 'void_crust', chance: 1.0 }],
+  },
+  void_basalt: {
+    id: 'void_basalt', name: '虚空玄武岩', category: 'deep',
+    hardness: 56, toolLevel: 3,
+    paletteId: 'iron05', variants: ['iron05', 'void04'],
+    drops: [{ blockId: 'void_basalt', chance: 1.0 }],
+  },
+  void_beacon: {
+    id: 'void_beacon', name: '暗能信标', category: 'special',
+    hardness: 0, toolLevel: 0,
+    paletteId: 'void03', variants: ['void02', 'void03'],
+    emitsLight: 12,
+    drops: [],
+  },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);

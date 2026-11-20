@@ -39,6 +39,8 @@ const saltSurfaces = new Set([
   'court_tile', 'court_rubble', 'court_brick', 'court_deep', 'court_column', 'court_brazier',
   'storm_scorch', 'charged_rock', 'thunder_crystal', 'storm_spire',
   'sanctum_tile', 'sanctum_bronze', 'sanctum_stone',
+  'crystal_crust', 'prism_rock', 'geode', 'crystal_shard',
+  'void_soil', 'void_crust', 'void_basalt', 'void_beacon',
 ]);
 
 
@@ -401,6 +403,25 @@ export class Renderer {
         ctx.globalAlpha = 0.22 + 0.1 * Math.sin(time * 2 + x * 0.6);
         ctx.fillStyle = '#ffc85a';
         ctx.fillRect(sx + 2, gy - 1, 6, 1);
+        ctx.globalAlpha = 1;
+      }
+      // 晶簇高原：晶面反光
+      if (surf === 'crystal_crust' && this.decorRand(x, 29) > 0.68) {
+        const f = Math.max(0, Math.sin(time * 1.4 + x * 1.7));
+        if (f > 0.35) {
+          ctx.globalAlpha = 0.35 + 0.4 * f;
+          ctx.fillStyle = '#e6ffff';
+          ctx.fillRect(sx + 3 + Math.floor(this.decorRand(x, 30) * 9), gy - 2, 2, 1);
+          ctx.fillRect(sx + 4 + Math.floor(this.decorRand(x, 31) * 7), gy - 6, 1, 3);
+          ctx.globalAlpha = 1;
+        }
+      }
+      // 黑雾边陲：地表黑雾浮动粒子
+      if (surf === 'void_soil' && this.decorRand(x, 32) > 0.72) {
+        const drift = ((time * 4 + x * 0.7) % 8);
+        ctx.globalAlpha = 0.1 + 0.12 * Math.sin(time * 1.2 + x);
+        ctx.fillStyle = '#2a1a38';
+        ctx.fillRect(sx + 2 + Math.floor(this.decorRand(x, 33) * 10), gy - 5 - drift, 5, 2);
         ctx.globalAlpha = 1;
       }
     }

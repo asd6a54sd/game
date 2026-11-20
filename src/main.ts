@@ -1996,6 +1996,8 @@ const REGION_GUIDANCE: Record<string, { subtitle: string; goal: string; hint: st
   'ashen_court': { subtitle: '灰烬王庭', goal: '王庭砖石与断柱遗迹', hint: '石柱与火盆只有 1 格高，可直接跨过' },
   'storm_rift': { subtitle: '雷鸣裂谷', goal: '雷晶与导电岩层', hint: '雷晶会发光，适合当作天然路标' },
   'ember_sanctum': { subtitle: '余烬圣所', goal: '圣所砖石与长明圣火', hint: '圣火是免费光源，可在其旁扎营' },
+  'crystal_highland': { subtitle: '晶簇高原', goal: '棱晶簇与晶洞结核', hint: '晶簇会发光，敲开晶洞可得稀有晶体' },
+  'void_frontier': { subtitle: '黑雾边陲', goal: '虚空玄武岩与暗能信标', hint: '信标是免费冷光路标，夜间也清晰可见' },
 };
 
 function initStoryGuides() {
@@ -2536,6 +2538,8 @@ function updateBossesSystem(dt: number) {
         ashen_court: 'magma_golem',
         storm_rift: 'storm_titan',
         ember_sanctum: 'shadow_lich',
+        crystal_highland: 'crystal_warden',
+        void_frontier: 'void_assimilator',
       };
       const bossId = NIGHT_BOSS_MAP[region];
       if (bossId) {
@@ -2741,6 +2745,8 @@ function initCompanions() {
     ashen_court: ['ember_mage', 'iron_guard'],
     storm_rift: ['cold_engineer', 'bone_scout'],
     ember_sanctum: ['ember_mage', 'iron_guard'],
+    crystal_highland: ['cold_engineer', 'ember_mage'],
+    void_frontier: ['iron_guard', 'bone_scout'],
   };
 
   // 每个 hut/camp 门口放 1 个 civilian
