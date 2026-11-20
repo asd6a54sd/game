@@ -2002,6 +2002,8 @@ const REGION_GUIDANCE: Record<string, { subtitle: string; goal: string; hint: st
   'starfall_plain': { subtitle: '星陨平原', goal: '星陨土与星辉金属', hint: '陨坑底部矿脉更密，星辉金属自带微光' },
   'mirror_salt': { subtitle: '镜盐盆地', goal: '盐壳、盐玻璃岩与镜晶', hint: '盐层较脆，镜晶会反光，可当天然光源' },
   'blood_grove': { subtitle: '血棘林地', goal: '血棘枝干与血琥珀', hint: '血棘丛只有 1 格高可跨过；琥珀会发暗红微光' },
+  'echo_canyon': { subtitle: '回声峡谷', goal: '回响板岩与空腔晶', hint: '空腔晶会发光，尖柱只有 1 格高可跨过' },
+  'sulfur_caldera': { subtitle: '硫磺火口', goal: '硫磺岩与硫晶', hint: '酸性泉可游泳穿越；硫磺烟不造成伤害' },
 };
 
 function initStoryGuides() {
@@ -2548,6 +2550,8 @@ function updateBossesSystem(dt: number) {
         starfall_plain: 'storm_titan',
         mirror_salt: 'frost_kraken',
         blood_grove: 'hive_overlord',
+        echo_canyon: 'storm_titan',
+        sulfur_caldera: 'magma_golem',
       };
       const bossId = NIGHT_BOSS_MAP[region];
       if (bossId) {
@@ -2759,6 +2763,8 @@ function initCompanions() {
     starfall_plain: ['iron_guard', 'ember_mage'],
     mirror_salt: ['cold_engineer', 'iron_guard'],
     blood_grove: ['bone_scout', 'ember_mage'],
+    echo_canyon: ['bone_scout', 'cold_engineer'],
+    sulfur_caldera: ['ember_mage', 'iron_guard'],
   };
 
   // 每个 hut/camp 门口放 1 个 civilian

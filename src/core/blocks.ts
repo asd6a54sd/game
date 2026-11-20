@@ -811,6 +811,82 @@ export const BLOCKS: Record<string, BlockDef> = {
     emitsLight: 4,
     drops: [{ blockId: 'blood_amber', chance: 0.4 }],
   },
+
+  // === 大框架: 回声峡谷 / 硫磺火口 ===
+  // 追加在末尾，保持已有方块索引不变（旧存档兼容）
+  echo_stone: {
+    id: 'echo_stone', name: '回声岩', category: 'shallow',
+    hardness: 1.3, toolLevel: 0,
+    paletteId: 'iron04', variants: ['iron03', 'iron04', 'cold04'],
+    drops: [{ blockId: 'echo_stone', chance: 1.0 }],
+  },
+  echo_slate: {
+    id: 'echo_slate', name: '回响板岩', category: 'mid',
+    hardness: 22, toolLevel: 1,
+    paletteId: 'cold04', variants: ['cold03', 'cold04', 'iron05'],
+    drops: [{ blockId: 'echo_slate', chance: 1.0 }],
+  },
+  echo_core: {
+    id: 'echo_core', name: '峡谷深岩', category: 'deep',
+    hardness: 54, toolLevel: 3,
+    paletteId: 'void04', variants: ['void04', 'iron05', 'cold04'],
+    drops: [{ blockId: 'echo_core', chance: 1.0 }],
+  },
+  echo_crystal: {
+    id: 'echo_crystal', name: '空腔晶', category: 'ore',
+    hardness: 32, toolLevel: 2,
+    paletteId: 'cold02', variants: ['cold02', 'cold03', 'void03'],
+    emitsLight: 9,
+    drops: [{ blockId: 'echo_crystal', chance: 1.0 }],
+  },
+  echo_spire: {
+    id: 'echo_spire', name: '回响尖柱', category: 'special',
+    hardness: 28, toolLevel: 2,
+    paletteId: 'cold03', variants: ['cold03', 'cold04'],
+    emitsLight: 6,
+    drops: [{ blockId: 'echo_crystal', chance: 0.5 }],
+  },
+  sulfur_soil: {
+    id: 'sulfur_soil', name: '硫磺土', category: 'shallow',
+    hardness: 1, toolLevel: 0,
+    paletteId: 'gold01', variants: ['gold01', 'ember04', 'bone03'],
+    emitsLight: 1,
+    drops: [{ blockId: 'sulfur_soil', chance: 1.0 }],
+  },
+  sulfur_rock: {
+    id: 'sulfur_rock', name: '硫磺岩', category: 'mid',
+    hardness: 24, toolLevel: 2,
+    paletteId: 'bone03', variants: ['bone03', 'gold01', 'iron04'],
+    drops: [{ blockId: 'sulfur_rock', chance: 1.0 }],
+  },
+  sulfur_crystal: {
+    id: 'sulfur_crystal', name: '硫晶', category: 'ore',
+    hardness: 30, toolLevel: 2,
+    paletteId: 'gold01', variants: ['gold01', 'ember02', 'cold01'],
+    emitsLight: 8,
+    drops: [{ blockId: 'sulfur_crystal', chance: 1.0 }],
+  },
+  sulfur_basalt: {
+    id: 'sulfur_basalt', name: '硫磺玄武岩', category: 'deep',
+    hardness: 58, toolLevel: 3,
+    paletteId: 'iron05', variants: ['iron05', 'gold01'],
+    drops: [{ blockId: 'sulfur_basalt', chance: 1.0 }],
+  },
+  sulfur_vent: {
+    id: 'sulfur_vent', name: '硫磺喷气孔', category: 'special',
+    hardness: 0, toolLevel: 0,
+    paletteId: 'gold01', variants: ['gold01', 'bone03'],
+    emitsLight: 10,
+    drops: [],
+  },
+  sulfur_spring: {
+    id: 'sulfur_spring', name: '酸性泉', category: 'liquid',
+    hardness: 0, toolLevel: 0,
+    paletteId: 'gold01', variants: ['gold01', 'ember04', 'gold01'],
+    liquid: true,
+    emitsLight: 4,
+    drops: [],
+  },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);

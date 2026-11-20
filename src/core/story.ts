@@ -222,6 +222,22 @@ export const REGION_STORY: Record<string, StoryEntry> = {
       '风一过，猩红的孢子像雪一样落下来，落进伤口里会发烫。',
     ],
   },
+  echo_canyon: {
+    id: 'region_echo_canyon',
+    title: '回声峡谷',
+    lines: [
+      '喊一声，回音会比你多答两句。',
+      '岩壁上的空腔晶把声音收进去，再在夜里一点点放出来。',
+    ],
+  },
+  sulfur_caldera: {
+    id: 'region_sulfur_caldera',
+    title: '硫磺火口',
+    lines: [
+      '空气是黄的，吸进去像在嚼一根火柴。',
+      '酸性泉眼咕嘟作响，泉边的硫晶却亮得很干净。',
+    ],
+  },
 };
 
 /** Boss 剧情（key 为自定义事件 id） */

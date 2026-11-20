@@ -45,6 +45,9 @@ const saltSurfaces = new Set([
   'starfall_soil', 'starfall_crust', 'starfall_basalt', 'star_metal', 'star_shard',
   'salt_crust', 'salt_layer', 'salt_glass', 'mirror_crystal', 'salt_bloom',
   'thorn_soil', 'thorn_bark', 'thorn_heart', 'blood_amber', 'thorn_bramble',
+  'echo_stone', 'echo_slate', 'echo_core', 'echo_crystal', 'echo_spire',
+  'sulfur_soil', 'sulfur_rock', 'sulfur_crystal', 'sulfur_basalt',
+  'sulfur_vent', 'sulfur_spring',
 ]);
 
 
@@ -314,6 +317,7 @@ export class Renderer {
           ctx.fillStyle = surf === 'magma_lava' ? '#ffc85a'
             : surf === 'murk_water' ? '#b8a888'
             : surf === 'abyss_water' ? '#9ab8ff'
+            : surf === 'sulfur_spring' ? '#e0e07a'
             : '#cfefff';
           ctx.fillRect(sx, gy - 2 + wave, TILE_SIZE, 1);
           if (this.decorRand(x, 3) > 0.6) {
@@ -460,6 +464,26 @@ export class Renderer {
         ctx.globalAlpha = 0.35;
         ctx.fillStyle = '#d04050';
         ctx.fillRect(sx + 4 + Math.floor(this.decorRand(x, 40) * 8), gy - 10 + fall, 2, 2);
+        ctx.globalAlpha = 1;
+      }
+      // 回声峡谷：岩面回声波纹
+      if (surf === 'echo_stone' && this.decorRand(x, 41) > 0.8) {
+        const w = Math.max(0, Math.sin(time * 2.6 + x * 1.5));
+        if (w > 0.6) {
+          ctx.globalAlpha = 0.2 + 0.25 * w;
+          ctx.strokeStyle = '#8fd8e0';
+          ctx.beginPath();
+          ctx.arc(sx + 8, gy - 1, 3 + w * 3, Math.PI, Math.PI * 2);
+          ctx.stroke();
+          ctx.globalAlpha = 1;
+        }
+      }
+      // 硫磺火口：硫磺烟
+      if (surf === 'sulfur_soil' && this.decorRand(x, 42) > 0.76) {
+        const rise = ((time * 5 + x * 2.3) % 10);
+        ctx.globalAlpha = 0.18 * (1 - rise / 10);
+        ctx.fillStyle = '#e8d060';
+        ctx.fillRect(sx + 3 + Math.floor(this.decorRand(x, 43) * 9), gy - 3 - rise, 3, 2);
         ctx.globalAlpha = 1;
       }
     }

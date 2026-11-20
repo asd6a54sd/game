@@ -22,7 +22,9 @@ export type RegionId =
   | 'abyss_trench'
   | 'starfall_plain'
   | 'mirror_salt'
-  | 'blood_grove';
+  | 'blood_grove'
+  | 'echo_canyon'
+  | 'sulfur_caldera';
 
 export interface Region {
   id: RegionId;
@@ -33,7 +35,7 @@ export interface Region {
   description: string;
 }
 
-export const MAP_WIDTH = 1080;
+export const MAP_WIDTH = 1200;
 export const MAP_HEIGHT = 180;
 export const TILE_SIZE = 16;
 
@@ -56,6 +58,8 @@ export const REGIONS: Region[] = [
   { id: 'starfall_plain',   name: '星陨平原', startCol: 900, endCol: 960, palette: ['iron', 'ember', 'gold'], description: '陨坑、星陨土与星辉金属' },
   { id: 'mirror_salt',      name: '镜盐盆地', startCol: 960, endCol: 1020, palette: ['cold', 'bone', 'iron'], description: '盐壳平原、镜晶与刺眼反光' },
   { id: 'blood_grove',      name: '血棘林地', startCol: 1020, endCol: 1080, palette: ['rust', 'ember', 'bone'], description: '血棘枝干、琥珀矿脉与猩红孢子' },
+  { id: 'echo_canyon',      name: '回声峡谷', startCol: 1080, endCol: 1140, palette: ['iron', 'cold', 'void'], description: '回声岩壁、空腔晶与回响尖柱' },
+  { id: 'sulfur_caldera',   name: '硫磺火口', startCol: 1140, endCol: 1200, palette: ['gold', 'iron', 'ember'], description: '硫磺土、硫晶与酸性泉眼' },
 ];
 
 // ========== 噪声 ==========
@@ -197,6 +201,12 @@ export function generateTerrain(seed = 20261116): TerrainData {
     } else if (r.id === 'blood_grove') {
       base = 62;
       v = Math.floor((n1.fbm(x * 0.023, 0, 2) - 0.5) * 12);
+    } else if (r.id === 'echo_canyon') {
+      base = 68;
+      v = Math.floor((n1.noise2D(x * 0.027, 0) - 0.5) * 6);
+    } else if (r.id === 'sulfur_caldera') {
+      base = 60;
+      v = Math.floor((n1.fbm(x * 0.022, 0, 2) - 0.5) * 16);
     }
 
     heightMap[x] = Math.max(45, Math.min(95, base + v));
@@ -223,6 +233,8 @@ export function generateTerrain(seed = 20261116): TerrainData {
     else if (r.id === 'starfall_plain') add = Math.floor(add * 0.5);
     else if (r.id === 'mirror_salt') add = Math.floor(add * 0.2);
     else if (r.id === 'blood_grove') add = Math.floor(add * 0.55);
+    else if (r.id === 'echo_canyon') add = Math.floor(add * 0.3);
+    else if (r.id === 'sulfur_caldera') add = Math.floor(add * 0.6);
     heightMap[x] = Math.max(45, Math.min(95, heightMap[x] + add));
   }
 
@@ -343,6 +355,16 @@ export function generateTerrain(seed = 20261116): TerrainData {
     }
   }
 
+  // 硫磺火口：两片酸性泉眼（3 格深，可游泳，泉底仍是实心岩层）
+  for (const [a, b] of [[1146, 1156], [1176, 1186]] as const) {
+    for (let x = a; x <= b; x++) {
+      const sy = heightMap[x];
+      for (let y = sy; y < Math.min(height, sy + 3); y++) {
+        tiles[y * width + x] = bi('sulfur_spring');
+      }
+    }
+  }
+
   carveStructures(tiles, heightMap, rng);
   buildLandmarks(tiles, heightMap);
   const structures = buildStructures(tiles, heightMap, rng);
@@ -421,6 +443,12 @@ function surfaceBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: Val
     case 'blood_grove':
       if (n2.noise2D(x * 0.12, y * 0.12) > 0.76) return bi('thorn_bark');
       return bi('thorn_soil');
+    case 'echo_canyon':
+      if (n2.noise2D(x * 0.12, y * 0.12) > 0.78) return bi('echo_slate');
+      return bi('echo_stone');
+    case 'sulfur_caldera':
+      if (n2.noise2D(x * 0.12, y * 0.12) > 0.76) return bi('sulfur_rock');
+      return bi('sulfur_soil');
   }
 }
 
@@ -491,6 +519,14 @@ function shallowBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: Val
     case 'blood_grove':
       if (noise > 0.72) return bi('thorn_bark');
       return bi('thorn_soil');
+    case 'echo_canyon':
+      if (noise > 0.7) return bi('echo_slate');
+      if (noise < 0.24) return bi('echo_crystal');
+      return bi('echo_stone');
+    case 'sulfur_caldera':
+      if (noise > 0.72) return bi('sulfur_rock');
+      if (noise < 0.22) return bi('sulfur_crystal');
+      return bi('sulfur_soil');
   }
 }
 
@@ -569,6 +605,18 @@ function midBlock(r: RegionId, x: number, y: number, _n1: ValueNoise, n2: ValueN
     if (n3.noise2D(x * 0.13, y * 0.13) > 0.84) return bi('blood_amber');
     if (oreNoise > 0.72) return bi('thorn_bark');
     return bi('thorn_soil');
+  }
+
+  if (r === 'echo_canyon') {
+    if (n3.noise2D(x * 0.13, y * 0.13) > 0.84) return bi('echo_crystal');
+    if (oreNoise > 0.74) return bi('echo_slate');
+    return bi('echo_stone');
+  }
+
+  if (r === 'sulfur_caldera') {
+    if (n3.noise2D(x * 0.13, y * 0.13) > 0.86) return bi('sulfur_crystal');
+    if (oreNoise > 0.74) return bi('sulfur_rock');
+    return bi('sulfur_soil');
   }
 
   // 三层矿带
@@ -652,6 +700,16 @@ function deepBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: ValueN
   if (r === 'blood_grove') {
     if (voidNoise > 0.82) return bi('blood_amber');
     return bi('thorn_heart');
+  }
+
+  if (r === 'echo_canyon') {
+    if (crystalNoise > 0.84) return bi('echo_crystal');
+    return bi('echo_core');
+  }
+
+  if (r === 'sulfur_caldera') {
+    if (voidNoise > 0.8) return bi('sulfur_crystal');
+    return bi('sulfur_basalt');
   }
 
   if (crystalNoise > 0.88) return bi('crystal_glow');
@@ -779,6 +837,20 @@ function carveStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
     if (sy - 1 < 0) continue;
     tiles[(sy - 1) * MAP_WIDTH + x] = bi('thorn_bramble');
   }
+
+  // 15. 回声峡谷：回响尖柱（1 格高，可跨过）
+  for (let x = 1086; x < 1134; x += 6 + Math.floor(rng() * 6)) {
+    const sy = heightMap[x];
+    if (sy - 1 < 0) continue;
+    tiles[(sy - 1) * MAP_WIDTH + x] = bi('echo_spire');
+  }
+
+  // 16. 硫磺火口：硫磺喷气孔（非固体装饰，可穿行）
+  for (let x = 1146; x < 1194; x += 7 + Math.floor(rng() * 7)) {
+    const sy = heightMap[x];
+    if (sy - 1 < 0) continue;
+    tiles[(sy - 1) * MAP_WIDTH + x] = bi('sulfur_vent');
+  }
 }
 
 /**
@@ -812,6 +884,8 @@ function buildLandmarks(tiles: Uint8Array, heightMap: Uint8Array) {
   arch(930, 'starfall_crust', 'star_metal');     // 星陨平原 · 星辉门
   arch(990, 'salt_layer', 'mirror_crystal');     // 镜盐盆地 · 镜晶门
   arch(1050, 'thorn_bark', 'blood_amber');       // 血棘林地 · 血棘拱门
+  arch(1110, 'echo_slate', 'echo_crystal');      // 回声峡谷 · 回响门
+  arch(1170, 'sulfur_rock', 'sulfur_crystal');   // 硫磺火口 · 硫晶门
 
   // 灰烬王庭 · 残王座：中央火盆仅 1 格高，可直接跨过
   const throneY = heightMap[588];
@@ -853,6 +927,8 @@ function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
     { regionCol: [912, 932], kind: 'camp', name: 'starfall_plain' },
     { regionCol: [972, 992], kind: 'camp', name: 'mirror_salt' },
     { regionCol: [1032, 1052], kind: 'camp', name: 'blood_grove' },
+    { regionCol: [1092, 1112], kind: 'camp', name: 'echo_canyon' },
+    { regionCol: [1160, 1172], kind: 'camp', name: 'sulfur_caldera' },
   ];
 
   for (const hp of hutPositions) {
