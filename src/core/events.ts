@@ -101,7 +101,9 @@ export class WorldEventManager {
     else if (playerCol < 660) region = 'storm_rift';
     else if (playerCol < 720) region = 'ember_sanctum';
     else if (playerCol < 780) region = 'crystal_highland';
-    else region = 'void_frontier';
+    else if (playerCol < 840) region = 'void_frontier';
+    else if (playerCol < 900) region = 'abyss_trench';
+    else region = 'starfall_plain';
 
     // 筛选当前时刻 + 区块匹配的事件
     const candidates = WORLD_EVENT_DEFS.filter(def => {

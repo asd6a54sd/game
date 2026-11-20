@@ -190,6 +190,22 @@ export const REGION_STORY: Record<string, StoryEntry> = {
       '远处有信标在亮——不是给你指路，是在给黑雾指路。',
     ],
   },
+  abyss_trench: {
+    id: 'region_abyss_trench',
+    title: '幽渊海沟',
+    lines: [
+      '渊水黑得发蓝，水下有光在慢慢呼吸。',
+      '贝壳层一层压着一层，像有人把整片海埋在了这里。',
+    ],
+  },
+  starfall_plain: {
+    id: 'region_starfall_plain',
+    title: '星陨平原',
+    lines: [
+      '地面上全是浅坑，每一个坑底都嵌着一点冷掉的光。',
+      '星辉金属会自己发亮——像是天上掉下来的东西还没死透。',
+    ],
+  },
 };
 
 /** Boss 剧情（key 为自定义事件 id） */

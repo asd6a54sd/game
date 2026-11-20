@@ -163,8 +163,8 @@ export const QUEST_DEFS: QuestDef[] = [
   {
     id: 'explore_all',
     name: '踏遍烬海',
-    desc: '探索所有 14 个区块',
-    type: 'explore', targetCount: 14,
+    desc: '探索所有 16 个区块',
+    type: 'explore', targetCount: 16,
     reward: [{ blockId: 'ore_gold', count: 5 }, { blockId: 'void_crystal', count: 1 }],
     completedDesc: '获得 金矿×5 + 虚空晶体×1',
   },

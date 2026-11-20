@@ -18,7 +18,9 @@ export type RegionId =
   | 'storm_rift'
   | 'ember_sanctum'
   | 'crystal_highland'
-  | 'void_frontier';
+  | 'void_frontier'
+  | 'abyss_trench'
+  | 'starfall_plain';
 
 export interface Region {
   id: RegionId;
@@ -29,7 +31,7 @@ export interface Region {
   description: string;
 }
 
-export const MAP_WIDTH = 840;
+export const MAP_WIDTH = 960;
 export const MAP_HEIGHT = 180;
 export const TILE_SIZE = 16;
 
@@ -48,6 +50,8 @@ export const REGIONS: Region[] = [
   { id: 'ember_sanctum', name: '余烬圣所',   startCol: 660, endCol: 720, palette: ['bone', 'ember', 'rust'], description: '圣所地砖、青铜墙与长明圣火' },
   { id: 'crystal_highland', name: '晶簇高原', startCol: 720, endCol: 780, palette: ['cold', 'iron', 'void'], description: '棱岩台地、晶簇矿脉与镜面反光' },
   { id: 'void_frontier',    name: '黑雾边陲', startCol: 780, endCol: 840, palette: ['void', 'iron', 'cold'], description: '黑雾地表、虚空玄武岩与暗能信标' },
+  { id: 'abyss_trench',     name: '幽渊海沟', startCol: 840, endCol: 900, palette: ['void', 'cold', 'bone'], description: '渊水洼地、贝壳层与幽光珊瑚' },
+  { id: 'starfall_plain',   name: '星陨平原', startCol: 900, endCol: 960, palette: ['iron', 'ember', 'gold'], description: '陨坑、星陨土与星辉金属' },
 ];
 
 // ========== 噪声 ==========
@@ -176,6 +180,13 @@ export function generateTerrain(seed = 20261116): TerrainData {
     } else if (r.id === 'void_frontier') {
       base = 64;
       v = Math.floor((n2.noise2D(x * 0.026, 0) - 0.5) * 8);
+    } else if (r.id === 'abyss_trench') {
+      base = 72;
+      v = Math.floor((n1.noise2D(x * 0.028, 0) - 0.5) * 6);
+    } else if (r.id === 'starfall_plain') {
+      base = 60;
+      // 陨坑：低频噪声的低谷形成浅凹地
+      v = Math.floor((n1.fbm(x * 0.021, 0, 2) - 0.5) * 14);
     }
 
     heightMap[x] = Math.max(45, Math.min(95, base + v));
@@ -198,6 +209,8 @@ export function generateTerrain(seed = 20261116): TerrainData {
     else if (r.id === 'ember_sanctum') add = Math.floor(add * 0.1);
     else if (r.id === 'crystal_highland') add = Math.floor(add * 0.7);
     else if (r.id === 'void_frontier') add = Math.floor(add * 0.45);
+    else if (r.id === 'abyss_trench') add = Math.floor(add * 0.15);
+    else if (r.id === 'starfall_plain') add = Math.floor(add * 0.5);
     heightMap[x] = Math.max(45, Math.min(95, heightMap[x] + add));
   }
 
@@ -308,6 +321,16 @@ export function generateTerrain(seed = 20261116): TerrainData {
     }
   }
 
+  // 幽渊海沟：两片渊水洼地（3 格深，可游泳，湖底仍是实心岩层）
+  for (const [a, b] of [[852, 862], [876, 886]] as const) {
+    for (let x = a; x <= b; x++) {
+      const sy = heightMap[x];
+      for (let y = sy; y < Math.min(height, sy + 3); y++) {
+        tiles[y * width + x] = bi('abyss_water');
+      }
+    }
+  }
+
   carveStructures(tiles, heightMap, rng);
   buildLandmarks(tiles, heightMap);
   const structures = buildStructures(tiles, heightMap, rng);
@@ -374,6 +397,12 @@ function surfaceBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: Val
     case 'void_frontier':
       if (n2.noise2D(x * 0.11, y * 0.11) > 0.74) return bi('void_crust');
       return bi('void_soil');
+    case 'abyss_trench':
+      if (n2.noise2D(x * 0.12, y * 0.12) > 0.86) return bi('lumen_coral');
+      return bi('abyss_silt');
+    case 'starfall_plain':
+      if (n2.noise2D(x * 0.12, y * 0.12) > 0.78) return bi('starfall_crust');
+      return bi('starfall_soil');
   }
 }
 
@@ -429,6 +458,14 @@ function shallowBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: Val
       if (noise > 0.7) return bi('void_crust');
       if (noise < 0.24) return bi('void_basalt');
       return bi('void_soil');
+    case 'abyss_trench':
+      if (noise > 0.72) return bi('abyss_shell');
+      if (noise < 0.24) return bi('lumen_coral');
+      return bi('abyss_silt');
+    case 'starfall_plain':
+      if (noise > 0.74) return bi('starfall_crust');
+      if (noise < 0.22) return bi('star_metal');
+      return bi('starfall_soil');
   }
 }
 
@@ -483,6 +520,18 @@ function midBlock(r: RegionId, x: number, y: number, _n1: ValueNoise, n2: ValueN
   if (r === 'void_frontier') {
     if (n3.noise2D(x * 0.13, y * 0.13) > 0.82) return bi('void_basalt');
     return bi('void_crust');
+  }
+
+  if (r === 'abyss_trench') {
+    if (n3.noise2D(x * 0.13, y * 0.13) > 0.84) return bi('lumen_coral');
+    if (oreNoise > 0.75) return bi('abyss_shell');
+    return bi('abyss_silt');
+  }
+
+  if (r === 'starfall_plain') {
+    if (n3.noise2D(x * 0.13, y * 0.13) > 0.84) return bi('star_metal');
+    if (oreNoise > 0.74) return bi('starfall_crust');
+    return bi('starfall_soil');
   }
 
   // 三层矿带
@@ -546,6 +595,16 @@ function deepBlock(r: RegionId, x: number, y: number, n1: ValueNoise, n2: ValueN
   if (r === 'void_frontier') {
     if (voidNoise > 0.78) return bi('void_crystal');
     return bi('void_basalt');
+  }
+
+  if (r === 'abyss_trench') {
+    if (crystalNoise > 0.84) return bi('lumen_coral');
+    return bi('abyss_rock');
+  }
+
+  if (r === 'starfall_plain') {
+    if (voidNoise > 0.8) return bi('star_metal');
+    return bi('starfall_basalt');
   }
 
   if (crystalNoise > 0.88) return bi('crystal_glow');
@@ -645,6 +704,20 @@ function carveStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
     if (sy - 1 < 0) continue;
     tiles[(sy - 1) * MAP_WIDTH + x] = bi('void_beacon');
   }
+
+  // 11. 幽渊海沟：渊底诱光体（非固体装饰，可穿行）
+  for (let x = 846; x < 894; x += 7 + Math.floor(rng() * 7)) {
+    const sy = heightMap[x];
+    if (sy - 1 < 0) continue;
+    tiles[(sy - 1) * MAP_WIDTH + x] = bi('abyss_lure');
+  }
+
+  // 12. 星陨平原：星辉碎晶（1 格高，可跨过）
+  for (let x = 906; x < 954; x += 6 + Math.floor(rng() * 6)) {
+    const sy = heightMap[x];
+    if (sy - 1 < 0) continue;
+    tiles[(sy - 1) * MAP_WIDTH + x] = bi('star_shard');
+  }
 }
 
 /**
@@ -674,6 +747,8 @@ function buildLandmarks(tiles: Uint8Array, heightMap: Uint8Array) {
   arch(712, 'sanctum_bronze', 'sanctum_flame');  // 余烬圣所 · 圣火拱门
   arch(760, 'prism_rock', 'crystal_glow');       // 晶簇高原 · 棱晶拱门
   arch(820, 'void_crust', 'void_beacon');        // 黑雾边陲 · 黑雾门
+  arch(870, 'abyss_shell', 'lumen_coral');       // 幽渊海沟 · 珊瑚拱门
+  arch(930, 'starfall_crust', 'star_metal');     // 星陨平原 · 星辉门
 
   // 灰烬王庭 · 残王座：中央火盆仅 1 格高，可直接跨过
   const throneY = heightMap[588];
@@ -711,6 +786,8 @@ function buildStructures(tiles: Uint8Array, heightMap: Uint8Array, rng: () => nu
     { regionCol: [675, 700], kind: 'camp', name: 'ember_sanctum' },
     { regionCol: [732, 752], kind: 'camp', name: 'crystal_highland' },
     { regionCol: [792, 812], kind: 'camp', name: 'void_frontier' },
+    { regionCol: [866, 874], kind: 'camp', name: 'abyss_trench' },
+    { regionCol: [912, 932], kind: 'camp', name: 'starfall_plain' },
   ];
 
   for (const hp of hutPositions) {

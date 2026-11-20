@@ -41,6 +41,8 @@ const saltSurfaces = new Set([
   'sanctum_tile', 'sanctum_bronze', 'sanctum_stone',
   'crystal_crust', 'prism_rock', 'geode', 'crystal_shard',
   'void_soil', 'void_crust', 'void_basalt', 'void_beacon',
+  'abyss_silt', 'abyss_shell', 'abyss_rock', 'lumen_coral', 'abyss_water', 'abyss_lure',
+  'starfall_soil', 'starfall_crust', 'starfall_basalt', 'star_metal', 'star_shard',
 ]);
 
 
@@ -309,6 +311,7 @@ export class Renderer {
           ctx.globalAlpha = 0.55;
           ctx.fillStyle = surf === 'magma_lava' ? '#ffc85a'
             : surf === 'murk_water' ? '#b8a888'
+            : surf === 'abyss_water' ? '#9ab8ff'
             : '#cfefff';
           ctx.fillRect(sx, gy - 2 + wave, TILE_SIZE, 1);
           if (this.decorRand(x, 3) > 0.6) {
@@ -423,6 +426,24 @@ export class Renderer {
         ctx.fillStyle = '#2a1a38';
         ctx.fillRect(sx + 2 + Math.floor(this.decorRand(x, 33) * 10), gy - 5 - drift, 5, 2);
         ctx.globalAlpha = 1;
+      }
+      // 幽渊海沟：淤泥上的幽蓝磷光
+      if (surf === 'abyss_silt' && this.decorRand(x, 34) > 0.74) {
+        ctx.globalAlpha = 0.22 + 0.2 * Math.max(0, Math.sin(time * 1.1 + x * 1.3));
+        ctx.fillStyle = '#7ad4ff';
+        ctx.fillRect(sx + 4 + Math.floor(this.decorRand(x, 35) * 8), gy - 2, 2, 1);
+        ctx.globalAlpha = 1;
+      }
+      // 星陨平原：星尘闪烁
+      if (surf === 'starfall_soil' && this.decorRand(x, 36) > 0.78) {
+        const f = Math.max(0, Math.sin(time * 2.2 + x * 2.1));
+        if (f > 0.55) {
+          ctx.globalAlpha = 0.5 + 0.4 * f;
+          ctx.fillStyle = '#ffe9a8';
+          ctx.fillRect(sx + 3 + Math.floor(this.decorRand(x, 37) * 9), gy - 3, 1, 1);
+          ctx.fillRect(sx + 8, gy - 1, 2, 1);
+          ctx.globalAlpha = 1;
+        }
       }
     }
 

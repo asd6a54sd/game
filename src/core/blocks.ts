@@ -668,6 +668,82 @@ export const BLOCKS: Record<string, BlockDef> = {
     emitsLight: 12,
     drops: [],
   },
+
+  // === 大框架: 幽渊海沟 / 星陨平原 ===
+  // 追加在末尾，保持已有方块索引不变（旧存档兼容）
+  abyss_silt: {
+    id: 'abyss_silt', name: '渊底淤泥', category: 'shallow',
+    hardness: 1.1, toolLevel: 0,
+    paletteId: 'void02', variants: ['void02', 'void03', 'cold04'],
+    drops: [{ blockId: 'abyss_silt', chance: 1.0 }],
+  },
+  abyss_shell: {
+    id: 'abyss_shell', name: '贝壳层', category: 'mid',
+    hardness: 14, toolLevel: 1,
+    paletteId: 'bone03', variants: ['bone03', 'bone04', 'cold03'],
+    drops: [{ blockId: 'abyss_shell', chance: 1.0 }],
+  },
+  abyss_rock: {
+    id: 'abyss_rock', name: '渊底岩', category: 'deep',
+    hardness: 58, toolLevel: 3,
+    paletteId: 'iron05', variants: ['iron05', 'cold04', 'void04'],
+    drops: [{ blockId: 'abyss_rock', chance: 1.0 }],
+  },
+  lumen_coral: {
+    id: 'lumen_coral', name: '幽光珊瑚', category: 'ore',
+    hardness: 22, toolLevel: 1,
+    paletteId: 'cold01', variants: ['cold01', 'cold02', 'void02'],
+    emitsLight: 10,
+    drops: [{ blockId: 'lumen_coral', chance: 1.0 }],
+  },
+  abyss_water: {
+    id: 'abyss_water', name: '渊水', category: 'liquid',
+    hardness: 0, toolLevel: 0,
+    paletteId: 'void03', variants: ['void02', 'void03', 'cold04'],
+    liquid: true,
+    emitsLight: 4,
+    drops: [],
+  },
+  abyss_lure: {
+    id: 'abyss_lure', name: '渊底诱光体', category: 'special',
+    hardness: 0, toolLevel: 0,
+    paletteId: 'cold01', variants: ['cold01', 'cold02'],
+    emitsLight: 12,
+    drops: [],
+  },
+  starfall_soil: {
+    id: 'starfall_soil', name: '星陨土', category: 'shallow',
+    hardness: 0.9, toolLevel: 0,
+    paletteId: 'iron04', variants: ['iron03', 'iron04', 'ember04'],
+    drops: [{ blockId: 'starfall_soil', chance: 1.0 }],
+  },
+  starfall_crust: {
+    id: 'starfall_crust', name: '星陨结壳', category: 'mid',
+    hardness: 26, toolLevel: 2,
+    paletteId: 'ember03', variants: ['ember02', 'ember03', 'iron05'],
+    emitsLight: 2,
+    drops: [{ blockId: 'starfall_crust', chance: 1.0 }],
+  },
+  starfall_basalt: {
+    id: 'starfall_basalt', name: '陨坑玄武岩', category: 'deep',
+    hardness: 60, toolLevel: 3,
+    paletteId: 'iron05', variants: ['iron05', 'void04'],
+    drops: [{ blockId: 'starfall_basalt', chance: 1.0 }],
+  },
+  star_metal: {
+    id: 'star_metal', name: '星辉金属', category: 'ore',
+    hardness: 40, toolLevel: 2,
+    paletteId: 'gold01', variants: ['gold01', 'ember02', 'cold01'],
+    emitsLight: 6,
+    drops: [{ blockId: 'star_metal', chance: 1.0 }],
+  },
+  star_shard: {
+    id: 'star_shard', name: '星辉碎晶', category: 'special',
+    hardness: 28, toolLevel: 2,
+    paletteId: 'gold01', variants: ['gold01', 'cold01'],
+    emitsLight: 9,
+    drops: [{ blockId: 'star_metal', chance: 0.5 }],
+  },
 };
 
 export const BLOCK_IDS = Object.keys(BLOCKS);
